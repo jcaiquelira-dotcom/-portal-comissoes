@@ -605,6 +605,8 @@ def api_metas():
 
 @app.route("/api/painel/ranking")
 def api_painel_ranking():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
     vendedores = carregar_vendedores()
     vendas = carregar_vendas_todos(vendedores)
     metas = carregar_metas()

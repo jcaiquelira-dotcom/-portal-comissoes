@@ -397,6 +397,50 @@
 
   .empty-msg{color:var(--muted);font-size:16px;padding:36px 0;text-align:center;}
 
+  .login-card{
+    max-width:420px;
+    margin:60px auto;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:32px 36px;
+  }
+  .login-card .section-title{margin-bottom:20px;}
+  .login-card label{
+    display:block;
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    font-size:13px;
+    color:var(--muted);
+    margin-bottom:8px;
+  }
+  .login-card input{
+    width:100%;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:var(--text);
+    font-size:16px;
+    padding:12px 14px;
+    margin-bottom:16px;
+  }
+  .login-card button{
+    width:100%;
+    background:linear-gradient(90deg, var(--accent), var(--accent-2));
+    border:none;
+    border-radius:8px;
+    color:#fff;
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    font-size:15px;
+    font-weight:600;
+    padding:12px;
+    cursor:pointer;
+  }
+  .login-card .error-msg{color:var(--bad);font-size:13px;margin-top:12px;min-height:1em;}
+
   @media (max-width:900px){
     .grupo-row-secundaria{grid-template-columns:1fr;}
     .ranking-grid{grid-template-columns:1fr;}
@@ -431,13 +475,23 @@
     </div>
   </header>
 
-  <p class="section-title">Meta do grupo</p>
-  <div id="grupoHero"></div>
-  <div class="grupo-row-secundaria" id="grupoSecundaria"></div>
+  <div class="login-card" id="loginCard">
+    <p class="section-title">Entrar como gestor</p>
+    <label for="senhaInput">Senha</label>
+    <input type="password" id="senhaInput" autocomplete="current-password">
+    <button id="loginBtn">Entrar</button>
+    <div class="error-msg" id="loginError"></div>
+  </div>
 
-  <p class="section-title">Ranking por vendedor</p>
-  <div class="ranking-grid" id="rankingGrid"></div>
-  <div class="empty-msg" id="emptyMsg" style="display:none;">Nenhum vendedor cadastrado ainda.</div>
+  <div id="appSection" style="display:none;">
+    <p class="section-title">Meta do grupo</p>
+    <div id="grupoHero"></div>
+    <div class="grupo-row-secundaria" id="grupoSecundaria"></div>
+
+    <p class="section-title">Ranking por vendedor</p>
+    <div class="ranking-grid" id="rankingGrid"></div>
+    <div class="empty-msg" id="emptyMsg" style="display:none;">Nenhum vendedor cadastrado ainda.</div>
+  </div>
 
   <footer>Nevada Eco Peças &middot; Atualiza automaticamente</footer>
 </div>
@@ -560,9 +614,15 @@ function renderRanking(vendedores){
   }).join('');
 }
 
+let intervaloPainel = null;
+
 async function carregarPainel(){
   try{
     const res = await fetch('/api/painel/ranking');
+    if(res.status === 401){
+      mostrarLogin();
+      return;
+    }
     const dados = await res.json();
     renderGrupo(dados.grupo);
     renderRanking(dados.vendedores);
@@ -571,8 +631,65 @@ async function carregarPainel(){
   }
 }
 
-carregarPainel();
-setInterval(carregarPainel, 5000);
+function mostrarLogin(){
+  if(intervaloPainel){
+    clearInterval(intervaloPainel);
+    intervaloPainel = null;
+  }
+  document.getElementById('appSection').style.display = 'none';
+  document.getElementById('loginCard').style.display = 'block';
+}
+
+function mostrarPainel(){
+  document.getElementById('loginCard').style.display = 'none';
+  document.getElementById('appSection').style.display = 'block';
+  carregarPainel();
+  if(!intervaloPainel){
+    intervaloPainel = setInterval(carregarPainel, 5000);
+  }
+}
+
+async function tentarSessao(){
+  try{
+    const res = await fetch('/api/admin/me');
+    const dados = await res.json();
+    if(dados.logado){
+      mostrarPainel();
+    }else{
+      mostrarLogin();
+    }
+  }catch(e){
+    mostrarLogin();
+  }
+}
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const senha = document.getElementById('senhaInput').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  try{
+    const res = await fetch('/api/admin/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({senha})
+    });
+    const dados = await res.json();
+    if(!res.ok){
+      errEl.textContent = dados.erro || 'Falha ao entrar.';
+      return;
+    }
+    document.getElementById('senhaInput').value = '';
+    mostrarPainel();
+  }catch(e){
+    errEl.textContent = 'Erro de conexão.';
+  }
+});
+
+document.getElementById('senhaInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+
+tentarSessao();
 </script>
 </body>
 </html>
