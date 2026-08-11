@@ -445,6 +445,7 @@
     </div>
     <div id="topActions">
       <a class="link-btn" href="/painel.html" target="_blank">Painel de ranking</a>
+      <a class="link-btn" id="expedicaoLink" href="#" target="_blank" style="margin-left:14px;">Painel de expedição</a>
       <a class="link-btn" href="/" style="margin-left:14px;">Voltar ao portal</a>
     </div>
   </header>
@@ -1130,6 +1131,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
   }
 });
 
+document.getElementById('expedicaoLink').href = `http://${location.hostname}:8000`;
 tentarSessao();
 </script>
 </body>
