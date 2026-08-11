@@ -1,0 +1,16 @@
+# Segredos: senhas, chave de sessão, log de acessos — nunca vão pro GitHub
+segredos/
+
+# Dados locais: em produção (Render) o banco é o Supabase, não estes arquivos
+data/
+
+# Fotos enviadas pelos vendedores (ficam no Supabase Storage em produção)
+app/static/fotos/*
+!app/static/fotos/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+
+# Pacote de deploy antigo (PythonAnywhere)
+*.zip

@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal de Comissões · Nevada Eco Peças</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14171C;
+    --surface: #1E2229;
+    --surface-2: #262B33;
+    --line: #333944;
+    --accent: #C15A2A;
+    --accent-2: #E08A57;
+    --text: #EDEFF2;
+    --muted: #7A8290;
+    --good: #4CAF7D;
+    --bad: #E05B5B;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #1c212a 0%, transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    padding:18px 26px;
+  }
+  .wrap{max-width:820px;margin:0 auto;}
+
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:18px;
+    border-bottom:2px solid var(--line);
+    padding-bottom:9px;
+    margin-bottom:18px;
+  }
+  .brand-row{display:flex;align-items:center;gap:26px;}
+  .logo-badge{display:flex;align-items:center;line-height:0;}
+  .logo-badge img{height:76px;width:auto;display:block;}
+  h1{
+    font-family:'Oswald',sans-serif;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    font-size:30px;
+    margin:0;
+  }
+  .top-actions{display:flex;align-items:center;gap:14px;}
+  .vendedor-tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--muted);
+  }
+  .vendedor-tag strong{color:var(--text);}
+  .link-btn{
+    background:none;
+    border:none;
+    color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    text-decoration:underline;
+    cursor:pointer;
+    padding:0;
+  }
+  .link-btn:hover{color:var(--text);}
+
+  .section-title{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    font-size:14px;
+    color:var(--muted);
+    margin:0 0 9px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .section-title::after{content:'';flex:1;height:1px;background:var(--line);}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:20px 22px;
+  }
+
+  /* ---- Login ---- */
+  #loginCard{max-width:380px;margin:40px auto 0;}
+  .field{margin-bottom:14px;}
+  .field label{
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  select, input[type="text"], input[type="password"], input[type="number"], input[type="date"], input[type="month"]{
+    width:100%;
+    background:#0F1216;
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    padding:9px 10px;
+  }
+  .primary-btn{
+    width:100%;
+    background:var(--accent);
+    color:#151719;
+    border:none;
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    font-weight:600;
+    font-size:13px;
+    padding:11px 20px;
+    border-radius:6px;
+    cursor:pointer;
+    margin-top:4px;
+  }
+  .primary-btn:hover{background:#ff7f52;}
+  .primary-btn:disabled{opacity:.5;cursor:default;}
+  .error-msg{
+    color:var(--bad);
+    font-size:12px;
+    font-family:'IBM Plex Mono',monospace;
+    margin-top:10px;
+    min-height:14px;
+  }
+
+  /* ---- App ---- */
+  #appSection{display:none;}
+  .summary-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+    margin-bottom:18px;
+  }
+  .stat-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:3px solid var(--accent);
+    border-radius:8px;
+    padding:14px 16px;
+  }
+  .stat-card .label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .stat-card .value{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    font-size:26px;
+    color:var(--accent-2);
+  }
+
+  .form-grid{
+    display:grid;
+    grid-template-columns:140px 1fr 160px auto;
+    gap:10px;
+    align-items:end;
+    margin-bottom:18px;
+  }
+  .form-grid .field{margin-bottom:0;}
+  .add-btn{
+    background:var(--accent);
+    color:#151719;
+    border:none;
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    font-weight:600;
+    font-size:12px;
+    padding:9px 18px;
+    border-radius:6px;
+    cursor:pointer;
+    height:38px;
+  }
+  .add-btn:hover{background:#ff7f52;}
+  .small-btn{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    padding:8px 14px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .small-btn:hover{border-color:var(--accent);}
+
+  .month-picker{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .month-picker label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  .month-picker input{width:auto;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{
+    text-align:left;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--muted);
+    border-bottom:1px solid var(--line);
+    padding:6px 10px;
+  }
+  td{
+    padding:8px 10px;
+    border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  td.produto-col{font-family:'Inter',sans-serif;}
+  .del-btn{
+    background:none;
+    border:1px solid var(--line);
+    color:var(--bad);
+    border-radius:4px;
+    padding:3px 8px;
+    font-size:11px;
+    cursor:pointer;
+  }
+  .del-btn:hover{background:rgba(224,91,91,.12);}
+  .empty-hist{color:var(--muted);font-size:12px;padding:14px 0;}
+
+  .status{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--good);
+    opacity:0;
+    transition:opacity .3s;
+    display:block;
+    margin-top:8px;
+  }
+  .status.show{opacity:1;}
+  .status.err{color:var(--bad);}
+
+  .bonus-note{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    margin:-4px 0 14px;
+  }
+  .override-note{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    margin:6px 0 0;
+  }
+  .override-note div{padding:1px 0;}
+
+  .sheet-toggle-row{margin-bottom:18px;}
+  .sheet-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;}
+  table.sheet-table{width:100%;border-collapse:collapse;min-width:560px;}
+  table.sheet-table th{
+    text-align:left;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    background:var(--surface-2);
+    padding:7px 8px;
+    border-bottom:1px solid var(--line);
+  }
+  table.sheet-table td{
+    padding:0;
+    border-bottom:1px solid var(--line);
+    border-right:1px solid var(--line);
+  }
+  table.sheet-table td:last-child{border-right:none;}
+  table.sheet-table input{
+    width:100%;
+    background:transparent;
+    border:none;
+    border-radius:0;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    padding:8px;
+  }
+  table.sheet-table input[type="date"], table.sheet-table input[type="number"]{
+    font-family:'IBM Plex Mono',monospace;
+  }
+  table.sheet-table input:focus{
+    outline:2px solid var(--accent);
+    outline-offset:-2px;
+    background:var(--surface-2);
+  }
+  .sheet-row-del{
+    background:none;
+    border:none;
+    color:var(--muted);
+    cursor:pointer;
+    font-size:14px;
+    width:100%;
+    padding:8px;
+  }
+  .sheet-row-del:hover{color:var(--bad);}
+  .sheet-actions{display:flex;align-items:center;gap:10px;margin:12px 0 24px;}
+
+  .confirm-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    flex-wrap:wrap;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px 16px;
+    margin:6px 0 24px;
+  }
+  .confirm-status{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+  }
+  .confirm-status.confirmado{color:var(--good);}
+  #cancelEditBtn{margin:-10px 0 14px;display:none;}
+
+  footer{
+    margin-top:24px;
+    color:var(--muted);
+    font-size:10px;
+    font-family:'IBM Plex Mono',monospace;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand-row">
+      <div class="logo-badge"><img src="logo.png" alt="Nevada Eco Peças"></div>
+      <h1>Portal de Comissões</h1>
+    </div>
+    <div class="top-actions" id="topActions"></div>
+  </header>
+
+  <div id="loginCard" class="card">
+    <p class="section-title">Entrar</p>
+    <div class="field">
+      <label for="vendedorSelect">Vendedor</label>
+      <select id="vendedorSelect"></select>
+    </div>
+    <div class="field">
+      <label for="senhaInput">Senha</label>
+      <input type="password" id="senhaInput" autocomplete="current-password">
+    </div>
+    <button class="primary-btn" id="loginBtn">Entrar</button>
+    <div class="error-msg" id="loginError"></div>
+  </div>
+
+  <div id="appSection">
+    <div class="month-picker">
+      <label for="mesInput">Mês</label>
+      <input type="month" id="mesInput">
+    </div>
+
+    <div class="summary-row">
+      <div class="stat-card">
+        <div class="label">Total vendido no mês</div>
+        <div class="value" id="totalVendidoValue">R$ 0,00</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Comissão prevista (<span id="percentualLabel">0%</span>)</div>
+        <div class="value" id="comissaoValue">R$ 0,00</div>
+        <div class="override-note" id="overrideNote"></div>
+      </div>
+    </div>
+    <div class="bonus-note" id="bonusNote"></div>
+
+    <p class="section-title">Lançar venda</p>
+    <div class="form-grid">
+      <div class="field">
+        <label for="dataInput">Data</label>
+        <input type="date" id="dataInput">
+      </div>
+      <div class="field">
+        <label for="produtoInput">O que foi vendido</label>
+        <input type="text" id="produtoInput" placeholder="Ex: Motor de arranque Gol G5">
+      </div>
+      <div class="field">
+        <label for="valorInput">Valor (R$)</label>
+        <input type="number" id="valorInput" min="0" step="0.01" placeholder="0,00">
+      </div>
+      <button class="add-btn" id="addBtn">Adicionar</button>
+    </div>
+    <button class="link-btn" id="cancelEditBtn">Cancelar edição</button>
+    <div class="status" id="formStatus"></div>
+
+    <div class="sheet-toggle-row">
+      <button class="small-btn" id="toggleSheetBtn">Preencher em planilha</button>
+    </div>
+
+    <div id="sheetSection" style="display:none;">
+      <p class="section-title">Preencher em planilha</p>
+      <div class="sheet-scroll">
+        <table class="sheet-table">
+          <thead>
+            <tr>
+              <th style="width:130px;">Data</th>
+              <th>O que foi vendido</th>
+              <th style="width:130px;">Valor (R$)</th>
+              <th style="width:90px;">Canal</th>
+              <th style="width:34px;"></th>
+            </tr>
+          </thead>
+          <tbody id="sheetBody"></tbody>
+        </table>
+      </div>
+      <div class="sheet-actions">
+        <button class="small-btn" id="sheetAddRowBtn">+ Nova linha</button>
+        <button class="add-btn" id="sheetSaveBtn">Salvar tudo</button>
+        <span class="status" id="sheetStatus"></span>
+      </div>
+    </div>
+
+    <p class="section-title">Minhas vendas do mês</p>
+    <table>
+      <thead>
+        <tr><th>Data</th><th>Produto</th><th>Valor</th><th></th></tr>
+      </thead>
+      <tbody id="vendasBody"></tbody>
+    </table>
+    <div class="empty-hist" id="emptyVendas" style="display:none;">Nenhuma venda lançada neste mês.</div>
+
+    <div class="confirm-row">
+      <span class="confirm-status" id="confirmStatus"></span>
+      <button class="small-btn" id="confirmBtn">Confirmar vendas do mês</button>
+    </div>
+  </div>
+
+  <footer>Nevada Eco Peças &middot; Os dados ficam salvos neste computador.</footer>
+</div>
+
+<script>
+function fmtMoeda(v){
+  return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+}
+function todayStr(){
+  const d = new Date();
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off*60000);
+  return local.toISOString().slice(0,10);
+}
+
+let eu = null;
+
+async function carregarVendedores(){
+  const select = document.getElementById('vendedorSelect');
+  try{
+    const res = await fetch('/api/vendedores-publico');
+    const lista = await res.json();
+    select.innerHTML = lista.map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
+  }catch(e){
+    select.innerHTML = '<option value="">Erro ao carregar vendedores</option>';
+  }
+}
+
+function renderTopActions(){
+  const el = document.getElementById('topActions');
+  const painelLink = `<a class="link-btn" href="/painel.html" target="_blank">Painel de ranking</a>`;
+  if(eu){
+    el.innerHTML = `${painelLink}<span class="vendedor-tag" style="margin-left:14px;">Olá, <strong>${eu.nome}</strong></span><button class="link-btn" id="logoutBtn" style="margin-left:14px;">Sair</button>`;
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+  }else{
+    el.innerHTML = `${painelLink}<a class="link-btn" href="/admin.html" style="margin-left:14px;">Área do gestor</a>`;
+  }
+}
+
+async function tentarSessao(){
+  try{
+    const res = await fetch('/api/me');
+    if(res.ok){
+      eu = await res.json();
+      mostrarApp();
+    }
+  }catch(e){ /* segue deslogado */ }
+  renderTopActions();
+}
+
+function mostrarApp(){
+  document.getElementById('loginCard').style.display = 'none';
+  document.getElementById('appSection').style.display = 'block';
+  document.getElementById('percentualLabel').textContent = eu.percentual + '%';
+  document.getElementById('mesInput').value = todayStr().slice(0,7);
+  document.getElementById('dataInput').value = todayStr();
+  carregarVendas();
+  carregarComissao();
+  carregarConfirmacao();
+}
+
+let editandoId = null;
+
+function entrarModoEdicao(v){
+  editandoId = v.id;
+  document.getElementById('dataInput').value = v.data;
+  document.getElementById('produtoInput').value = v.produto;
+  document.getElementById('valorInput').value = v.valor;
+  document.getElementById('addBtn').textContent = 'Salvar edição';
+  document.getElementById('cancelEditBtn').style.display = 'inline';
+  document.getElementById('produtoInput').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function sairModoEdicao(){
+  editandoId = null;
+  document.getElementById('addBtn').textContent = 'Adicionar';
+  document.getElementById('cancelEditBtn').style.display = 'none';
+  document.getElementById('produtoInput').value = '';
+  document.getElementById('valorInput').value = '';
+  document.getElementById('dataInput').value = todayStr();
+}
+
+document.getElementById('cancelEditBtn').addEventListener('click', sairModoEdicao);
+
+async function carregarConfirmacao(){
+  const mes = document.getElementById('mesInput').value;
+  const res = await fetch('/api/minha-confirmacao?mes=' + mes);
+  if(res.status === 401) return;
+  const c = await res.json();
+  const statusEl = document.getElementById('confirmStatus');
+  if(c.confirmado_em){
+    const dt = new Date(c.confirmado_em);
+    statusEl.textContent = 'Confirmado em ' + dt.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    statusEl.classList.add('confirmado');
+  }else{
+    statusEl.textContent = 'Você ainda não confirmou as vendas deste mês.';
+    statusEl.classList.remove('confirmado');
+  }
+}
+
+document.getElementById('confirmBtn').addEventListener('click', async () => {
+  const mes = document.getElementById('mesInput').value;
+  if(!confirm(`Confirmar que você revisou todas as suas vendas de ${mes}? Isso avisa o gestor que está tudo certo.`)) return;
+  await fetch('/api/confirmar-mes', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({mes})
+  });
+  carregarConfirmacao();
+});
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const vendedor_id = document.getElementById('vendedorSelect').value;
+  const senha = document.getElementById('senhaInput').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  try{
+    const res = await fetch('/api/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({vendedor_id, senha})
+    });
+    const dados = await res.json();
+    if(!res.ok){
+      errEl.textContent = dados.erro || 'Falha ao entrar.';
+      return;
+    }
+    eu = await (await fetch('/api/me')).json();
+    renderTopActions();
+    mostrarApp();
+  }catch(e){
+    errEl.textContent = 'Erro de conexão.';
+  }
+});
+
+document.getElementById('senhaInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+
+async function logout(){
+  await fetch('/api/logout', {method:'POST'});
+  eu = null;
+  document.getElementById('appSection').style.display = 'none';
+  document.getElementById('loginCard').style.display = 'block';
+  document.getElementById('senhaInput').value = '';
+  renderTopActions();
+}
+
+async function carregarVendas(){
+  const mes = document.getElementById('mesInput').value;
+  const res = await fetch('/api/vendas?mes=' + mes);
+  if(res.status === 401){ logout(); return; }
+  const vendas = await res.json();
+
+  const body = document.getElementById('vendasBody');
+  const empty = document.getElementById('emptyVendas');
+  body.innerHTML = '';
+  if(vendas.length === 0){
+    empty.style.display = 'block';
+  }else{
+    empty.style.display = 'none';
+    vendas.forEach(v => {
+      const [y,m,d] = v.data.split('-');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${d}/${m}/${y}</td>
+        <td class="produto-col">${v.produto}</td>
+        <td>${fmtMoeda(v.valor)}</td>
+        <td>
+          <button class="small-btn" data-editid="${v.id}">Editar</button>
+          <button class="del-btn" data-id="${v.id}">Excluir</button>
+        </td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+
+  body.querySelectorAll('[data-editid]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = vendas.find(x => x.id === btn.dataset.editid);
+      if(v) entrarModoEdicao(v);
+    });
+  });
+
+  body.querySelectorAll('.del-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if(!confirm('Excluir esta venda?')) return;
+      const res = await fetch('/api/vendas/' + btn.dataset.id, {method:'DELETE'});
+      if(!res.ok){
+        const dados = await res.json().catch(() => ({}));
+        alert(dados.erro || 'Não foi possível excluir essa venda.');
+        return;
+      }
+      if(editandoId === btn.dataset.id) sairModoEdicao();
+      carregarVendas();
+      carregarComissao();
+      carregarConfirmacao();
+    });
+  });
+}
+
+async function carregarComissao(){
+  const mes = document.getElementById('mesInput').value;
+  const res = await fetch('/api/minha-comissao?mes=' + mes);
+  if(res.status === 401){ logout(); return; }
+  const c = await res.json();
+
+  document.getElementById('totalVendidoValue').textContent = fmtMoeda(c.total_vendido);
+  document.getElementById('comissaoValue').textContent = fmtMoeda(c.comissao);
+  document.getElementById('percentualLabel').textContent = c.percentual + '%';
+
+  const overrideNote = document.getElementById('overrideNote');
+  if(c.overrides && c.overrides.length > 0){
+    overrideNote.innerHTML = `<div>Própria: ${fmtMoeda(c.comissao_propria)}</div>` +
+      c.overrides.map(o => `<div>+ ${o.percentual}% sobre ${o.nome}: ${fmtMoeda(o.valor)}</div>`).join('');
+  }else{
+    overrideNote.innerHTML = '';
+  }
+
+  const bonusNote = document.getElementById('bonusNote');
+  bonusNote.textContent = c.total_bonus > 0 ? `Bônus/avaliações do mês (fora da comissão): ${fmtMoeda(c.total_bonus)}` : '';
+}
+
+document.getElementById('mesInput').addEventListener('change', () => {
+  sairModoEdicao();
+  carregarVendas();
+  carregarComissao();
+  carregarConfirmacao();
+});
+
+document.getElementById('addBtn').addEventListener('click', async () => {
+  const status = document.getElementById('formStatus');
+  const data = document.getElementById('dataInput').value;
+  const produto = document.getElementById('produtoInput').value.trim();
+  const valor = document.getElementById('valorInput').value;
+  status.classList.remove('show','err');
+
+  const editando = !!editandoId;
+  const url = editando ? '/api/vendas/' + editandoId : '/api/vendas';
+  const method = editando ? 'PUT' : 'POST';
+
+  try{
+    const res = await fetch(url, {
+      method,
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({data, produto, valor})
+    });
+    const dados = await res.json();
+    if(!res.ok){
+      status.textContent = dados.erro || 'Erro ao salvar.';
+      status.classList.add('show','err');
+      return;
+    }
+    status.textContent = editando ? 'Venda atualizada.' : 'Venda adicionada.';
+    status.classList.add('show');
+    sairModoEdicao();
+    if(data.slice(0,7) === document.getElementById('mesInput').value){
+      carregarVendas();
+      carregarComissao();
+      carregarConfirmacao();
+    }
+  }catch(e){
+    status.textContent = 'Erro de conexão.';
+    status.classList.add('show','err');
+  }
+});
+
+const SHEET_LINHAS_INICIAIS = 8;
+
+function criarLinhaSheet(dataPadrao){
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="date" class="sheet-data" value="${dataPadrao || todayStr()}"></td>
+    <td><input type="text" class="sheet-produto" placeholder="Ex: Motor de arranque Gol G5"></td>
+    <td><input type="number" class="sheet-valor" min="0" step="0.01" placeholder="0,00"></td>
+    <td><input type="text" class="sheet-canal" placeholder="B / ML"></td>
+    <td><button type="button" class="sheet-row-del" title="Remover linha">&times;</button></td>
+  `;
+  tr.querySelector('.sheet-row-del').addEventListener('click', () => tr.remove());
+  const canalInput = tr.querySelector('.sheet-canal');
+  canalInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      const dataAtual = tr.querySelector('.sheet-data').value;
+      const novaLinha = criarLinhaSheet(dataAtual);
+      document.getElementById('sheetBody').appendChild(novaLinha);
+      novaLinha.querySelector('.sheet-produto').focus();
+    }
+  });
+  return tr;
+}
+
+function iniciarSheetVazia(){
+  const body = document.getElementById('sheetBody');
+  body.innerHTML = '';
+  for(let i = 0; i < SHEET_LINHAS_INICIAIS; i++){
+    body.appendChild(criarLinhaSheet(todayStr()));
+  }
+}
+
+document.getElementById('toggleSheetBtn').addEventListener('click', () => {
+  const sec = document.getElementById('sheetSection');
+  const abrindo = sec.style.display === 'none';
+  sec.style.display = abrindo ? 'block' : 'none';
+  document.getElementById('toggleSheetBtn').textContent = abrindo ? 'Fechar planilha' : 'Preencher em planilha';
+  if(abrindo && document.getElementById('sheetBody').children.length === 0){
+    iniciarSheetVazia();
+  }
+});
+
+document.getElementById('sheetAddRowBtn').addEventListener('click', () => {
+  const linhas = document.getElementById('sheetBody').querySelectorAll('.sheet-data');
+  const ultimaData = linhas.length ? linhas[linhas.length-1].value : todayStr();
+  const nova = criarLinhaSheet(ultimaData);
+  document.getElementById('sheetBody').appendChild(nova);
+  nova.querySelector('.sheet-produto').focus();
+});
+
+document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
+  const status = document.getElementById('sheetStatus');
+  status.classList.remove('show','err');
+
+  const linhas = [];
+  document.getElementById('sheetBody').querySelectorAll('tr').forEach(tr => {
+    const produto = tr.querySelector('.sheet-produto').value.trim();
+    const valor = tr.querySelector('.sheet-valor').value;
+    const data = tr.querySelector('.sheet-data').value;
+    const canal = tr.querySelector('.sheet-canal').value.trim();
+    if(!produto && !valor) return;
+    linhas.push({data, produto, valor, canal});
+  });
+
+  if(linhas.length === 0){
+    status.textContent = 'Preencha ao menos uma linha.';
+    status.classList.add('show','err');
+    return;
+  }
+
+  try{
+    const res = await fetch('/api/vendas/lote', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({vendas: linhas})
+    });
+    const dados = await res.json();
+    if(!res.ok){
+      status.textContent = dados.erro || 'Erro ao salvar.';
+      status.classList.add('show','err');
+      return;
+    }
+    if(dados.erros && dados.erros.length > 0){
+      const detalhes = dados.erros.map(e => `linha ${e.linha}: ${e.erro}`).join(' | ');
+      status.textContent = `${dados.salvas} salva(s), ${dados.erros.length} com erro — ${detalhes}`;
+      status.classList.add('show','err');
+    }else{
+      status.textContent = `${dados.salvas} venda(s) salva(s).`;
+      status.classList.add('show');
+      iniciarSheetVazia();
+    }
+    carregarVendas();
+    carregarComissao();
+    carregarConfirmacao();
+  }catch(e){
+    status.textContent = 'Erro de conexão.';
+    status.classList.add('show','err');
+  }
+});
+
+(async function init(){
+  await carregarVendedores();
+  await tentarSessao();
+})();
+</script>
+</body>
+</html>

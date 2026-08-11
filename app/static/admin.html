@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Área do Gestor · Portal de Comissões</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14171C;
+    --surface: #1E2229;
+    --surface-2: #262B33;
+    --line: #333944;
+    --accent: #C15A2A;
+    --accent-2: #E08A57;
+    --text: #EDEFF2;
+    --muted: #7A8290;
+    --good: #4CAF7D;
+    --bad: #E05B5B;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #1c212a 0%, transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    padding:18px 26px;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:18px;
+    border-bottom:2px solid var(--line);
+    padding-bottom:9px;
+    margin-bottom:18px;
+  }
+  .brand-row{display:flex;align-items:center;gap:26px;}
+  .logo-badge{display:flex;align-items:center;line-height:0;}
+  .logo-badge img{height:76px;width:auto;display:block;}
+  h1{
+    font-family:'Oswald',sans-serif;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    font-size:30px;
+    margin:0;
+  }
+  .link-btn{
+    background:none;
+    border:none;
+    color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    text-decoration:underline;
+    cursor:pointer;
+    padding:0;
+  }
+  .link-btn:hover{color:var(--text);}
+  a.link-btn{text-decoration:underline;}
+
+  .section-title{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    font-size:14px;
+    color:var(--muted);
+    margin:26px 0 9px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .section-title:first-of-type{margin-top:0;}
+  .section-title::after{content:'';flex:1;height:1px;background:var(--line);}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:20px 22px;
+  }
+
+  #loginCard{max-width:360px;margin:40px auto 0;}
+  .field{margin-bottom:14px;}
+  .field label{
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  select, input[type="text"], input[type="password"], input[type="number"], input[type="month"]{
+    width:100%;
+    background:#0F1216;
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    padding:9px 10px;
+  }
+  .primary-btn{
+    width:100%;
+    background:var(--accent);
+    color:#151719;
+    border:none;
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    font-weight:600;
+    font-size:13px;
+    padding:11px 20px;
+    border-radius:6px;
+    cursor:pointer;
+    margin-top:4px;
+  }
+  .primary-btn:hover{background:#ff7f52;}
+  .error-msg{
+    color:var(--bad);
+    font-size:12px;
+    font-family:'IBM Plex Mono',monospace;
+    margin-top:10px;
+    min-height:14px;
+  }
+
+  #appSection{display:none;}
+
+  .top-row{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:6px;}
+  .filters-row{display:flex;align-items:flex-end;flex-wrap:wrap;gap:14px;}
+  .filter-field{display:flex;flex-direction:column;gap:6px;}
+  .filter-field label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  .filter-field input, .filter-field select{width:auto;min-width:150px;}
+  .preset-row{display:flex;gap:6px;}
+  .preset-btn{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    padding:5px 9px;
+    border-radius:5px;
+    cursor:pointer;
+  }
+  .preset-btn:hover{border-color:var(--accent);color:var(--text);}
+  .preset-btn.active{border-color:var(--accent);color:var(--accent-2);}
+
+  .kpi-row{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:10px;
+    margin:16px 0 4px;
+  }
+  .stat-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:3px solid var(--accent);
+    border-radius:8px;
+    padding:14px 16px;
+  }
+  .stat-card .label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .stat-card .value{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    font-size:22px;
+    color:var(--accent-2);
+  }
+  @media (max-width:900px){
+    .kpi-row{grid-template-columns:repeat(2,1fr);}
+  }
+
+  .ranking-wrap, .evolucao-wrap{margin-bottom:6px;}
+  .rank-row{
+    display:grid;
+    grid-template-columns:130px 1fr 100px;
+    align-items:center;
+    gap:10px;
+    margin-bottom:7px;
+    font-size:13px;
+  }
+  .rank-row .rname{color:var(--text);}
+  .rank-track{
+    position:relative;
+    height:16px;
+    background:var(--surface-2);
+    border-radius:4px;
+    overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .rank-fill{
+    display:block;
+    height:100%;
+    background:linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius:4px;
+    transition:width .3s ease;
+  }
+  .rank-row .rval{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    font-weight:600;
+    text-align:right;
+    color:var(--text);
+  }
+  .empty-mini{color:var(--muted);font-size:12px;padding:8px 0;}
+
+  .evolucao-bars{
+    display:flex;
+    align-items:flex-end;
+    gap:8px;
+    height:120px;
+    padding:0 2px;
+  }
+  .evo-col{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-end;
+    flex:1;
+    height:100%;
+    gap:6px;
+  }
+  .evo-bar{
+    width:100%;
+    max-width:36px;
+    background:linear-gradient(180deg, var(--accent-2), var(--accent));
+    border-radius:4px 4px 0 0;
+    min-height:2px;
+  }
+  .evo-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px;
+    color:var(--muted);
+    text-align:center;
+  }
+  .evo-val{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px;
+    color:var(--accent-2);
+    text-align:center;
+  }
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{
+    text-align:left;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--muted);
+    border-bottom:1px solid var(--line);
+    padding:6px 10px;
+  }
+  td{
+    padding:8px 10px;
+    border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  td.nome-col{font-family:'Inter',sans-serif;font-weight:600;}
+  tr.vendedor-row{cursor:pointer;}
+  tr.vendedor-row:hover{background:var(--surface-2);}
+  tr.detalhe-row{display:none;background:#0F1216;}
+  tr.detalhe-row.show{display:table-row;}
+  tr.detalhe-row td{border-bottom:1px solid var(--line);padding:0;}
+  .detalhe-wrap{padding:10px 14px;}
+  .detalhe-wrap table{font-size:12px;}
+  .detalhe-wrap th, .detalhe-wrap td{padding:4px 8px;}
+  .empty-hist{color:var(--muted);font-size:12px;padding:14px 0;}
+  tfoot td{
+    font-weight:700;
+    border-bottom:none;
+    border-top:2px solid var(--line);
+    color:var(--accent-2);
+  }
+
+  .actions-row{display:flex;gap:10px;margin:14px 0 4px;}
+  .small-btn{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    padding:7px 12px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .small-btn:hover{border-color:var(--accent);}
+
+  .vendedores-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .vendedor-form .field{margin-bottom:12px;}
+  .add-btn{
+    background:var(--accent);
+    color:#151719;
+    border:none;
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    font-weight:600;
+    font-size:12px;
+    padding:9px 18px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .add-btn:hover{background:#ff7f52;}
+  .vendedor-item{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:#0F1216;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:9px 12px;
+    margin-bottom:8px;
+  }
+  .vendedor-item .info{font-size:13px;}
+  .vendedor-item .info .pct{color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;}
+  .vendedor-item .item-actions{display:flex;gap:8px;}
+  .overrides-editor{
+    background:#0F1216;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 12px;
+    margin-bottom:12px;
+  }
+  .override-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:4px 0;
+  }
+  .override-row span{font-size:12px;color:var(--muted);}
+  .override-row input{width:70px;padding:5px 6px;font-size:12px;}
+  .override-empty{color:var(--muted);font-size:11px;}
+  .bonus-note{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    color:var(--muted);
+  }
+  .override-breakdown{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    padding:6px 14px 0;
+  }
+  .override-breakdown div{padding:2px 0;}
+  .confirm-ok{color:var(--good);font-family:'IBM Plex Mono',monospace;font-size:11px;}
+  .confirm-pendente{color:var(--bad);font-family:'IBM Plex Mono',monospace;font-size:11px;}
+  .confirm-na{color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;}
+  .fechamento-status{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    font-weight:600;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+  }
+  .fechamento-nota{font-size:11px;color:var(--muted);margin:10px 0 0;line-height:1.5;}
+  tr.venda-suspeita td{background:rgba(224,91,91,.08);}
+  .suspeita-marca{
+    color:var(--bad);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    margin-left:6px;
+  }
+  .status{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--good);
+    opacity:0;
+    transition:opacity .3s;
+    display:block;
+    margin-top:8px;
+  }
+  .status.show{opacity:1;}
+  .status.err{color:var(--bad);}
+
+  @media (max-width:800px){
+    .vendedores-grid{grid-template-columns:1fr;}
+  }
+
+  .metas-subtitulo{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    margin:14px 0 8px;
+  }
+  .metas-subtitulo:first-child{margin-top:0;}
+  .metas-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:6px;}
+  .metas-vendedor-row{
+    display:grid;
+    grid-template-columns:110px repeat(3,1fr);
+    gap:8px;
+    align-items:center;
+    margin-bottom:8px;
+  }
+  .metas-vendedor-row .nome{font-size:12px;color:var(--text);}
+  .metas-vendedor-row input{padding:6px 8px;font-size:12px;}
+  .vendedor-item .foto-thumb{
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    object-fit:cover;
+    margin-right:8px;
+    border:1px solid var(--line);
+    vertical-align:middle;
+  }
+
+  footer{
+    margin-top:24px;
+    color:var(--muted);
+    font-size:10px;
+    font-family:'IBM Plex Mono',monospace;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand-row">
+      <div class="logo-badge"><img src="logo.png" alt="Nevada Eco Peças"></div>
+      <h1>Área do Gestor</h1>
+    </div>
+    <div id="topActions">
+      <a class="link-btn" href="/painel.html" target="_blank">Painel de ranking</a>
+      <a class="link-btn" href="/" style="margin-left:14px;">Voltar ao portal</a>
+    </div>
+  </header>
+
+  <div id="loginCard" class="card">
+    <p class="section-title">Entrar como gestor</p>
+    <div class="field">
+      <label for="senhaInput">Senha</label>
+      <input type="password" id="senhaInput" autocomplete="current-password">
+    </div>
+    <button class="primary-btn" id="loginBtn">Entrar</button>
+    <div class="error-msg" id="loginError"></div>
+  </div>
+
+  <div id="appSection">
+
+    <div class="top-row">
+      <div class="filters-row">
+        <div class="filter-field">
+          <label for="vendedorFiltro">Vendedor</label>
+          <select id="vendedorFiltro"><option value="">Todos</option></select>
+        </div>
+        <div class="filter-field">
+          <label for="deInput">De</label>
+          <input type="date" id="deInput">
+        </div>
+        <div class="filter-field">
+          <label for="ateInput">Até</label>
+          <input type="date" id="ateInput">
+        </div>
+        <div class="preset-row">
+          <button class="preset-btn" id="presetMes">Este mês</button>
+          <button class="preset-btn" id="presetAno">Este ano</button>
+          <button class="preset-btn" id="presetTudo">Tudo</button>
+        </div>
+      </div>
+      <div class="actions-row" style="margin:0;">
+        <button class="small-btn" id="exportBtn">Exportar CSV</button>
+        <button class="link-btn" id="logoutBtn">Sair</button>
+      </div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="stat-card">
+        <div class="label">Total vendido</div>
+        <div class="value" id="totalGeralValue">R$ 0,00</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Comissões a pagar</div>
+        <div class="value" id="comissaoGeralValue">R$ 0,00</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Qtd. vendas</div>
+        <div class="value" id="qtdVendasValue">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Ticket médio</div>
+        <div class="value" id="ticketMedioValue">R$ 0,00</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Bônus total</div>
+        <div class="value" id="bonusGeralValue">R$ 0,00</div>
+      </div>
+    </div>
+
+    <p class="section-title">Ranking por vendedor</p>
+    <div class="ranking-wrap" id="rankingWrap"></div>
+
+    <p class="section-title">Evolução de vendas no período</p>
+    <div class="evolucao-wrap" id="evolucaoWrap"></div>
+
+    <p class="section-title">Resumo por vendedor</p>
+    <table>
+      <thead>
+        <tr><th>Vendedor</th><th>Vendas</th><th>Total vendido</th><th>%</th><th>Comissão</th><th>Bônus</th><th>Confirmação</th></tr>
+      </thead>
+      <tbody id="resumoBody"></tbody>
+      <tfoot>
+        <tr><td colspan="2"></td><td id="footTotal">R$ 0,00</td><td></td><td id="footComissao">R$ 0,00</td><td></td><td></td></tr>
+      </tfoot>
+    </table>
+    <div class="empty-hist" id="emptyResumo" style="display:none;">Nenhum vendedor cadastrado ainda.</div>
+
+    <p class="section-title">Fechamento de mês</p>
+    <div class="card" style="max-width:420px;margin-bottom:26px;">
+      <div class="field">
+        <label for="fechamentoMesInput">Mês</label>
+        <input type="month" id="fechamentoMesInput">
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span id="fechamentoStatus" class="fechamento-status"></span>
+        <button class="small-btn" id="fechamentoToggleBtn">...</button>
+      </div>
+      <p class="fechamento-nota">Depois de fechado, nenhum vendedor consegue lançar, editar ou excluir vendas desse mês. Só você pode reabrir.</p>
+    </div>
+
+    <p class="section-title">Log de acessos</p>
+    <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:26px;">
+      <table>
+        <thead>
+          <tr><th>Quando</th><th>Quem</th><th>Resultado</th><th>IP</th></tr>
+        </thead>
+        <tbody id="logAcessosBody"></tbody>
+      </table>
+    </div>
+    <div class="empty-hist" id="emptyLog" style="display:none;">Nenhum acesso registrado ainda.</div>
+
+    <p class="section-title">Metas de vendas</p>
+    <div class="card" style="margin-bottom:26px;">
+      <p class="metas-subtitulo">Grupo</p>
+      <div class="metas-grid-3">
+        <div class="field"><label for="metaGrupoDiaria">Diária (R$)</label><input type="number" id="metaGrupoDiaria" min="0" step="0.01"></div>
+        <div class="field"><label for="metaGrupoSemanal">Semanal (R$)</label><input type="number" id="metaGrupoSemanal" min="0" step="0.01"></div>
+        <div class="field"><label for="metaGrupoMensal">Mensal (R$)</label><input type="number" id="metaGrupoMensal" min="0" step="0.01"></div>
+      </div>
+      <p class="metas-subtitulo">Por vendedor</p>
+      <div id="metasVendedoresList"></div>
+      <button class="add-btn" id="salvarMetasBtn">Salvar metas</button>
+      <div class="status" id="metasStatus"></div>
+    </div>
+
+    <p class="section-title">Vendedores</p>
+    <div class="vendedores-grid">
+      <div>
+        <div class="card vendedor-form">
+          <div class="field">
+            <label for="vIdInput">Identificador (login)</label>
+            <input type="text" id="vIdInput" placeholder="ex: joao">
+          </div>
+          <div class="field">
+            <label for="vNomeInput">Nome</label>
+            <input type="text" id="vNomeInput" placeholder="ex: João Silva">
+          </div>
+          <div class="field">
+            <label for="vSenhaInput">Senha (deixe em branco para manter a atual)</label>
+            <input type="password" id="vSenhaInput">
+          </div>
+          <div class="field">
+            <label for="vFotoInput">Foto (opcional, JPG/PNG/WEBP)</label>
+            <input type="file" id="vFotoInput" accept="image/png,image/jpeg,image/webp">
+          </div>
+          <div class="field">
+            <label for="vPercentualInput">Percentual de comissão sobre vendas próprias (%)</label>
+            <input type="number" id="vPercentualInput" min="0" max="100" step="0.1" placeholder="ex: 3">
+          </div>
+          <div class="field">
+            <label>Comissão sobre vendas de outros vendedores (opcional)</label>
+            <div class="overrides-editor" id="overridesEditor">
+              <div class="override-empty">Cadastre outros vendedores primeiro.</div>
+            </div>
+          </div>
+          <button class="add-btn" id="salvarVendedorBtn">Salvar vendedor</button>
+          <div class="status" id="vendedorStatus"></div>
+        </div>
+      </div>
+      <div>
+        <div id="vendedoresList"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Nevada Eco Peças &middot; Os dados ficam salvos neste computador.</footer>
+</div>
+
+<script>
+function fmtMoeda(v){
+  return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+}
+function todayStr(){
+  const d = new Date();
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off*60000);
+  return local.toISOString().slice(0,10);
+}
+
+let resumoAtual = null;
+
+async function tentarSessao(){
+  try{
+    const res = await fetch('/api/admin/me');
+    const dados = await res.json();
+    if(dados.logado){
+      mostrarApp();
+    }
+  }catch(e){ /* segue deslogado */ }
+}
+
+function primeiroDiaMes(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+}
+
+function mostrarApp(){
+  document.getElementById('loginCard').style.display = 'none';
+  document.getElementById('appSection').style.display = 'block';
+  document.getElementById('deInput').value = primeiroDiaMes();
+  document.getElementById('ateInput').value = todayStr();
+  document.getElementById('fechamentoMesInput').value = todayStr().slice(0,7);
+  marcarPreset('presetMes');
+  carregarVendedores();
+  carregarResumo();
+  carregarMesesFechados();
+  carregarLogAcessos();
+  carregarMetas();
+}
+
+let vendedoresParaMetas = [];
+
+async function carregarMetas(){
+  const [resVendedores, resMetas] = await Promise.all([
+    fetch('/api/admin/vendedores'),
+    fetch('/api/metas'),
+  ]);
+  if(resVendedores.status === 401) return;
+  vendedoresParaMetas = await resVendedores.json();
+  const metas = await resMetas.json();
+
+  document.getElementById('metaGrupoDiaria').value = metas.grupo?.diaria || 0;
+  document.getElementById('metaGrupoSemanal').value = metas.grupo?.semanal || 0;
+  document.getElementById('metaGrupoMensal').value = metas.grupo?.mensal || 0;
+
+  const lista = document.getElementById('metasVendedoresList');
+  if(vendedoresParaMetas.length === 0){
+    lista.innerHTML = '<div class="override-empty">Cadastre vendedores primeiro.</div>';
+    return;
+  }
+  lista.innerHTML = vendedoresParaMetas.map(v => {
+    const m = metas.vendedores?.[v.id] || {};
+    return `
+      <div class="metas-vendedor-row">
+        <span class="nome">${v.nome}</span>
+        <input type="number" min="0" step="0.01" class="meta-diaria" data-vid="${v.id}" value="${m.diaria || 0}" placeholder="Diária">
+        <input type="number" min="0" step="0.01" class="meta-semanal" data-vid="${v.id}" value="${m.semanal || 0}" placeholder="Semanal">
+        <input type="number" min="0" step="0.01" class="meta-mensal" data-vid="${v.id}" value="${m.mensal || 0}" placeholder="Mensal">
+      </div>
+    `;
+  }).join('');
+}
+
+document.getElementById('salvarMetasBtn').addEventListener('click', async () => {
+  const status = document.getElementById('metasStatus');
+  status.classList.remove('show','err');
+
+  const vendedoresMetas = {};
+  vendedoresParaMetas.forEach(v => {
+    vendedoresMetas[v.id] = {
+      diaria: document.querySelector(`.meta-diaria[data-vid="${v.id}"]`).value || 0,
+      semanal: document.querySelector(`.meta-semanal[data-vid="${v.id}"]`).value || 0,
+      mensal: document.querySelector(`.meta-mensal[data-vid="${v.id}"]`).value || 0,
+    };
+  });
+
+  const body = {
+    grupo: {
+      diaria: document.getElementById('metaGrupoDiaria').value || 0,
+      semanal: document.getElementById('metaGrupoSemanal').value || 0,
+      mensal: document.getElementById('metaGrupoMensal').value || 0,
+    },
+    vendedores: vendedoresMetas,
+  };
+
+  try{
+    const res = await fetch('/api/admin/metas', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    if(!res.ok){
+      status.textContent = 'Erro ao salvar metas.';
+      status.classList.add('show','err');
+      return;
+    }
+    status.textContent = 'Metas salvas.';
+    status.classList.add('show');
+  }catch(e){
+    status.textContent = 'Erro de conexão.';
+    status.classList.add('show','err');
+  }
+});
+
+async function carregarLogAcessos(){
+  const res = await fetch('/api/admin/log-acessos');
+  if(res.status === 401) return;
+  const log = await res.json();
+  const body = document.getElementById('logAcessosBody');
+  const empty = document.getElementById('emptyLog');
+  body.innerHTML = '';
+  if(log.length === 0){
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  log.forEach(item => {
+    const dt = new Date(item.quando);
+    const quem = item.tipo === 'admin' ? 'Gestor' : (item.nome || item.vendedor_id || '—');
+    const resultado = item.sucesso
+      ? '<span class="confirm-ok">Sucesso</span>'
+      : '<span class="confirm-pendente">Falhou</span>';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${dt.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${quem}</td>
+      <td>${resultado}</td>
+      <td>${item.ip || '—'}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+let mesesFechados = [];
+
+async function carregarMesesFechados(){
+  const res = await fetch('/api/admin/meses-fechados');
+  if(res.status === 401) return;
+  mesesFechados = await res.json();
+  atualizarFechamentoUI();
+}
+
+function atualizarFechamentoUI(){
+  const mes = document.getElementById('fechamentoMesInput').value;
+  const fechado = mesesFechados.includes(mes);
+  const status = document.getElementById('fechamentoStatus');
+  const btn = document.getElementById('fechamentoToggleBtn');
+  status.textContent = fechado ? 'Fechado' : 'Aberto';
+  status.style.color = fechado ? 'var(--bad)' : 'var(--good)';
+  btn.textContent = fechado ? 'Reabrir mês' : 'Fechar mês';
+}
+
+document.getElementById('fechamentoMesInput').addEventListener('change', atualizarFechamentoUI);
+
+document.getElementById('fechamentoToggleBtn').addEventListener('click', async () => {
+  const mes = document.getElementById('fechamentoMesInput').value;
+  if(!mes) return;
+  const fechado = mesesFechados.includes(mes);
+  const acao = fechado ? 'reabrir' : 'fechar';
+  if(!confirm(`Tem certeza que quer ${acao} o mês ${mes}? ${fechado ? 'Vendedores voltam a poder lançar/editar vendas desse mês.' : 'Vendedores não vão mais conseguir lançar, editar ou excluir vendas desse mês.'}`)) return;
+  const res = await fetch('/api/admin/meses-fechados', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({mes, fechar: !fechado})
+  });
+  const dados = await res.json();
+  if(res.ok){
+    mesesFechados = dados.meses_fechados;
+    atualizarFechamentoUI();
+  }
+});
+
+function marcarPreset(id){
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.id === id));
+}
+
+document.getElementById('presetMes').addEventListener('click', () => {
+  document.getElementById('deInput').value = primeiroDiaMes();
+  document.getElementById('ateInput').value = todayStr();
+  marcarPreset('presetMes');
+  carregarResumo();
+});
+document.getElementById('presetAno').addEventListener('click', () => {
+  document.getElementById('deInput').value = `${new Date().getFullYear()}-01-01`;
+  document.getElementById('ateInput').value = todayStr();
+  marcarPreset('presetAno');
+  carregarResumo();
+});
+document.getElementById('presetTudo').addEventListener('click', () => {
+  document.getElementById('deInput').value = '2000-01-01';
+  document.getElementById('ateInput').value = '2100-12-31';
+  marcarPreset('presetTudo');
+  carregarResumo();
+});
+document.getElementById('deInput').addEventListener('change', () => { marcarPreset(null); carregarResumo(); });
+document.getElementById('ateInput').addEventListener('change', () => { marcarPreset(null); carregarResumo(); });
+document.getElementById('vendedorFiltro').addEventListener('change', carregarResumo);
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const senha = document.getElementById('senhaInput').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  try{
+    const res = await fetch('/api/admin/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({senha})
+    });
+    const dados = await res.json();
+    if(!res.ok){
+      errEl.textContent = dados.erro || 'Falha ao entrar.';
+      return;
+    }
+    mostrarApp();
+  }catch(e){
+    errEl.textContent = 'Erro de conexão.';
+  }
+});
+document.getElementById('senhaInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch('/api/admin/logout', {method:'POST'});
+  document.getElementById('appSection').style.display = 'none';
+  document.getElementById('loginCard').style.display = 'block';
+  document.getElementById('senhaInput').value = '';
+});
+
+function renderConfirmacaoCelula(confirmadoEm){
+  if(!resumoAtual.mes_unico) return '<span class="confirm-na">—</span>';
+  if(confirmadoEm){
+    const dt = new Date(confirmadoEm);
+    return `<span class="confirm-ok">Confirmado ${dt.toLocaleDateString('pt-BR')}</span>`;
+  }
+  return '<span class="confirm-pendente">Pendente</span>';
+}
+
+function renderRanking(vendedores){
+  const wrap = document.getElementById('rankingWrap');
+  if(vendedores.length === 0){
+    wrap.innerHTML = '<div class="empty-mini">Sem dados no período.</div>';
+    return;
+  }
+  const max = Math.max(...vendedores.map(v => v.total_vendido), 1);
+  wrap.innerHTML = vendedores.map(v => `
+    <div class="rank-row">
+      <span class="rname">${v.nome}</span>
+      <span class="rank-track"><span class="rank-fill" style="width:${(v.total_vendido/max*100).toFixed(1)}%"></span></span>
+      <span class="rval">${fmtMoeda(v.total_vendido)}</span>
+    </div>
+  `).join('');
+}
+
+function renderEvolucao(serie){
+  const wrap = document.getElementById('evolucaoWrap');
+  if(!serie || serie.length === 0){
+    wrap.innerHTML = '<div class="empty-mini">Sem dados no período.</div>';
+    return;
+  }
+  const max = Math.max(...serie.map(s => s.total_vendido), 1);
+  const nomesMes = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  wrap.innerHTML = `<div class="evolucao-bars">${serie.map(s => {
+    const [y,m] = s.mes.split('-');
+    const alt = s.total_vendido >= 1000 ? fmtMoeda(s.total_vendido/1000).replace(/ /,'') + 'k' : fmtMoeda(s.total_vendido);
+    const pct = Math.max(2, (s.total_vendido/max*100));
+    return `
+      <div class="evo-col">
+        <span class="evo-val">${(s.total_vendido/1000).toFixed(1)}k</span>
+        <div class="evo-bar" style="height:${pct}%"></div>
+        <span class="evo-label">${nomesMes[parseInt(m,10)]}/${y.slice(2)}</span>
+      </div>
+    `;
+  }).join('')}</div>`;
+}
+
+async function carregarResumo(){
+  const de = document.getElementById('deInput').value;
+  const ate = document.getElementById('ateInput').value;
+  const vendedorId = document.getElementById('vendedorFiltro').value;
+  const params = new URLSearchParams({de, ate});
+  if(vendedorId) params.set('vendedor_id', vendedorId);
+  const res = await fetch('/api/admin/resumo?' + params.toString());
+  if(res.status === 401){ document.getElementById('logoutBtn').click(); return; }
+  resumoAtual = await res.json();
+
+  document.getElementById('totalGeralValue').textContent = fmtMoeda(resumoAtual.total_geral);
+  document.getElementById('comissaoGeralValue').textContent = fmtMoeda(resumoAtual.comissao_geral);
+  document.getElementById('qtdVendasValue').textContent = resumoAtual.qtd_vendas_geral;
+  document.getElementById('ticketMedioValue').textContent = fmtMoeda(resumoAtual.ticket_medio);
+  const bonusGeral = resumoAtual.vendedores.reduce((a,v) => a + v.total_bonus, 0);
+  document.getElementById('bonusGeralValue').textContent = fmtMoeda(bonusGeral);
+  document.getElementById('footTotal').textContent = fmtMoeda(resumoAtual.total_geral);
+  document.getElementById('footComissao').textContent = fmtMoeda(resumoAtual.comissao_geral);
+
+  renderRanking(resumoAtual.vendedores);
+  renderEvolucao(resumoAtual.serie_mensal);
+
+  const body = document.getElementById('resumoBody');
+  const empty = document.getElementById('emptyResumo');
+  body.innerHTML = '';
+
+  if(resumoAtual.vendedores.length === 0){
+    empty.style.display = 'block';
+  }else{
+    empty.style.display = 'none';
+    resumoAtual.vendedores.forEach(v => {
+      const tr = document.createElement('tr');
+      tr.className = 'vendedor-row';
+      tr.innerHTML = `
+        <td class="nome-col">${v.nome}</td>
+        <td>${v.qtd_vendas}</td>
+        <td>${fmtMoeda(v.total_vendido)}</td>
+        <td>${v.percentual}%</td>
+        <td>${fmtMoeda(v.comissao)}</td>
+        <td class="bonus-note">${v.total_bonus > 0 ? fmtMoeda(v.total_bonus) : '—'}</td>
+        <td>${renderConfirmacaoCelula(v.confirmado_em)}</td>
+      `;
+      const detalheTr = document.createElement('tr');
+      detalheTr.className = 'detalhe-row';
+
+      let overridesHtml = '';
+      if(v.overrides && v.overrides.length > 0){
+        const linhasOver = v.overrides.map(o =>
+          `<div>+ ${o.percentual}% sobre ${o.nome} (${fmtMoeda(o.total_vendido)}) = ${fmtMoeda(o.valor)}</div>`
+        ).join('');
+        overridesHtml = `<div class="override-breakdown"><div>Comissão própria: ${fmtMoeda(v.comissao_propria)}</div>${linhasOver}</div>`;
+      }
+
+      let vendasHtml;
+      if(v.vendas.length === 0){
+        vendasHtml = `<div class="detalhe-wrap">Nenhuma venda no período.</div>`;
+      }else{
+        const linhas = v.vendas.map(venda => {
+          const [y,m,d] = venda.data.split('-');
+          let suspeita = false;
+          if(venda.criado_em){
+            const dataVenda = new Date(venda.data + 'T00:00:00');
+            const dataCriacao = new Date(venda.criado_em);
+            const diffDias = Math.round((dataCriacao - dataVenda) / 86400000);
+            suspeita = diffDias > 3;
+          }
+          const marca = suspeita ? `<span class="suspeita-marca" title="Lançada bem depois da data informada">lançada tarde</span>` : '';
+          return `<tr class="${suspeita ? 'venda-suspeita' : ''}"><td>${d}/${m}/${y}</td><td>${venda.produto}${marca}</td><td>${fmtMoeda(venda.valor)}</td></tr>`;
+        }).join('');
+        vendasHtml = `<div class="detalhe-wrap"><table><thead><tr><th>Data</th><th>Produto</th><th>Valor</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
+      }
+
+      let bonusHtml = '';
+      if(v.bonus && v.bonus.length > 0){
+        const linhasBonus = v.bonus.map(b => {
+          const [y,m,d] = b.data.split('-');
+          return `<tr><td>${d}/${m}/${y}</td><td>${b.produto}</td><td>${fmtMoeda(b.valor)}</td></tr>`;
+        }).join('');
+        bonusHtml = `<div class="detalhe-wrap"><p class="section-title" style="margin:10px 0 6px;font-size:11px;">Bônus / avaliações (fora da comissão)</p><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody>${linhasBonus}</tbody></table></div>`;
+      }
+
+      detalheTr.innerHTML = `<td colspan="7">${overridesHtml}${vendasHtml}${bonusHtml}</td>`;
+      tr.addEventListener('click', () => detalheTr.classList.toggle('show'));
+      if(resumoAtual.vendedores.length === 1) detalheTr.classList.add('show');
+      body.appendChild(tr);
+      body.appendChild(detalheTr);
+    });
+  }
+}
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if(!resumoAtual) return;
+  let csv = 'Vendedor;Qtd Vendas;Total Vendido;Percentual;Comissao;Bonus\n';
+  resumoAtual.vendedores.forEach(v => {
+    csv += `${v.nome};${v.qtd_vendas};${v.total_vendido.toFixed(2).replace('.',',')};${v.percentual};${v.comissao.toFixed(2).replace('.',',')};${v.total_bonus.toFixed(2).replace('.',',')}\n`;
+  });
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `comissoes_${resumoAtual.de}_a_${resumoAtual.ate}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+let vendedoresAtuais = [];
+
+function renderOverridesEditor(overridesAtuais){
+  const el = document.getElementById('overridesEditor');
+  if(vendedoresAtuais.length === 0){
+    el.innerHTML = '<div class="override-empty">Cadastre outros vendedores primeiro.</div>';
+    return;
+  }
+  const mapaAtual = {};
+  (overridesAtuais || []).forEach(o => { mapaAtual[o.vendedor_id] = o.percentual; });
+  el.innerHTML = vendedoresAtuais.map(v => `
+    <div class="override-row">
+      <span>${v.nome}</span>
+      <input type="number" class="override-pct" data-vid="${v.id}" data-nome="${v.nome}" min="0" max="100" step="0.01" value="${mapaAtual[v.id] || 0}">
+    </div>
+  `).join('');
+}
+
+async function carregarVendedores(){
+  const res = await fetch('/api/admin/vendedores');
+  if(res.status === 401) return;
+  const lista = await res.json();
+  vendedoresAtuais = lista;
+  const el = document.getElementById('vendedoresList');
+  el.innerHTML = '';
+  if(lista.length === 0){
+    el.innerHTML = '<div class="empty-hist">Nenhum vendedor cadastrado.</div>';
+  }else{
+    lista.forEach(v => {
+      const item = document.createElement('div');
+      item.className = 'vendedor-item';
+      const fotoHtml = v.foto ? `<img class="foto-thumb" src="/fotos/${v.foto}" alt="">` : '';
+      item.innerHTML = `
+        <div class="info">${fotoHtml}${v.nome} <span class="pct">(${v.id} · ${v.percentual}%)</span></div>
+        <div class="item-actions">
+          <button class="small-btn" data-edit="${v.id}">Editar</button>
+          <button class="small-btn" data-del="${v.id}">Remover</button>
+        </div>
+      `;
+      el.appendChild(item);
+    });
+    el.querySelectorAll('[data-edit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const v = lista.find(x => x.id === btn.dataset.edit);
+        document.getElementById('vIdInput').value = v.id;
+        document.getElementById('vNomeInput').value = v.nome;
+        document.getElementById('vSenhaInput').value = '';
+        document.getElementById('vPercentualInput').value = v.percentual;
+        document.getElementById('vFotoInput').value = '';
+        renderOverridesEditor(v.overrides);
+        window.scrollTo({top:0, behavior:'smooth'});
+      });
+    });
+    el.querySelectorAll('[data-del]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if(!confirm('Remover este vendedor? As vendas já lançadas continuam salvas.')) return;
+        await fetch('/api/admin/vendedores/' + btn.dataset.del, {method:'DELETE'});
+        carregarVendedores();
+        carregarResumo();
+      });
+    });
+  }
+  const vIdAtual = document.getElementById('vIdInput').value.trim().toLowerCase();
+  const editando = lista.find(x => x.id === vIdAtual);
+  renderOverridesEditor(editando ? editando.overrides : []);
+
+  const filtro = document.getElementById('vendedorFiltro');
+  const valorAtual = filtro.value;
+  filtro.innerHTML = '<option value="">Todos</option>' + lista.map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
+  filtro.value = valorAtual;
+}
+
+document.getElementById('salvarVendedorBtn').addEventListener('click', async () => {
+  const status = document.getElementById('vendedorStatus');
+  status.classList.remove('show','err');
+  const id = document.getElementById('vIdInput').value.trim();
+  const nome = document.getElementById('vNomeInput').value.trim();
+  const senha = document.getElementById('vSenhaInput').value;
+  const percentual = document.getElementById('vPercentualInput').value;
+  const overrides = Array.from(document.querySelectorAll('.override-pct'))
+    .map(inp => ({vendedor_id: inp.dataset.vid, percentual: parseFloat(inp.value || '0')}))
+    .filter(o => o.percentual > 0);
+
+  try{
+    const res = await fetch('/api/admin/vendedores', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id, nome, senha, percentual, overrides})
+    });
+    const dados = await res.json();
+    if(!res.ok){
+      status.textContent = dados.erro || 'Erro ao salvar.';
+      status.classList.add('show','err');
+      return;
+    }
+
+    const fotoArquivo = document.getElementById('vFotoInput').files[0];
+    if(fotoArquivo){
+      const formData = new FormData();
+      formData.append('foto', fotoArquivo);
+      const resFoto = await fetch('/api/admin/vendedores/' + id + '/foto', {method:'POST', body: formData});
+      if(!resFoto.ok){
+        const erroFoto = await resFoto.json().catch(() => ({}));
+        status.textContent = 'Vendedor salvo, mas a foto falhou: ' + (erroFoto.erro || 'erro desconhecido');
+        status.classList.add('show','err');
+        carregarVendedores();
+        carregarResumo();
+        carregarMetas();
+        return;
+      }
+    }
+
+    status.textContent = 'Vendedor salvo.';
+    status.classList.add('show');
+    document.getElementById('vIdInput').value = '';
+    document.getElementById('vNomeInput').value = '';
+    document.getElementById('vSenhaInput').value = '';
+    document.getElementById('vPercentualInput').value = '';
+    document.getElementById('vFotoInput').value = '';
+    carregarVendedores();
+    carregarResumo();
+    carregarMetas();
+  }catch(e){
+    status.textContent = 'Erro de conexão.';
+    status.classList.add('show','err');
+  }
+});
+
+tentarSessao();
+</script>
+</body>
+</html>

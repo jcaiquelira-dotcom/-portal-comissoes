@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ranking de Vendas · Nevada Eco Peças</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14171C;
+    --surface: #1E2229;
+    --surface-2: #262B33;
+    --line: #333944;
+    --accent: #C15A2A;
+    --accent-2: #E08A57;
+    --text: #EDEFF2;
+    --muted: #7A8290;
+    --good: #4CAF7D;
+    --bad: #E05B5B;
+    --gold: #E8B84B;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1600px 800px at 15% -10%, #1c212a 0%, transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    padding:26px 40px 50px;
+  }
+  .wrap{max-width:1800px;margin:0 auto;}
+
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:20px;
+    border-bottom:3px solid var(--line);
+    padding-bottom:16px;
+    margin-bottom:26px;
+  }
+  .brand-row{display:flex;align-items:center;gap:28px;}
+  .logo-badge{display:flex;align-items:center;line-height:0;}
+  .logo-badge img{height:88px;width:auto;display:block;}
+  h1{
+    font-family:'Oswald',sans-serif;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    font-size:44px;
+    margin:0;
+  }
+  .clock-wrap{display:flex;align-items:center;gap:18px;}
+  .link-btn{
+    background:none;
+    border:1px solid var(--line);
+    color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    text-decoration:none;
+    padding:8px 16px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .link-btn:hover{border-color:var(--accent);color:var(--text);}
+  .clock-badge{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+    gap:2px;
+  }
+  .clock-date{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:18px;
+    color:var(--muted);
+    text-transform:capitalize;
+  }
+  .clock-time{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    font-size:56px;
+    letter-spacing:.03em;
+    color:var(--accent-2);
+    text-shadow:0 0 22px rgba(224,138,87,.35);
+  }
+
+  .section-title{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    font-size:19px;
+    color:var(--muted);
+    margin:0 0 14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .section-title::after{content:'';flex:1;height:1px;background:var(--line);}
+
+  /* ---- Meta do grupo: dia = hero, semana/mês = secundário ---- */
+  .grupo-hero{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:8px solid var(--accent);
+    border-radius:16px;
+    padding:26px 32px;
+    margin-bottom:16px;
+  }
+  .grupo-hero .label{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    font-size:20px;
+    color:var(--accent-2);
+    margin-bottom:10px;
+  }
+  .grupo-hero .valores{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    font-family:'IBM Plex Mono',monospace;
+    margin-bottom:14px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .grupo-hero .atual{font-size:56px;font-weight:700;color:var(--text);line-height:1;}
+  .grupo-hero .meta{font-size:20px;color:var(--muted);}
+  .bar-track-hero{
+    position:relative;
+    height:56px;
+    background:var(--surface-2);
+    border-radius:12px;
+    overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .bar-fill-hero{
+    display:block;
+    height:100%;
+    background:linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius:12px;
+    transition:width .6s ease;
+  }
+  .bar-fill-hero.done{background:linear-gradient(90deg, var(--good), #6fe3a6);}
+  .bar-pct-hero{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    font-size:26px;
+    color:#fff;
+    text-shadow:0 1px 4px rgba(0,0,0,.85);
+  }
+
+  .grupo-row-secundaria{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+    margin-bottom:32px;
+  }
+  .grupo-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 20px;
+  }
+  .grupo-card .label{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    font-size:14px;
+    color:var(--muted);
+    margin-bottom:8px;
+  }
+  .grupo-card .valores{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    font-family:'IBM Plex Mono',monospace;
+    margin-bottom:8px;
+  }
+  .grupo-card .atual{font-size:22px;font-weight:700;color:var(--text);}
+  .grupo-card .meta{font-size:13px;color:var(--muted);}
+  .bar-track{
+    position:relative;
+    height:18px;
+    background:var(--surface-2);
+    border-radius:6px;
+    overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .bar-fill{
+    display:block;
+    height:100%;
+    background:linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius:6px;
+    transition:width .6s ease;
+  }
+  .bar-fill.done{background:linear-gradient(90deg, var(--good), #6fe3a6);}
+  .bar-pct{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    font-size:11px;
+    color:#fff;
+    text-shadow:0 1px 3px rgba(0,0,0,.8);
+  }
+
+  /* ---- Ranking por vendedor ---- */
+  .ranking-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(420px, 1fr));
+    gap:22px;
+  }
+  .vendedor-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-left:6px solid var(--accent);
+    border-radius:16px;
+    padding:22px 26px;
+    position:relative;
+  }
+  .vendedor-card.pos-1{border-left-color:var(--gold);}
+  .vendedor-card.pos-1 .posicao{color:var(--gold);}
+  .card-head{
+    display:flex;
+    align-items:center;
+    gap:18px;
+    margin-bottom:20px;
+  }
+  .posicao{
+    font-family:'Oswald',sans-serif;
+    font-weight:700;
+    font-size:32px;
+    color:var(--muted);
+    width:52px;
+    text-align:center;
+  }
+  .foto-wrap{
+    width:76px;
+    height:76px;
+    border-radius:50%;
+    overflow:hidden;
+    flex-shrink:0;
+    border:3px solid var(--line);
+    background:var(--surface-2);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .foto-wrap img{width:100%;height:100%;object-fit:cover;display:block;}
+  .foto-iniciais{
+    font-family:'Oswald',sans-serif;
+    font-weight:700;
+    font-size:26px;
+    color:var(--accent-2);
+  }
+  .vendedor-nome{
+    font-family:'Oswald',sans-serif;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:.02em;
+    font-size:26px;
+  }
+
+  /* meta do dia — grande, dentro do card */
+  .meta-dia .meta-topo{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:6px;
+  }
+  .meta-dia .meta-label{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    font-size:14px;
+    color:var(--accent-2);
+  }
+  .meta-dia .meta-valores{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:20px;
+    font-weight:700;
+    color:var(--text);
+  }
+  .meta-dia .meta-valores .sep{color:var(--muted);font-weight:400;}
+  .bar-track-dia{
+    position:relative;
+    height:34px;
+    background:var(--surface-2);
+    border-radius:8px;
+    overflow:hidden;
+    border:1px solid var(--line);
+    margin-bottom:16px;
+  }
+  .bar-fill-dia{
+    display:block;
+    height:100%;
+    background:linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius:8px;
+    transition:width .6s ease;
+  }
+  .bar-fill-dia.done{background:linear-gradient(90deg, var(--good), #6fe3a6);}
+  .bar-pct-dia{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    font-size:15px;
+    color:#fff;
+    text-shadow:0 1px 3px rgba(0,0,0,.8);
+  }
+
+  /* meta da semana — média */
+  .meta-semana{margin-bottom:12px;}
+  .meta-semana .meta-topo{
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:4px;
+  }
+  .meta-semana .meta-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .meta-semana .meta-valores{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--text);
+  }
+  .meta-semana .meta-valores .sep{color:var(--muted);}
+  .bar-track-media{
+    position:relative;
+    height:16px;
+    background:var(--surface-2);
+    border-radius:5px;
+    overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .bar-fill-media{
+    display:block;
+    height:100%;
+    background:linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius:5px;
+    transition:width .6s ease;
+  }
+  .bar-fill-media.done{background:linear-gradient(90deg, var(--good), #6fe3a6);}
+
+  /* meta do mês — discreta */
+  .meta-mes{display:flex;align-items:center;gap:10px;}
+  .meta-mes .meta-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--muted);
+    width:38px;
+    flex-shrink:0;
+  }
+  .bar-track-fina{
+    position:relative;
+    height:8px;
+    background:var(--surface-2);
+    border-radius:4px;
+    overflow:hidden;
+    border:1px solid var(--line);
+    flex:1;
+  }
+  .bar-fill-fina{
+    display:block;
+    height:100%;
+    background:var(--muted);
+    border-radius:4px;
+    transition:width .6s ease;
+  }
+  .bar-fill-fina.done{background:var(--good);}
+  .meta-mes .meta-valores{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    flex-shrink:0;
+  }
+
+  .empty-msg{color:var(--muted);font-size:16px;padding:36px 0;text-align:center;}
+
+  @media (max-width:900px){
+    .grupo-row-secundaria{grid-template-columns:1fr;}
+    .ranking-grid{grid-template-columns:1fr;}
+    h1{font-size:30px;}
+    .clock-time{font-size:38px;}
+    .grupo-hero .atual{font-size:38px;}
+  }
+
+  footer{
+    margin-top:36px;
+    color:var(--muted);
+    font-size:12px;
+    font-family:'IBM Plex Mono',monospace;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand-row">
+      <div class="logo-badge"><img src="logo.png" alt="Nevada Eco Peças"></div>
+      <h1>Ranking de Vendas</h1>
+    </div>
+    <div class="clock-wrap">
+      <a class="link-btn" href="/">Voltar ao portal</a>
+      <div class="clock-badge">
+        <span class="clock-date" id="clockDate">--</span>
+        <span class="clock-time" id="clockTime">--:--:--</span>
+      </div>
+    </div>
+  </header>
+
+  <p class="section-title">Meta do grupo</p>
+  <div id="grupoHero"></div>
+  <div class="grupo-row-secundaria" id="grupoSecundaria"></div>
+
+  <p class="section-title">Ranking por vendedor</p>
+  <div class="ranking-grid" id="rankingGrid"></div>
+  <div class="empty-msg" id="emptyMsg" style="display:none;">Nenhum vendedor cadastrado ainda.</div>
+
+  <footer>Nevada Eco Peças &middot; Atualiza automaticamente</footer>
+</div>
+
+<script>
+function fmtMoeda(v){
+  return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+}
+function pct(atual, meta){
+  if(!meta || meta <= 0) return 0;
+  return Math.min(100, Math.round((atual / meta) * 100));
+}
+function iniciais(nome){
+  return nome.split(' ').filter(Boolean).slice(0,2).map(p => p[0].toUpperCase()).join('');
+}
+
+function updateClock(){
+  const now = new Date();
+  document.getElementById('clockTime').textContent = now.toLocaleTimeString('pt-BR');
+  document.getElementById('clockDate').textContent = now.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long'});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+function renderGrupo(g){
+  const pDia = pct(g.hoje, g.meta_diaria);
+  document.getElementById('grupoHero').innerHTML = `
+    <div class="grupo-hero">
+      <div class="label">Meta diária do grupo</div>
+      <div class="valores">
+        <span class="atual">${fmtMoeda(g.hoje)}</span>
+        <span class="meta">meta ${fmtMoeda(g.meta_diaria)}</span>
+      </div>
+      <div class="bar-track-hero">
+        <span class="bar-fill-hero ${pDia>=100?'done':''}" style="width:${pDia}%"></span>
+        <span class="bar-pct-hero">${pDia}%</span>
+      </div>
+    </div>
+  `;
+
+  const secundarios = [
+    {label:'Meta semanal', atual:g.semana, meta:g.meta_semanal},
+    {label:'Meta mensal', atual:g.mes, meta:g.meta_mensal},
+  ];
+  document.getElementById('grupoSecundaria').innerHTML = secundarios.map(b => {
+    const p = pct(b.atual, b.meta);
+    return `
+      <div class="grupo-card">
+        <div class="label">${b.label}</div>
+        <div class="valores">
+          <span class="atual">${fmtMoeda(b.atual)}</span>
+          <span class="meta">meta ${fmtMoeda(b.meta)}</span>
+        </div>
+        <div class="bar-track">
+          <span class="bar-fill ${p>=100?'done':''}" style="width:${p}%"></span>
+          <span class="bar-pct">${p}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderRanking(vendedores){
+  const grid = document.getElementById('rankingGrid');
+  const empty = document.getElementById('emptyMsg');
+  if(vendedores.length === 0){
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  grid.innerHTML = vendedores.map((v, i) => {
+    const pos = i + 1;
+    const fotoHtml = v.foto
+      ? `<img src="/fotos/${v.foto}" alt="${v.nome}">`
+      : `<span class="foto-iniciais">${iniciais(v.nome)}</span>`;
+
+    const pDia = pct(v.hoje, v.meta_diaria);
+    const pSemana = pct(v.semana, v.meta_semanal);
+    const pMes = pct(v.mes, v.meta_mensal);
+
+    return `
+      <div class="vendedor-card pos-${pos}">
+        <div class="card-head">
+          <span class="posicao">#${pos}</span>
+          <span class="foto-wrap">${fotoHtml}</span>
+          <span class="vendedor-nome">${v.nome}</span>
+        </div>
+
+        <div class="meta-dia">
+          <div class="meta-topo">
+            <span class="meta-label">Hoje</span>
+            <span class="meta-valores">${fmtMoeda(v.hoje)} <span class="sep">/ ${fmtMoeda(v.meta_diaria)}</span></span>
+          </div>
+          <div class="bar-track-dia">
+            <span class="bar-fill-dia ${pDia>=100?'done':''}" style="width:${pDia}%"></span>
+            <span class="bar-pct-dia">${pDia}%</span>
+          </div>
+        </div>
+
+        <div class="meta-semana">
+          <div class="meta-topo">
+            <span class="meta-label">Semana</span>
+            <span class="meta-valores">${fmtMoeda(v.semana)} <span class="sep">/</span> ${fmtMoeda(v.meta_semanal)}</span>
+          </div>
+          <div class="bar-track-media">
+            <span class="bar-fill-media ${pSemana>=100?'done':''}" style="width:${pSemana}%"></span>
+          </div>
+        </div>
+
+        <div class="meta-mes">
+          <span class="meta-label">Mês</span>
+          <div class="bar-track-fina">
+            <span class="bar-fill-fina ${pMes>=100?'done':''}" style="width:${pMes}%"></span>
+          </div>
+          <span class="meta-valores">${pMes}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function carregarPainel(){
+  try{
+    const res = await fetch('/api/painel/ranking');
+    const dados = await res.json();
+    renderGrupo(dados.grupo);
+    renderRanking(dados.vendedores);
+  }catch(e){
+    console.error('Erro ao carregar painel:', e);
+  }
+}
+
+carregarPainel();
+setInterval(carregarPainel, 5000);
+</script>
+</body>
+</html>
