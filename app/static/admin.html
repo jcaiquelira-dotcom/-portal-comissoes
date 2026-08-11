@@ -1131,7 +1131,9 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
   }
 });
 
-document.getElementById('expedicaoLink').href = `http://${location.hostname}:8000`;
+document.getElementById('expedicaoLink').href = location.hostname.endsWith('.onrender.com')
+  ? 'https://nevada-expedicao.onrender.com'
+  : `http://${location.hostname}:8000`;
 tentarSessao();
 </script>
 </body>

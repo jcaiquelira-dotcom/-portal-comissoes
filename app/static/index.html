@@ -482,7 +482,10 @@ async function carregarVendedores(){
 function renderTopActions(){
   const el = document.getElementById('topActions');
   const painelLink = `<a class="link-btn" href="/painel.html" target="_blank">Painel de ranking</a>`;
-  const expedicaoLink = `<a class="link-btn" href="http://${location.hostname}:8000" target="_blank" style="margin-left:14px;">Painel de expedição</a>`;
+  const expedicaoUrl = location.hostname.endsWith('.onrender.com')
+    ? 'https://nevada-expedicao.onrender.com'
+    : `http://${location.hostname}:8000`;
+  const expedicaoLink = `<a class="link-btn" href="${expedicaoUrl}" target="_blank" style="margin-left:14px;">Painel de expedição</a>`;
   if(eu){
     el.innerHTML = `${painelLink}${expedicaoLink}<span class="vendedor-tag" style="margin-left:14px;">Olá, <strong>${eu.nome}</strong></span><button class="link-btn" id="logoutBtn" style="margin-left:14px;">Sair</button>`;
     document.getElementById('logoutBtn').addEventListener('click', logout);
