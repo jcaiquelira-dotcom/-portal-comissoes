@@ -120,9 +120,11 @@ def salvar_vendedores(vendedores: dict) -> None:
 
 
 def carregar_credenciais() -> dict:
-    if not CREDENCIAIS_FILE.exists():
-        escrever_json(CREDENCIAIS_FILE, {"admin_senha": "troque-esta-senha"})
-    return ler_json(CREDENCIAIS_FILE, {})
+    dados = ler_json(CREDENCIAIS_FILE, None)
+    if dados is None:
+        dados = {"admin_senha": "troque-esta-senha"}
+        escrever_json(CREDENCIAIS_FILE, dados)
+    return dados
 
 
 def arquivo_vendas(vendedor_id: str) -> Path:
