@@ -489,7 +489,10 @@
       </div>
     </div>
 
-    <p class="section-title">Minhas vendas do mês</p>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <p class="section-title" style="flex:1;margin:0;">Minhas vendas do mês</p>
+      <button class="small-btn" id="exportMinhasVendasBtn">Exportar CSV</button>
+    </div>
     <table>
       <thead>
         <tr><th>Data</th><th>Produto</th><th>Valor</th><th></th></tr>
@@ -817,6 +820,30 @@ document.getElementById('devolucaoConfirmarBtn').addEventListener('click', async
   fecharModalDevolucao();
   carregarVendas();
   carregarComissao();
+});
+
+document.getElementById('exportMinhasVendasBtn').addEventListener('click', async () => {
+  const res = await fetch('/api/vendas?todos=1');
+  if(res.status === 401){ logout(); return; }
+  const vendas = await res.json();
+
+  let csv = 'Data;Produto;Canal;Valor;Devolucao;Valor Devolvido;Valor Liquido\n';
+  vendas.slice().sort((a,b) => a.data < b.data ? -1 : 1).forEach(v => {
+    const dev = v.devolucao;
+    const devTipo = dev ? (dev.tipo === 'total' ? 'Total' : 'Parcial') : '';
+    const devValor = dev ? dev.valor_devolvido.toFixed(2).replace('.', ',') : '';
+    const liquido = dev ? Math.max(0, v.valor - dev.valor_devolvido) : v.valor;
+    const [y,m,d] = v.data.split('-');
+    csv += `${d}/${m}/${y};${v.produto.replace(/;/g,',')};${v.canal || ''};${v.valor.toFixed(2).replace('.',',')};${devTipo};${devValor};${liquido.toFixed(2).replace('.',',')}\n`;
+  });
+
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `minhas_vendas_${eu ? eu.nome.toLowerCase() : 'vendedor'}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 });
 
 async function carregarComissao(){

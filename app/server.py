@@ -405,12 +405,13 @@ def api_listar_vendas():
     vendedor_id = exigir_vendedor()
     if not vendedor_id:
         return jsonify({"erro": "Não autenticado."}), 401
+    todos = request.args.get("todos") == "1"
     mes = request.args.get("mes", date.today().isoformat()[:7])
     vendas = carregar_vendas_vendedor(vendedor_id)
     minhas = [
         {**v, "id": vid}
         for vid, v in vendas.items()
-        if v["data"][:7] == mes and v.get("tipo", "venda") == "venda"
+        if (todos or v["data"][:7] == mes) and v.get("tipo", "venda") == "venda"
     ]
     minhas.sort(key=lambda v: v["data"], reverse=True)
     return jsonify(minhas)
