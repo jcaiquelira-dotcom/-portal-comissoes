@@ -79,6 +79,26 @@
   .section-title:first-of-type{margin-top:0;}
   .section-title::after{content:'';flex:1;height:1px;background:var(--line);}
 
+  .log-collapse{margin:26px 0;}
+  .log-collapse summary{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    font-size:14px;
+    color:var(--muted);
+    cursor:pointer;
+    list-style:none;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    user-select:none;
+  }
+  .log-collapse summary::-webkit-details-marker{display:none;}
+  .log-collapse summary::before{content:'▸';font-size:11px;transition:transform .15s;}
+  .log-collapse[open] summary::before{transform:rotate(90deg);}
+  .log-collapse summary::after{content:'';flex:1;height:1px;background:var(--line);}
+  .log-collapse .log-body{margin-top:10px;}
+
   .card{
     background:var(--surface);
     border:1px solid var(--line);
@@ -542,27 +562,35 @@
       <p class="fechamento-nota">Depois de fechado, nenhum vendedor consegue lançar, editar ou excluir vendas desse mês. Só você pode reabrir.</p>
     </div>
 
-    <p class="section-title">Log de acessos</p>
-    <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:26px;">
-      <table>
-        <thead>
-          <tr><th>Quando</th><th>Quem</th><th>Resultado</th><th>IP</th></tr>
-        </thead>
-        <tbody id="logAcessosBody"></tbody>
-      </table>
-    </div>
-    <div class="empty-hist" id="emptyLog" style="display:none;">Nenhum acesso registrado ainda.</div>
+    <details class="log-collapse">
+      <summary>Log de acessos</summary>
+      <div class="log-body">
+        <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;">
+          <table>
+            <thead>
+              <tr><th>Quando</th><th>Quem</th><th>Resultado</th><th>IP</th></tr>
+            </thead>
+            <tbody id="logAcessosBody"></tbody>
+          </table>
+        </div>
+        <div class="empty-hist" id="emptyLog" style="display:none;">Nenhum acesso registrado ainda.</div>
+      </div>
+    </details>
 
-    <p class="section-title">Log de ações (edições, exclusões e devoluções)</p>
-    <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:26px;">
-      <table>
-        <thead>
-          <tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Produto</th><th>Valor</th><th>Detalhe</th></tr>
-        </thead>
-        <tbody id="logAcoesBody"></tbody>
-      </table>
-    </div>
-    <div class="empty-hist" id="emptyLogAcoes" style="display:none;">Nenhuma ação registrada ainda.</div>
+    <details class="log-collapse">
+      <summary>Log de ações (edições, exclusões e devoluções)</summary>
+      <div class="log-body">
+        <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;">
+          <table>
+            <thead>
+              <tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Produto</th><th>Valor</th><th>Detalhe</th></tr>
+            </thead>
+            <tbody id="logAcoesBody"></tbody>
+          </table>
+        </div>
+        <div class="empty-hist" id="emptyLogAcoes" style="display:none;">Nenhuma ação registrada ainda.</div>
+      </div>
+    </details>
 
     <p class="section-title">Metas de vendas</p>
     <div class="card" style="margin-bottom:26px;">
