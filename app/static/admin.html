@@ -553,6 +553,17 @@
     </div>
     <div class="empty-hist" id="emptyLog" style="display:none;">Nenhum acesso registrado ainda.</div>
 
+    <p class="section-title">Log de ações (edições, exclusões e devoluções)</p>
+    <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:26px;">
+      <table>
+        <thead>
+          <tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Produto</th><th>Valor</th><th>Detalhe</th></tr>
+        </thead>
+        <tbody id="logAcoesBody"></tbody>
+      </table>
+    </div>
+    <div class="empty-hist" id="emptyLogAcoes" style="display:none;">Nenhuma ação registrada ainda.</div>
+
     <p class="section-title">Metas de vendas</p>
     <div class="card" style="margin-bottom:26px;">
       <p class="metas-subtitulo">Grupo</p>
@@ -649,6 +660,7 @@ function mostrarApp(){
   carregarResumo();
   carregarMesesFechados();
   carregarLogAcessos();
+  carregarLogAcoes();
   carregarMetas();
 }
 
@@ -750,6 +762,37 @@ async function carregarLogAcessos(){
       <td>${quem}</td>
       <td>${resultado}</td>
       <td>${item.ip || '—'}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+function fmtMoedaLog(v){
+  return (v || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+}
+
+async function carregarLogAcoes(){
+  const res = await fetch('/api/admin/log-acoes');
+  if(res.status === 401) return;
+  const log = await res.json();
+  const body = document.getElementById('logAcoesBody');
+  const empty = document.getElementById('emptyLogAcoes');
+  body.innerHTML = '';
+  if(log.length === 0){
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  log.forEach(item => {
+    const dt = new Date(item.quando);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${dt.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${item.nome || item.vendedor_id || '—'}</td>
+      <td>${item.acao}</td>
+      <td>${item.produto || '—'}</td>
+      <td>${fmtMoedaLog(item.valor)}</td>
+      <td>${item.detalhe || '—'}</td>
     `;
     body.appendChild(tr);
   });

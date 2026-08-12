@@ -20,10 +20,12 @@ CREDENCIAIS_FILE = SEGREDOS_DIR / "credenciais.json"
 SECRET_KEY_FILE = SEGREDOS_DIR / "secret_key.txt"
 MESES_FECHADOS_FILE = SEGREDOS_DIR / "meses_fechados.json"
 LOG_ACESSOS_FILE = SEGREDOS_DIR / "log_acessos.json"
+LOG_ACOES_FILE = SEGREDOS_DIR / "log_acoes.json"
 
 DATA_DIR_NAME = "data"
 DIAS_MAXIMOS_RETROATIVOS = 7
 MAX_LOG_ACESSOS = 500
+MAX_LOG_ACOES = 500
 LOGIN_MAX_TENTATIVAS = 5
 LOGIN_JANELA_MINUTOS = 15
 PRODUCAO = os.environ.get("PORTAL_PRODUCAO") == "1"
@@ -208,6 +210,22 @@ def registrar_acesso(tipo: str, sucesso: bool, vendedor_id: str = None, nome: st
         "ip": request.remote_addr,
     })
     escrever_json(LOG_ACESSOS_FILE, log[-MAX_LOG_ACESSOS:])
+
+
+def registrar_acao(vendedor_id: str, nome: str, acao: str, produto: str, valor: float, detalhe: str = None) -> None:
+    """Histórico de edição/exclusão/devolução de vendas, pra o gestor conseguir
+    revisar o que cada vendedor mexeu — inclusive vendas já excluídas."""
+    log = ler_json(LOG_ACOES_FILE, [])
+    log.append({
+        "quando": datetime.now().isoformat(timespec="seconds"),
+        "vendedor_id": vendedor_id,
+        "nome": nome,
+        "acao": acao,
+        "produto": produto,
+        "valor": valor,
+        "detalhe": detalhe,
+    })
+    escrever_json(LOG_ACOES_FILE, log[-MAX_LOG_ACOES:])
 
 
 def excedeu_tentativas_login(tipo: str, vendedor_id: str = None) -> bool:
@@ -530,9 +548,12 @@ def api_remover_venda(venda_id):
     if mes_esta_fechado(vendas[venda_id]["data"]):
         return jsonify({"erro": "Esse mês já foi fechado pelo gestor e não aceita mais alterações."}), 403
     mes_afetado = vendas[venda_id]["data"][:7]
+    removida = vendas[venda_id]
     del vendas[venda_id]
     salvar_vendas_vendedor(vendedor_id, vendas)
     limpar_confirmacao(vendedor_id, mes_afetado)
+    nome = carregar_vendedores().get(vendedor_id, {}).get("nome", vendedor_id)
+    registrar_acao(vendedor_id, nome, "excluiu", removida["produto"], removida["valor"], removida["data"])
     return jsonify({"ok": True})
 
 
@@ -579,6 +600,16 @@ def api_editar_venda(venda_id):
     limpar_confirmacao(vendedor_id, mes_antigo)
     if nova_data[:7] != mes_antigo:
         limpar_confirmacao(vendedor_id, nova_data[:7])
+
+    mudancas = []
+    if atual["valor"] != valor:
+        mudancas.append(f"valor {atual['valor']:.2f} → {valor:.2f}")
+    if atual["produto"] != produto:
+        mudancas.append(f"produto \"{atual['produto']}\" → \"{produto}\"")
+    if atual["data"] != nova_data:
+        mudancas.append(f"data {atual['data']} → {nova_data}")
+    nome = carregar_vendedores().get(vendedor_id, {}).get("nome", vendedor_id)
+    registrar_acao(vendedor_id, nome, "editou", produto, valor, "; ".join(mudancas) or None)
     return jsonify({"ok": True})
 
 
@@ -621,6 +652,9 @@ def api_marcar_devolucao(venda_id):
     }
     salvar_vendas_vendedor(vendedor_id, vendas)
     limpar_confirmacao(vendedor_id, atual["data"][:7])
+    nome = carregar_vendedores().get(vendedor_id, {}).get("nome", vendedor_id)
+    acao = "marcou devolução total" if tipo == "total" else "marcou devolução parcial"
+    registrar_acao(vendedor_id, nome, acao, atual["produto"], valor_devolvido)
     return jsonify({"ok": True})
 
 
@@ -641,6 +675,8 @@ def api_remover_devolucao(venda_id):
     vendas[venda_id] = nova
     salvar_vendas_vendedor(vendedor_id, vendas)
     limpar_confirmacao(vendedor_id, atual["data"][:7])
+    nome = carregar_vendedores().get(vendedor_id, {}).get("nome", vendedor_id)
+    registrar_acao(vendedor_id, nome, "desfez devolução", atual["produto"], atual["valor"])
     return jsonify({"ok": True})
 
 
@@ -761,6 +797,14 @@ def api_admin_log_acessos():
     if not exigir_admin():
         return jsonify({"erro": "Não autenticado."}), 401
     log = ler_json(LOG_ACESSOS_FILE, [])
+    return jsonify(list(reversed(log))[:200])
+
+
+@app.route("/api/admin/log-acoes")
+def api_admin_log_acoes():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    log = ler_json(LOG_ACOES_FILE, [])
     return jsonify(list(reversed(log))[:200])
 
 
