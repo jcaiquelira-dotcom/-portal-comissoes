@@ -324,9 +324,19 @@ def mes_para_intervalo(mes: str) -> tuple[str, str]:
     return f"{mes}-01", f"{mes}-31"
 
 
+def valor_liquido(v: dict) -> float:
+    """Valor de uma venda descontando o que foi devolvido, sem apagar o histórico original."""
+    devolucao = v.get("devolucao")
+    if not devolucao:
+        return v["valor"]
+    if devolucao.get("tipo") == "total":
+        return 0.0
+    return max(0.0, v["valor"] - float(devolucao.get("valor_devolvido", 0)))
+
+
 def total_vendido(vendedor_id: str, de: str, ate: str, vendas: dict, tipo: str = "venda") -> float:
     total = sum(
-        v["valor"]
+        valor_liquido(v)
         for v in vendas.values()
         if v["vendedor_id"] == vendedor_id and de <= v["data"] <= ate and v.get("tipo", "venda") == tipo
     )
@@ -571,6 +581,68 @@ def api_editar_venda(venda_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/vendas/<venda_id>/devolucao", methods=["POST"])
+def api_marcar_devolucao(venda_id):
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    vendas = carregar_vendas_vendedor(vendedor_id)
+    atual = vendas.get(venda_id)
+    if not atual:
+        return jsonify({"erro": "Venda não encontrada."}), 404
+    if atual.get("tipo", "venda") != "venda":
+        return jsonify({"erro": "Não é possível marcar devolução nesse registro."}), 400
+
+    body = request.get_json(force=True)
+    tipo = (body.get("tipo") or "").strip()
+    if tipo not in ("parcial", "total"):
+        return jsonify({"erro": "Tipo de devolução inválido."}), 400
+
+    if tipo == "total":
+        valor_devolvido = atual["valor"]
+    else:
+        try:
+            valor_devolvido = round(float(body.get("valor")), 2)
+        except (TypeError, ValueError):
+            return jsonify({"erro": "Valor devolvido inválido."}), 400
+        if valor_devolvido <= 0:
+            return jsonify({"erro": "Valor devolvido deve ser maior que zero."}), 400
+        if valor_devolvido > atual["valor"]:
+            return jsonify({"erro": "Valor devolvido não pode ser maior que o valor da venda."}), 400
+
+    vendas[venda_id] = {
+        **atual,
+        "devolucao": {
+            "tipo": tipo,
+            "valor_devolvido": valor_devolvido,
+            "marcado_em": datetime.now().isoformat(timespec="seconds"),
+        },
+    }
+    salvar_vendas_vendedor(vendedor_id, vendas)
+    limpar_confirmacao(vendedor_id, atual["data"][:7])
+    return jsonify({"ok": True})
+
+
+@app.route("/api/vendas/<venda_id>/devolucao", methods=["DELETE"])
+def api_remover_devolucao(venda_id):
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    vendas = carregar_vendas_vendedor(vendedor_id)
+    atual = vendas.get(venda_id)
+    if not atual:
+        return jsonify({"erro": "Venda não encontrada."}), 404
+    if "devolucao" not in atual:
+        return jsonify({"erro": "Essa venda não tem devolução marcada."}), 400
+
+    nova = dict(atual)
+    nova.pop("devolucao")
+    vendas[venda_id] = nova
+    salvar_vendas_vendedor(vendedor_id, vendas)
+    limpar_confirmacao(vendedor_id, atual["data"][:7])
+    return jsonify({"ok": True})
+
+
 @app.route("/api/confirmar-mes", methods=["POST"])
 def api_confirmar_mes():
     vendedor_id = exigir_vendedor()
@@ -761,7 +833,7 @@ def api_admin_resumo():
 
         for v in lista_vendas:
             chave = v["data"][:7]
-            serie_por_mes[chave] = serie_por_mes.get(chave, 0.0) + v["valor"]
+            serie_por_mes[chave] = serie_por_mes.get(chave, 0.0) + valor_liquido(v)
 
         calc = calcular_comissao(vid, de, ate, vendedores, vendas)
         total_geral += calc["total_vendido"]

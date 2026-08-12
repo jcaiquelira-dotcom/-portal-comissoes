@@ -242,6 +242,58 @@
   .del-btn:hover{background:rgba(224,91,91,.12);}
   .empty-hist{color:var(--muted);font-size:12px;padding:14px 0;}
 
+  .devolucao-btn{
+    background:none;
+    border:1px solid var(--line);
+    color:var(--muted);
+    border-radius:4px;
+    padding:3px 8px;
+    font-size:11px;
+    cursor:pointer;
+    margin-right:6px;
+  }
+  .devolucao-btn:hover{border-color:var(--accent-2);color:var(--text);}
+  .devolucao-badge{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    color:var(--bad);
+    border:1px solid var(--bad);
+    border-radius:4px;
+    padding:2px 6px;
+    margin-right:6px;
+  }
+
+  .modal-overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(10,12,15,.72);
+    align-items:center;
+    justify-content:center;
+    z-index:50;
+    padding:20px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal-card{
+    max-width:380px;
+    width:100%;
+  }
+  .modal-card .section-title{margin-bottom:14px;}
+  .modal-card .venda-resumo{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:16px;
+  }
+  .modal-opcoes{display:flex;gap:10px;margin-bottom:14px;}
+  .modal-opcoes .small-btn{flex:1;padding:12px;text-align:center;}
+  .modal-opcoes .small-btn.ativo{border-color:var(--accent);color:var(--accent-2);}
+  .modal-acoes{display:flex;gap:10px;margin-top:14px;}
+  .modal-acoes .small-btn{flex:1;text-align:center;}
+
   .status{
     font-family:'IBM Plex Mono',monospace;
     font-size:11px;
@@ -455,6 +507,26 @@
   <footer>Nevada Eco Peças &middot; Os dados ficam salvos neste computador.</footer>
 </div>
 
+<div class="modal-overlay" id="devolucaoOverlay">
+  <div class="card modal-card">
+    <p class="section-title">Marcar devolução</p>
+    <div class="venda-resumo" id="devolucaoResumo"></div>
+    <div class="modal-opcoes">
+      <button class="small-btn" id="devolucaoParcialBtn" type="button">Parcial</button>
+      <button class="small-btn" id="devolucaoTotalBtn" type="button">Total</button>
+    </div>
+    <div class="field" id="devolucaoValorField" style="display:none;">
+      <label for="devolucaoValorInput">Valor devolvido</label>
+      <input type="number" id="devolucaoValorInput" min="0" step="0.01">
+    </div>
+    <div class="error-msg" id="devolucaoError"></div>
+    <div class="modal-acoes">
+      <button class="small-btn" id="devolucaoCancelarBtn" type="button">Cancelar</button>
+      <button class="primary-btn" id="devolucaoConfirmarBtn" type="button" style="display:none;">Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 function fmtMoeda(v){
   return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
@@ -619,11 +691,20 @@ async function carregarVendas(){
     vendas.forEach(v => {
       const [y,m,d] = v.data.split('-');
       const tr = document.createElement('tr');
+      const dev = v.devolucao;
+      const badge = dev
+        ? `<span class="devolucao-badge">${dev.tipo === 'total' ? 'Devolvido' : 'Dev. parcial ' + fmtMoeda(dev.valor_devolvido)}</span>`
+        : '';
+      const devBtn = dev
+        ? `<button class="devolucao-btn" data-remover-devolucao="${v.id}">Desfazer devolução</button>`
+        : `<button class="devolucao-btn" data-devolucao="${v.id}">Devolução</button>`;
       tr.innerHTML = `
         <td>${d}/${m}/${y}</td>
         <td class="produto-col">${v.produto}</td>
         <td>${fmtMoeda(v.valor)}</td>
         <td>
+          ${badge}
+          ${devBtn}
           <button class="small-btn" data-editid="${v.id}">Editar</button>
           <button class="del-btn" data-id="${v.id}">Excluir</button>
         </td>
@@ -654,7 +735,89 @@ async function carregarVendas(){
       carregarConfirmacao();
     });
   });
+
+  body.querySelectorAll('[data-devolucao]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = vendas.find(x => x.id === btn.dataset.devolucao);
+      if(v) abrirModalDevolucao(v);
+    });
+  });
+
+  body.querySelectorAll('[data-remover-devolucao]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if(!confirm('Desfazer a devolução marcada nesta venda?')) return;
+      const res = await fetch('/api/vendas/' + btn.dataset.removerDevolucao + '/devolucao', {method:'DELETE'});
+      if(!res.ok){
+        const dados = await res.json().catch(() => ({}));
+        alert(dados.erro || 'Não foi possível desfazer a devolução.');
+        return;
+      }
+      carregarVendas();
+      carregarComissao();
+    });
+  });
 }
+
+let devolucaoVendaId = null;
+let devolucaoTipo = null;
+
+function abrirModalDevolucao(v){
+  devolucaoVendaId = v.id;
+  devolucaoTipo = null;
+  document.getElementById('devolucaoResumo').textContent = `${v.produto} — ${fmtMoeda(v.valor)}`;
+  document.getElementById('devolucaoValorField').style.display = 'none';
+  document.getElementById('devolucaoValorInput').value = '';
+  document.getElementById('devolucaoError').textContent = '';
+  document.getElementById('devolucaoConfirmarBtn').style.display = 'none';
+  document.getElementById('devolucaoParcialBtn').classList.remove('ativo');
+  document.getElementById('devolucaoTotalBtn').classList.remove('ativo');
+  document.getElementById('devolucaoOverlay').classList.add('show');
+}
+
+function fecharModalDevolucao(){
+  document.getElementById('devolucaoOverlay').classList.remove('show');
+  devolucaoVendaId = null;
+}
+
+document.getElementById('devolucaoParcialBtn').addEventListener('click', () => {
+  devolucaoTipo = 'parcial';
+  document.getElementById('devolucaoParcialBtn').classList.add('ativo');
+  document.getElementById('devolucaoTotalBtn').classList.remove('ativo');
+  document.getElementById('devolucaoValorField').style.display = 'block';
+  document.getElementById('devolucaoConfirmarBtn').style.display = 'block';
+});
+
+document.getElementById('devolucaoTotalBtn').addEventListener('click', () => {
+  devolucaoTipo = 'total';
+  document.getElementById('devolucaoTotalBtn').classList.add('ativo');
+  document.getElementById('devolucaoParcialBtn').classList.remove('ativo');
+  document.getElementById('devolucaoValorField').style.display = 'none';
+  document.getElementById('devolucaoConfirmarBtn').style.display = 'block';
+});
+
+document.getElementById('devolucaoCancelarBtn').addEventListener('click', fecharModalDevolucao);
+
+document.getElementById('devolucaoConfirmarBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('devolucaoError');
+  errEl.textContent = '';
+  const body = {tipo: devolucaoTipo};
+  if(devolucaoTipo === 'parcial'){
+    body.valor = document.getElementById('devolucaoValorInput').value;
+  }
+  const res = await fetch('/api/vendas/' + devolucaoVendaId + '/devolucao', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  const dados = await res.json().catch(() => ({}));
+  if(!res.ok){
+    errEl.textContent = dados.erro || 'Não foi possível marcar a devolução.';
+    return;
+  }
+  fecharModalDevolucao();
+  carregarVendas();
+  carregarComissao();
+});
 
 async function carregarComissao(){
   const mes = document.getElementById('mesInput').value;
