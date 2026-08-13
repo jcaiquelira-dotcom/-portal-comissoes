@@ -1,5 +1,7 @@
+import io
 import json
 import os
+import re
 import secrets
 import urllib.error
 import urllib.request
@@ -7,7 +9,8 @@ import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from flask import Flask, jsonify, redirect, request, send_from_directory, session
+from flask import Flask, jsonify, redirect, request, send_file, send_from_directory, session
+from openpyxl import Workbook
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.json"
@@ -930,6 +933,69 @@ def api_admin_resumo():
         "ticket_medio": ticket_medio,
         "serie_mensal": serie_mensal,
     })
+
+
+def _nome_aba_excel(nome: str) -> str:
+    """Aba do Excel não aceita \\ / ? * [ ] : nem mais de 31 caracteres."""
+    limpo = re.sub(r'[\\/?*\[\]:]', "-", nome)
+    return limpo[:31] or "Vendedor"
+
+
+@app.route("/api/admin/exportar-mes-xlsx")
+def api_admin_exportar_mes_xlsx():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+
+    mes = request.args.get("mes", "")
+    if len(mes) != 7 or mes[4] != "-":
+        return jsonify({"erro": "Mês inválido."}), 400
+    de, ate = f"{mes}-01", f"{mes}-31"
+
+    vendedores = carregar_vendedores()
+    vendas = carregar_vendas_todos(vendedores)
+
+    wb = Workbook()
+    wb.remove(wb.active)
+    cabecalho = ["Data", "Produto", "SKU", "Canal", "Valor", "Devolução", "Valor Devolvido", "Valor Líquido"]
+
+    for vid in sorted(vendedores, key=lambda x: vendedores[x]["nome"]):
+        lista = [
+            v for v in vendas.values()
+            if v["vendedor_id"] == vid and de <= v["data"] <= ate and v.get("tipo", "venda") == "venda"
+        ]
+        lista.sort(key=lambda v: v["data"])
+
+        ws = wb.create_sheet(_nome_aba_excel(vendedores[vid]["nome"]))
+        ws.append(cabecalho)
+        for v in lista:
+            dev = v.get("devolucao")
+            dev_tipo = ("Total" if dev.get("tipo") == "total" else "Parcial") if dev else ""
+            dev_valor = dev.get("valor_devolvido") if dev else None
+            ws.append([
+                v["data"],
+                v["produto"],
+                v.get("sku", ""),
+                v.get("canal", ""),
+                v["valor"],
+                dev_tipo,
+                dev_valor,
+                valor_liquido(v),
+            ])
+        for coluna, largura in zip("ABCDEFGH", (12, 42, 12, 14, 12, 12, 14, 14)):
+            ws.column_dimensions[coluna].width = largura
+
+    if not wb.sheetnames:
+        wb.create_sheet("Vendedores").append(cabecalho)
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return send_file(
+        buffer,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"vendas_{mes}.xlsx",
+    )
 
 
 @app.route("/api/admin/vendedores", methods=["GET"])
