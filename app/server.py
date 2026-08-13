@@ -435,7 +435,7 @@ def api_listar_vendas():
     return jsonify(minhas)
 
 
-def validar_valor_produto(body: dict) -> tuple[float, str, str]:
+def validar_valor_produto(body: dict) -> tuple[float, str, str, str]:
     try:
         valor = round(float(body.get("valor")), 2)
     except (TypeError, ValueError):
@@ -446,7 +446,8 @@ def validar_valor_produto(body: dict) -> tuple[float, str, str]:
     if not produto:
         raise ValueError("Informe o que foi vendido.")
     canal = (body.get("canal") or "").strip()
-    return valor, produto, canal
+    sku = (body.get("sku") or "").strip()
+    return valor, produto, canal, sku
 
 
 def validar_data_venda(data_venda: str) -> None:
@@ -468,7 +469,7 @@ def validar_data_venda(data_venda: str) -> None:
 def montar_venda(vendedor_id: str, body: dict) -> dict:
     """Valida os campos de uma venda e retorna o dict pronto para salvar.
     Lança ValueError com a mensagem de erro em caso de dado inválido."""
-    valor, produto, canal = validar_valor_produto(body)
+    valor, produto, canal, sku = validar_valor_produto(body)
     data_venda = (body.get("data") or date.today().isoformat()).strip()
     validar_data_venda(data_venda)
     if mes_esta_fechado(data_venda):
@@ -484,6 +485,8 @@ def montar_venda(vendedor_id: str, body: dict) -> dict:
     }
     if canal:
         venda["canal"] = canal
+    if sku:
+        venda["sku"] = sku
     return venda
 
 
@@ -573,7 +576,7 @@ def api_editar_venda(venda_id):
 
     body = request.get_json(force=True)
     try:
-        valor, produto, canal = validar_valor_produto(body)
+        valor, produto, canal, sku = validar_valor_produto(body)
         nova_data = (body.get("data") or atual["data"]).strip()
         if nova_data != atual["data"]:
             validar_data_venda(nova_data)
@@ -594,6 +597,10 @@ def api_editar_venda(venda_id):
         atualizada["canal"] = canal
     else:
         atualizada.pop("canal", None)
+    if sku:
+        atualizada["sku"] = sku
+    else:
+        atualizada.pop("sku", None)
     vendas[venda_id] = atualizada
     salvar_vendas_vendedor(vendedor_id, vendas)
 

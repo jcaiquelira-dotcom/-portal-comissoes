@@ -176,6 +176,14 @@
     margin-bottom:18px;
   }
   .form-grid .field{margin-bottom:0;}
+  .form-grid-2{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    align-items:end;
+    margin-bottom:18px;
+  }
+  .form-grid-2 .field{margin-bottom:0;}
   .add-btn{
     background:var(--accent);
     color:#151719;
@@ -459,6 +467,16 @@
       </div>
       <button class="add-btn" id="addBtn">Adicionar</button>
     </div>
+    <div class="form-grid-2">
+      <div class="field">
+        <label for="skuInput">SKU (opcional)</label>
+        <input type="text" id="skuInput" placeholder="Ex: MOT-ARR-G5">
+      </div>
+      <div class="field">
+        <label for="canalInput">Canal (opcional)</label>
+        <input type="text" id="canalInput" placeholder="Ex: Mercado Livre, Loja, WhatsApp">
+      </div>
+    </div>
     <button class="link-btn" id="cancelEditBtn">Cancelar edição</button>
     <div class="status" id="formStatus"></div>
 
@@ -475,6 +493,7 @@
               <th style="width:130px;">Data</th>
               <th>O que foi vendido</th>
               <th style="width:130px;">Valor (R$)</th>
+              <th style="width:110px;">SKU</th>
               <th style="width:90px;">Canal</th>
               <th style="width:34px;"></th>
             </tr>
@@ -598,6 +617,8 @@ function entrarModoEdicao(v){
   document.getElementById('dataInput').value = v.data;
   document.getElementById('produtoInput').value = v.produto;
   document.getElementById('valorInput').value = v.valor;
+  document.getElementById('skuInput').value = v.sku || '';
+  document.getElementById('canalInput').value = v.canal || '';
   document.getElementById('addBtn').textContent = 'Salvar edição';
   document.getElementById('cancelEditBtn').style.display = 'inline';
   document.getElementById('produtoInput').scrollIntoView({behavior:'smooth', block:'center'});
@@ -609,6 +630,8 @@ function sairModoEdicao(){
   document.getElementById('cancelEditBtn').style.display = 'none';
   document.getElementById('produtoInput').value = '';
   document.getElementById('valorInput').value = '';
+  document.getElementById('skuInput').value = '';
+  document.getElementById('canalInput').value = '';
   document.getElementById('dataInput').value = todayStr();
 }
 
@@ -702,9 +725,10 @@ async function carregarVendas(){
         ? `<button class="devolucao-btn" data-devolucao="${v.id}">Editar devolução</button>
            <button class="devolucao-btn" data-remover-devolucao="${v.id}">Desfazer devolução</button>`
         : `<button class="devolucao-btn" data-devolucao="${v.id}">Devolução</button>`;
+      const skuLinha = v.sku ? `<br><span style="color:var(--muted);font-size:11px;">SKU ${v.sku}</span>` : '';
       tr.innerHTML = `
         <td>${d}/${m}/${y}</td>
-        <td class="produto-col">${v.produto}</td>
+        <td class="produto-col">${v.produto}${skuLinha}</td>
         <td>${fmtMoeda(v.valor)}</td>
         <td>
           ${badge}
@@ -828,14 +852,14 @@ document.getElementById('exportMinhasVendasBtn').addEventListener('click', async
   if(res.status === 401){ logout(); return; }
   const vendas = await res.json();
 
-  let csv = 'Data;Produto;Canal;Valor;Devolucao;Valor Devolvido;Valor Liquido\n';
+  let csv = 'Data;Produto;SKU;Canal;Valor;Devolucao;Valor Devolvido;Valor Liquido\n';
   vendas.slice().sort((a,b) => a.data < b.data ? -1 : 1).forEach(v => {
     const dev = v.devolucao;
     const devTipo = dev ? (dev.tipo === 'total' ? 'Total' : 'Parcial') : '';
     const devValor = dev ? dev.valor_devolvido.toFixed(2).replace('.', ',') : '';
     const liquido = dev ? Math.max(0, v.valor - dev.valor_devolvido) : v.valor;
     const [y,m,d] = v.data.split('-');
-    csv += `${d}/${m}/${y};${v.produto.replace(/;/g,',')};${v.canal || ''};${v.valor.toFixed(2).replace('.',',')};${devTipo};${devValor};${liquido.toFixed(2).replace('.',',')}\n`;
+    csv += `${d}/${m}/${y};${v.produto.replace(/;/g,',')};${v.sku || ''};${v.canal || ''};${v.valor.toFixed(2).replace('.',',')};${devTipo};${devValor};${liquido.toFixed(2).replace('.',',')}\n`;
   });
 
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
@@ -881,6 +905,8 @@ document.getElementById('addBtn').addEventListener('click', async () => {
   const data = document.getElementById('dataInput').value;
   const produto = document.getElementById('produtoInput').value.trim();
   const valor = document.getElementById('valorInput').value;
+  const sku = document.getElementById('skuInput').value.trim();
+  const canal = document.getElementById('canalInput').value.trim();
   status.classList.remove('show','err');
 
   const editando = !!editandoId;
@@ -891,7 +917,7 @@ document.getElementById('addBtn').addEventListener('click', async () => {
     const res = await fetch(url, {
       method,
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({data, produto, valor})
+      body: JSON.stringify({data, produto, valor, sku, canal})
     });
     const dados = await res.json();
     if(!res.ok){
@@ -921,6 +947,7 @@ function criarLinhaSheet(dataPadrao){
     <td><input type="date" class="sheet-data" value="${dataPadrao || todayStr()}"></td>
     <td><input type="text" class="sheet-produto" placeholder="Ex: Motor de arranque Gol G5"></td>
     <td><input type="number" class="sheet-valor" min="0" step="0.01" placeholder="0,00"></td>
+    <td><input type="text" class="sheet-sku" placeholder="SKU"></td>
     <td><input type="text" class="sheet-canal" placeholder="B / ML"></td>
     <td><button type="button" class="sheet-row-del" title="Remover linha">&times;</button></td>
   `;
@@ -973,9 +1000,10 @@ document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
     const produto = tr.querySelector('.sheet-produto').value.trim();
     const valor = tr.querySelector('.sheet-valor').value;
     const data = tr.querySelector('.sheet-data').value;
+    const sku = tr.querySelector('.sheet-sku').value.trim();
     const canal = tr.querySelector('.sheet-canal').value.trim();
     if(!produto && !valor) return;
-    linhas.push({data, produto, valor, canal});
+    linhas.push({data, produto, valor, sku, canal});
   });
 
   if(linhas.length === 0){
