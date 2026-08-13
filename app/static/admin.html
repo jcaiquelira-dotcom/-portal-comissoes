@@ -478,6 +478,22 @@
     </div>
     <button class="primary-btn" id="loginBtn">Entrar</button>
     <div class="error-msg" id="loginError"></div>
+    <button class="link-btn" id="esqueciSenhaBtn" style="margin-top:12px;">Esqueci a senha</button>
+  </div>
+
+  <div id="recuperarCard" class="card" style="display:none;">
+    <p class="section-title">Redefinir senha do gestor</p>
+    <div class="field">
+      <label for="recuperarCodigoInput">Código de recuperação</label>
+      <input type="text" id="recuperarCodigoInput" placeholder="Ex: 02140214">
+    </div>
+    <div class="field">
+      <label for="recuperarNovaSenhaInput">Nova senha</label>
+      <input type="password" id="recuperarNovaSenhaInput" autocomplete="new-password">
+    </div>
+    <button class="primary-btn" id="recuperarBtn">Redefinir senha</button>
+    <div class="error-msg" id="recuperarError"></div>
+    <button class="link-btn" id="cancelarRecuperarBtn" style="margin-top:12px;">Voltar pro login</button>
   </div>
 
   <div id="appSection">
@@ -643,6 +659,24 @@
       </div>
       <div>
         <div id="vendedoresList"></div>
+      </div>
+    </div>
+
+    <p class="section-title">Recuperação de senha do gestor</p>
+    <div class="card" style="max-width:480px;margin-bottom:26px;">
+      <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">
+        Gere um código de recuperação e guarde em lugar seguro (papel, notas do celular).
+        Se esquecer a senha do gestor, use esse código na tela de login pra definir uma nova.
+        Gerar um código novo invalida o anterior.
+      </p>
+      <div class="field">
+        <label for="codigoRecuperacaoInput">Escolha seu código (opcional — pelo menos 6 caracteres, deixe em branco pra gerar automático)</label>
+        <input type="text" id="codigoRecuperacaoInput" placeholder="Ex: 02140214">
+      </div>
+      <button class="small-btn" id="gerarCodigoBtn">Salvar código de recuperação</button>
+      <div id="codigoRecuperacaoResultado" style="display:none;margin-top:14px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:var(--accent-2);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px 16px;text-align:center;letter-spacing:.04em;" id="codigoRecuperacaoValor"></div>
+        <p style="color:var(--bad);font-size:12px;margin:10px 0 0;">Anote agora — esse código não aparece de novo.</p>
       </div>
     </div>
   </div>
@@ -872,6 +906,25 @@ document.getElementById('fechamentoExportBtn').addEventListener('click', () => {
   window.location.href = `/api/admin/exportar-mes-xlsx?mes=${mes}`;
 });
 
+document.getElementById('gerarCodigoBtn').addEventListener('click', async () => {
+  const codigo = document.getElementById('codigoRecuperacaoInput').value.trim();
+  if(codigo && !confirm('Gerar/salvar um novo código invalida qualquer código anterior. Continuar?')) return;
+  if(!codigo && !confirm('Gerar um código automático invalida qualquer código anterior. Continuar?')) return;
+  const res = await fetch('/api/admin/gerar-codigo-recuperacao', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({codigo})
+  });
+  const dados = await res.json();
+  if(!res.ok){
+    alert(dados.erro || 'Não foi possível salvar o código.');
+    return;
+  }
+  document.getElementById('codigoRecuperacaoInput').value = '';
+  document.getElementById('codigoRecuperacaoValor').textContent = dados.codigo;
+  document.getElementById('codigoRecuperacaoResultado').style.display = 'block';
+});
+
 function marcarPreset(id){
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b.id === id));
 }
@@ -920,6 +973,42 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
 });
 document.getElementById('senhaInput').addEventListener('keydown', (e) => {
   if(e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+
+document.getElementById('esqueciSenhaBtn').addEventListener('click', () => {
+  document.getElementById('loginCard').style.display = 'none';
+  document.getElementById('recuperarCard').style.display = 'block';
+});
+
+document.getElementById('cancelarRecuperarBtn').addEventListener('click', () => {
+  document.getElementById('recuperarCard').style.display = 'none';
+  document.getElementById('loginCard').style.display = 'block';
+  document.getElementById('recuperarError').textContent = '';
+  document.getElementById('recuperarCodigoInput').value = '';
+  document.getElementById('recuperarNovaSenhaInput').value = '';
+});
+
+document.getElementById('recuperarBtn').addEventListener('click', async () => {
+  const codigo = document.getElementById('recuperarCodigoInput').value.trim();
+  const nova_senha = document.getElementById('recuperarNovaSenhaInput').value;
+  const errEl = document.getElementById('recuperarError');
+  errEl.textContent = '';
+  try{
+    const res = await fetch('/api/recuperar-senha-admin', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({codigo, nova_senha})
+    });
+    const dados = await res.json();
+    if(!res.ok){
+      errEl.textContent = dados.erro || 'Não foi possível redefinir a senha.';
+      return;
+    }
+    alert('Senha redefinida! Faça login com a nova senha.');
+    document.getElementById('cancelarRecuperarBtn').click();
+  }catch(e){
+    errEl.textContent = 'Erro de conexão.';
+  }
 });
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {

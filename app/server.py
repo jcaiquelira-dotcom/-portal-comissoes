@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import os
@@ -830,6 +831,55 @@ def api_admin_login():
         return jsonify({"erro": "Senha incorreta."}), 401
     session["admin"] = True
     registrar_acesso("admin", True)
+    return jsonify({"ok": True})
+
+
+def _hash_codigo(codigo: str) -> str:
+    return hashlib.sha256(codigo.encode()).hexdigest()
+
+
+@app.route("/api/admin/gerar-codigo-recuperacao", methods=["POST"])
+def api_admin_gerar_codigo_recuperacao():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    body = request.get_json(silent=True) or {}
+    codigo_escolhido = (body.get("codigo") or "").strip().upper()
+    if codigo_escolhido:
+        if len(codigo_escolhido) < 6:
+            return jsonify({"erro": "O código precisa ter pelo menos 6 caracteres."}), 400
+        codigo = codigo_escolhido
+    else:
+        codigo = "-".join(secrets.token_hex(2).upper() for _ in range(2))
+    cred = carregar_credenciais()
+    cred["recuperacao_hash"] = _hash_codigo(codigo)
+    cred["recuperacao_gerado_em"] = datetime.now().isoformat(timespec="seconds")
+    escrever_json(CREDENCIAIS_FILE, cred)
+    return jsonify({"codigo": codigo})
+
+
+@app.route("/api/recuperar-senha-admin", methods=["POST"])
+def api_recuperar_senha_admin():
+    if excedeu_tentativas_login("admin_recuperacao"):
+        return jsonify({"erro": f"Muitas tentativas erradas. Aguarde {LOGIN_JANELA_MINUTOS} minutos e tente de novo."}), 429
+
+    body = request.get_json(force=True)
+    codigo = (body.get("codigo") or "").strip().upper()
+    nova_senha = body.get("nova_senha") or ""
+
+    cred = carregar_credenciais()
+    hash_salvo = cred.get("recuperacao_hash")
+    if not hash_salvo or _hash_codigo(codigo) != hash_salvo:
+        registrar_acesso("admin_recuperacao", False)
+        return jsonify({"erro": "Código inválido."}), 401
+
+    if len(nova_senha) < 4:
+        return jsonify({"erro": "A nova senha precisa ter pelo menos 4 caracteres."}), 400
+
+    cred["admin_senha"] = nova_senha
+    cred.pop("recuperacao_hash", None)
+    cred.pop("recuperacao_gerado_em", None)
+    escrever_json(CREDENCIAIS_FILE, cred)
+    registrar_acesso("admin_recuperacao", True)
     return jsonify({"ok": True})
 
 
