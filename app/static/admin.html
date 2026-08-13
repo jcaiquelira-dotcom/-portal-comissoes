@@ -640,6 +640,10 @@
             <input type="password" id="vSenhaInput">
           </div>
           <div class="field">
+            <label for="vCodigoRecuperacaoInput">Código de recuperação (opcional, pelo menos 6 caracteres — deixe em branco pra manter o atual)</label>
+            <input type="text" id="vCodigoRecuperacaoInput" placeholder="Ex: 02140214">
+          </div>
+          <div class="field">
             <label for="vFotoInput">Foto (opcional, JPG/PNG/WEBP)</label>
             <input type="file" id="vFotoInput" accept="image/png,image/jpeg,image/webp">
           </div>
@@ -659,24 +663,6 @@
       </div>
       <div>
         <div id="vendedoresList"></div>
-      </div>
-    </div>
-
-    <p class="section-title">Recuperação de senha do gestor</p>
-    <div class="card" style="max-width:480px;margin-bottom:26px;">
-      <p style="color:var(--muted);font-size:13px;margin:0 0 14px;">
-        Gere um código de recuperação e guarde em lugar seguro (papel, notas do celular).
-        Se esquecer a senha do gestor, use esse código na tela de login pra definir uma nova.
-        Gerar um código novo invalida o anterior.
-      </p>
-      <div class="field">
-        <label for="codigoRecuperacaoInput">Escolha seu código (opcional — pelo menos 6 caracteres, deixe em branco pra gerar automático)</label>
-        <input type="text" id="codigoRecuperacaoInput" placeholder="Ex: 02140214">
-      </div>
-      <button class="small-btn" id="gerarCodigoBtn">Salvar código de recuperação</button>
-      <div id="codigoRecuperacaoResultado" style="display:none;margin-top:14px;">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:var(--accent-2);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:12px 16px;text-align:center;letter-spacing:.04em;" id="codigoRecuperacaoValor"></div>
-        <p style="color:var(--bad);font-size:12px;margin:10px 0 0;">Anote agora — esse código não aparece de novo.</p>
       </div>
     </div>
   </div>
@@ -904,25 +890,6 @@ document.getElementById('fechamentoExportBtn').addEventListener('click', () => {
   const mes = document.getElementById('fechamentoMesInput').value;
   if(!mes) return;
   window.location.href = `/api/admin/exportar-mes-xlsx?mes=${mes}`;
-});
-
-document.getElementById('gerarCodigoBtn').addEventListener('click', async () => {
-  const codigo = document.getElementById('codigoRecuperacaoInput').value.trim();
-  if(codigo && !confirm('Gerar/salvar um novo código invalida qualquer código anterior. Continuar?')) return;
-  if(!codigo && !confirm('Gerar um código automático invalida qualquer código anterior. Continuar?')) return;
-  const res = await fetch('/api/admin/gerar-codigo-recuperacao', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({codigo})
-  });
-  const dados = await res.json();
-  if(!res.ok){
-    alert(dados.erro || 'Não foi possível salvar o código.');
-    return;
-  }
-  document.getElementById('codigoRecuperacaoInput').value = '';
-  document.getElementById('codigoRecuperacaoValor').textContent = dados.codigo;
-  document.getElementById('codigoRecuperacaoResultado').style.display = 'block';
 });
 
 function marcarPreset(id){
@@ -1217,6 +1184,7 @@ async function carregarVendedores(){
         document.getElementById('vIdInput').value = v.id;
         document.getElementById('vNomeInput').value = v.nome;
         document.getElementById('vSenhaInput').value = '';
+        document.getElementById('vCodigoRecuperacaoInput').value = '';
         document.getElementById('vPercentualInput').value = v.percentual;
         document.getElementById('vFotoInput').value = '';
         renderOverridesEditor(v.overrides);
@@ -1248,6 +1216,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
   const id = document.getElementById('vIdInput').value.trim();
   const nome = document.getElementById('vNomeInput').value.trim();
   const senha = document.getElementById('vSenhaInput').value;
+  const codigo_recuperacao = document.getElementById('vCodigoRecuperacaoInput').value.trim();
   const percentual = document.getElementById('vPercentualInput').value;
   const overrides = Array.from(document.querySelectorAll('.override-pct'))
     .map(inp => ({vendedor_id: inp.dataset.vid, percentual: parseFloat(inp.value || '0')}))
@@ -1257,7 +1226,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
     const res = await fetch('/api/admin/vendedores', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({id, nome, senha, percentual, overrides})
+      body: JSON.stringify({id, nome, senha, codigo_recuperacao, percentual, overrides})
     });
     const dados = await res.json();
     if(!res.ok){
@@ -1287,6 +1256,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
     document.getElementById('vIdInput').value = '';
     document.getElementById('vNomeInput').value = '';
     document.getElementById('vSenhaInput').value = '';
+    document.getElementById('vCodigoRecuperacaoInput').value = '';
     document.getElementById('vPercentualInput').value = '';
     document.getElementById('vFotoInput').value = '';
     carregarVendedores();

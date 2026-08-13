@@ -1105,7 +1105,41 @@ def api_admin_salvar_vendedor():
     }
     if existente.get("foto"):
         vendedores[vendedor_id]["foto"] = existente["foto"]
+    codigo_recuperacao = (body.get("codigo_recuperacao") or "").strip().upper()
+    if codigo_recuperacao:
+        if len(codigo_recuperacao) < 6:
+            return jsonify({"erro": "O código de recuperação precisa ter pelo menos 6 caracteres."}), 400
+        vendedores[vendedor_id]["recuperacao_hash"] = _hash_codigo(codigo_recuperacao)
+    elif existente.get("recuperacao_hash"):
+        vendedores[vendedor_id]["recuperacao_hash"] = existente["recuperacao_hash"]
     salvar_vendedores(vendedores)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/recuperar-senha-vendedor", methods=["POST"])
+def api_recuperar_senha_vendedor():
+    if excedeu_tentativas_login("vendedor_recuperacao"):
+        return jsonify({"erro": f"Muitas tentativas erradas. Aguarde {LOGIN_JANELA_MINUTOS} minutos e tente de novo."}), 429
+
+    body = request.get_json(force=True)
+    vendedor_id = (body.get("vendedor_id") or "").strip().lower()
+    codigo = (body.get("codigo") or "").strip().upper()
+    nova_senha = body.get("nova_senha") or ""
+
+    vendedores = carregar_vendedores()
+    info = vendedores.get(vendedor_id)
+    hash_salvo = info.get("recuperacao_hash") if info else None
+    if not info or not hash_salvo or _hash_codigo(codigo) != hash_salvo:
+        registrar_acesso("vendedor_recuperacao", False, vendedor_id)
+        return jsonify({"erro": "Código inválido."}), 401
+
+    if len(nova_senha) < 4:
+        return jsonify({"erro": "A nova senha precisa ter pelo menos 4 caracteres."}), 400
+
+    vendedores[vendedor_id]["senha"] = nova_senha
+    vendedores[vendedor_id].pop("recuperacao_hash", None)
+    salvar_vendedores(vendedores)
+    registrar_acesso("vendedor_recuperacao", True, vendedor_id)
     return jsonify({"ok": True})
 
 

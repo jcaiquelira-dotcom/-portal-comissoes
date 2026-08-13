@@ -422,6 +422,27 @@
     </div>
     <button class="primary-btn" id="loginBtn">Entrar</button>
     <div class="error-msg" id="loginError"></div>
+    <button class="link-btn" id="esqueciSenhaBtn" style="margin-top:12px;">Esqueci a senha</button>
+  </div>
+
+  <div id="recuperarCard" class="card" style="display:none;">
+    <p class="section-title">Redefinir senha</p>
+    <div class="field">
+      <label for="recuperarVendedorSelect">Vendedor</label>
+      <select id="recuperarVendedorSelect"></select>
+    </div>
+    <div class="field">
+      <label for="recuperarCodigoInput">Código de recuperação</label>
+      <input type="text" id="recuperarCodigoInput" placeholder="Ex: 02140214">
+    </div>
+    <div class="field">
+      <label for="recuperarNovaSenhaInput">Nova senha</label>
+      <input type="password" id="recuperarNovaSenhaInput" autocomplete="new-password">
+    </div>
+    <button class="primary-btn" id="recuperarBtn">Redefinir senha</button>
+    <div class="error-msg" id="recuperarError"></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:10px;">Não tem um código de recuperação configurado? Fale com o gestor.</p>
+    <button class="link-btn" id="cancelarRecuperarBtn" style="margin-top:4px;">Voltar pro login</button>
   </div>
 
   <div id="appSection">
@@ -554,10 +575,13 @@ let eu = null;
 
 async function carregarVendedores(){
   const select = document.getElementById('vendedorSelect');
+  const selectRecuperar = document.getElementById('recuperarVendedorSelect');
   try{
     const res = await fetch('/api/vendedores-publico');
     const lista = await res.json();
-    select.innerHTML = lista.map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
+    const opcoes = lista.map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
+    select.innerHTML = opcoes;
+    selectRecuperar.innerHTML = opcoes;
   }catch(e){
     select.innerHTML = '<option value="">Erro ao carregar vendedores</option>';
   }
@@ -680,6 +704,43 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
 
 document.getElementById('senhaInput').addEventListener('keydown', (e) => {
   if(e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+
+document.getElementById('esqueciSenhaBtn').addEventListener('click', () => {
+  document.getElementById('loginCard').style.display = 'none';
+  document.getElementById('recuperarCard').style.display = 'block';
+});
+
+document.getElementById('cancelarRecuperarBtn').addEventListener('click', () => {
+  document.getElementById('recuperarCard').style.display = 'none';
+  document.getElementById('loginCard').style.display = 'block';
+  document.getElementById('recuperarError').textContent = '';
+  document.getElementById('recuperarCodigoInput').value = '';
+  document.getElementById('recuperarNovaSenhaInput').value = '';
+});
+
+document.getElementById('recuperarBtn').addEventListener('click', async () => {
+  const vendedor_id = document.getElementById('recuperarVendedorSelect').value;
+  const codigo = document.getElementById('recuperarCodigoInput').value.trim();
+  const nova_senha = document.getElementById('recuperarNovaSenhaInput').value;
+  const errEl = document.getElementById('recuperarError');
+  errEl.textContent = '';
+  try{
+    const res = await fetch('/api/recuperar-senha-vendedor', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({vendedor_id, codigo, nova_senha})
+    });
+    const dados = await res.json();
+    if(!res.ok){
+      errEl.textContent = dados.erro || 'Não foi possível redefinir a senha.';
+      return;
+    }
+    alert('Senha redefinida! Faça login com a nova senha.');
+    document.getElementById('cancelarRecuperarBtn').click();
+  }catch(e){
+    errEl.textContent = 'Erro de conexão.';
+  }
 });
 
 async function logout(){
