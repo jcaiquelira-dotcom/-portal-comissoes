@@ -530,7 +530,7 @@
         <div class="value" id="totalGeralValue">R$ 0,00</div>
       </div>
       <div class="stat-card">
-        <div class="label">Comissões a pagar</div>
+        <div class="label">Comissões a receber</div>
         <div class="value" id="comissaoGeralValue">R$ 0,00</div>
       </div>
       <div class="stat-card">
@@ -540,10 +540,6 @@
       <div class="stat-card">
         <div class="label">Ticket médio</div>
         <div class="value" id="ticketMedioValue">R$ 0,00</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Bônus total</div>
-        <div class="value" id="bonusGeralValue">R$ 0,00</div>
       </div>
     </div>
 
@@ -1054,8 +1050,6 @@ async function carregarResumo(){
   document.getElementById('comissaoGeralValue').textContent = fmtMoeda(resumoAtual.comissao_geral);
   document.getElementById('qtdVendasValue').textContent = resumoAtual.qtd_vendas_geral;
   document.getElementById('ticketMedioValue').textContent = fmtMoeda(resumoAtual.ticket_medio);
-  const bonusGeral = resumoAtual.vendedores.reduce((a,v) => a + v.total_bonus, 0);
-  document.getElementById('bonusGeralValue').textContent = fmtMoeda(bonusGeral);
   document.getElementById('footTotal').textContent = fmtMoeda(resumoAtual.total_geral);
   document.getElementById('footComissao').textContent = fmtMoeda(resumoAtual.comissao_geral);
 
