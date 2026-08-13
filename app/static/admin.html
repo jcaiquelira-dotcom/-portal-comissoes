@@ -555,9 +555,10 @@
         <label for="fechamentoMesInput">Mês</label>
         <input type="month" id="fechamentoMesInput">
       </div>
-      <div style="display:flex;align-items:center;gap:12px;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <span id="fechamentoStatus" class="fechamento-status"></span>
         <button class="small-btn" id="fechamentoToggleBtn">...</button>
+        <button class="small-btn" id="fechamentoExportBtn">Exportar vendas do mês (CSV)</button>
       </div>
       <p class="fechamento-nota">Depois de fechado, nenhum vendedor consegue lançar, editar ou excluir vendas desse mês. Só você pode reabrir.</p>
     </div>
@@ -863,6 +864,34 @@ document.getElementById('fechamentoToggleBtn').addEventListener('click', async (
     mesesFechados = dados.meses_fechados;
     atualizarFechamentoUI();
   }
+});
+
+document.getElementById('fechamentoExportBtn').addEventListener('click', async () => {
+  const mes = document.getElementById('fechamentoMesInput').value;
+  if(!mes) return;
+  const res = await fetch(`/api/admin/resumo?de=${mes}-01&ate=${mes}-31`);
+  if(!res.ok) return;
+  const dados = await res.json();
+
+  let csv = 'Vendedor;Data;Produto;SKU;Canal;Valor;Devolucao;Valor Devolvido;Valor Liquido\n';
+  dados.vendedores.forEach(v => {
+    v.vendas.forEach(venda => {
+      const dev = venda.devolucao;
+      const devTipo = dev ? (dev.tipo === 'total' ? 'Total' : 'Parcial') : '';
+      const devValor = dev ? dev.valor_devolvido.toFixed(2).replace('.', ',') : '';
+      const liquido = dev ? Math.max(0, venda.valor - dev.valor_devolvido) : venda.valor;
+      const [y,m,d] = venda.data.split('-');
+      csv += `${v.nome};${d}/${m}/${y};${venda.produto.replace(/;/g,',')};${venda.sku || ''};${venda.canal || ''};${venda.valor.toFixed(2).replace('.',',')};${devTipo};${devValor};${liquido.toFixed(2).replace('.',',')}\n`;
+    });
+  });
+
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `vendas_${mes}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 });
 
 function marcarPreset(id){
