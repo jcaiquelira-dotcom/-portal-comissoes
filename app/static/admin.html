@@ -180,8 +180,8 @@
 
   .kpi-row{
     display:grid;
-    grid-template-columns:repeat(5,1fr);
-    gap:10px;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
     margin:16px 0 4px;
   }
   .stat-card{
@@ -189,20 +189,20 @@
     border:1px solid var(--line);
     border-left:3px solid var(--accent);
     border-radius:8px;
-    padding:14px 16px;
+    padding:22px 20px;
   }
   .stat-card .label{
     font-family:'IBM Plex Mono',monospace;
-    font-size:10px;
+    font-size:11px;
     letter-spacing:.08em;
     text-transform:uppercase;
     color:var(--muted);
-    margin-bottom:6px;
+    margin-bottom:10px;
   }
   .stat-card .value{
     font-family:'IBM Plex Mono',monospace;
     font-weight:700;
-    font-size:22px;
+    font-size:26px;
     color:var(--accent-2);
   }
   @media (max-width:900px){
@@ -517,6 +517,7 @@
           <button class="preset-btn" id="presetAno">Este ano</button>
           <button class="preset-btn" id="presetTudo">Tudo</button>
         </div>
+        <div class="preset-row" id="presetMesesAnterioresRow"></div>
       </div>
       <div class="actions-row" style="margin:0;">
         <button class="small-btn" id="exportBtn">Exportar CSV</button>
@@ -918,6 +919,34 @@ document.getElementById('presetTudo').addEventListener('click', () => {
   marcarPreset('presetTudo');
   carregarResumo();
 });
+function popularPresetsMesesAnteriores(){
+  const nomesMesCompleto = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const hoje = new Date();
+  const row = document.getElementById('presetMesesAnterioresRow');
+  row.innerHTML = '';
+  for(let i = 1; i <= 3; i++){
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const ano = d.getFullYear();
+    const mes = d.getMonth();
+    const de = `${ano}-${String(mes+1).padStart(2,'0')}-01`;
+    const ultimoDia = new Date(ano, mes+1, 0).getDate();
+    const ate = `${ano}-${String(mes+1).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
+    const id = `presetMesAnterior${i}`;
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn';
+    btn.id = id;
+    btn.textContent = nomesMesCompleto[mes];
+    btn.addEventListener('click', () => {
+      document.getElementById('deInput').value = de;
+      document.getElementById('ateInput').value = ate;
+      marcarPreset(id);
+      carregarResumo();
+    });
+    row.appendChild(btn);
+  }
+}
+popularPresetsMesesAnteriores();
+
 document.getElementById('deInput').addEventListener('change', () => { marcarPreset(null); carregarResumo(); });
 document.getElementById('ateInput').addEventListener('change', () => { marcarPreset(null); carregarResumo(); });
 document.getElementById('vendedorFiltro').addEventListener('change', carregarResumo);
