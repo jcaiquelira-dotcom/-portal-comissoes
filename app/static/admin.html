@@ -609,62 +609,70 @@
       </div>
     </details>
 
-    <p class="section-title">Metas de vendas</p>
-    <div class="card" style="margin-bottom:26px;">
-      <p class="metas-subtitulo">Grupo</p>
-      <div class="metas-grid-3">
-        <div class="field"><label for="metaGrupoDiaria">Diária (R$)</label><input type="number" id="metaGrupoDiaria" min="0" step="0.01"></div>
-        <div class="field"><label for="metaGrupoSemanal">Semanal (R$)</label><input type="number" id="metaGrupoSemanal" min="0" step="0.01"></div>
-        <div class="field"><label for="metaGrupoMensal">Mensal (R$)</label><input type="number" id="metaGrupoMensal" min="0" step="0.01"></div>
-      </div>
-      <p class="metas-subtitulo">Por vendedor</p>
-      <div id="metasVendedoresList"></div>
-      <button class="add-btn" id="salvarMetasBtn">Salvar metas</button>
-      <div class="status" id="metasStatus"></div>
-    </div>
-
-    <p class="section-title">Vendedores</p>
-    <div class="vendedores-grid">
-      <div>
-        <div class="card vendedor-form">
-          <div class="field">
-            <label for="vIdInput">Identificador (login)</label>
-            <input type="text" id="vIdInput" placeholder="ex: joao">
+    <details class="log-collapse">
+      <summary>Metas de vendas</summary>
+      <div class="log-body">
+        <div class="card" style="margin-bottom:26px;">
+          <p class="metas-subtitulo">Grupo</p>
+          <div class="metas-grid-3">
+            <div class="field"><label for="metaGrupoDiaria">Diária (R$)</label><input type="number" id="metaGrupoDiaria" min="0" step="0.01"></div>
+            <div class="field"><label for="metaGrupoSemanal">Semanal (R$)</label><input type="number" id="metaGrupoSemanal" min="0" step="0.01"></div>
+            <div class="field"><label for="metaGrupoMensal">Mensal (R$)</label><input type="number" id="metaGrupoMensal" min="0" step="0.01"></div>
           </div>
-          <div class="field">
-            <label for="vNomeInput">Nome</label>
-            <input type="text" id="vNomeInput" placeholder="ex: João Silva">
-          </div>
-          <div class="field">
-            <label for="vSenhaInput">Senha (deixe em branco para manter a atual)</label>
-            <input type="password" id="vSenhaInput">
-          </div>
-          <div class="field">
-            <label for="vCodigoRecuperacaoInput">Código de recuperação (opcional, pelo menos 6 caracteres — deixe em branco pra manter o atual)</label>
-            <input type="text" id="vCodigoRecuperacaoInput" placeholder="Ex: 02140214">
-          </div>
-          <div class="field">
-            <label for="vFotoInput">Foto (opcional, JPG/PNG/WEBP)</label>
-            <input type="file" id="vFotoInput" accept="image/png,image/jpeg,image/webp">
-          </div>
-          <div class="field">
-            <label for="vPercentualInput">Percentual de comissão sobre vendas próprias (%)</label>
-            <input type="number" id="vPercentualInput" min="0" max="100" step="0.1" placeholder="ex: 3">
-          </div>
-          <div class="field">
-            <label>Comissão sobre vendas de outros vendedores (opcional)</label>
-            <div class="overrides-editor" id="overridesEditor">
-              <div class="override-empty">Cadastre outros vendedores primeiro.</div>
-            </div>
-          </div>
-          <button class="add-btn" id="salvarVendedorBtn">Salvar vendedor</button>
-          <div class="status" id="vendedorStatus"></div>
+          <p class="metas-subtitulo">Por vendedor</p>
+          <div id="metasVendedoresList"></div>
+          <button class="add-btn" id="salvarMetasBtn">Salvar metas</button>
+          <div class="status" id="metasStatus"></div>
         </div>
       </div>
-      <div>
-        <div id="vendedoresList"></div>
+    </details>
+
+    <details class="log-collapse">
+      <summary>Vendedores</summary>
+      <div class="log-body">
+        <div class="vendedores-grid">
+          <div>
+            <div class="card vendedor-form">
+              <div class="field">
+                <label for="vIdInput">Identificador (login)</label>
+                <input type="text" id="vIdInput" placeholder="ex: joao">
+              </div>
+              <div class="field">
+                <label for="vNomeInput">Nome</label>
+                <input type="text" id="vNomeInput" placeholder="ex: João Silva">
+              </div>
+              <div class="field">
+                <label for="vSenhaInput">Senha (deixe em branco para manter a atual)</label>
+                <input type="password" id="vSenhaInput">
+              </div>
+              <div class="field">
+                <label for="vCodigoRecuperacaoInput">Código de recuperação (opcional, pelo menos 6 caracteres — deixe em branco pra manter o atual)</label>
+                <input type="text" id="vCodigoRecuperacaoInput" placeholder="Ex: 02140214">
+              </div>
+              <div class="field">
+                <label for="vFotoInput">Foto (opcional, JPG/PNG/WEBP)</label>
+                <input type="file" id="vFotoInput" accept="image/png,image/jpeg,image/webp">
+              </div>
+              <div class="field">
+                <label for="vPercentualInput">Percentual de comissão sobre vendas próprias (%)</label>
+                <input type="number" id="vPercentualInput" min="0" max="100" step="0.1" placeholder="ex: 3">
+              </div>
+              <div class="field">
+                <label>Comissão sobre vendas de outros vendedores (opcional)</label>
+                <div class="overrides-editor" id="overridesEditor">
+                  <div class="override-empty">Cadastre outros vendedores primeiro.</div>
+                </div>
+              </div>
+              <button class="add-btn" id="salvarVendedorBtn">Salvar vendedor</button>
+              <div class="status" id="vendedorStatus"></div>
+            </div>
+          </div>
+          <div>
+            <div id="vendedoresList"></div>
+          </div>
+        </div>
       </div>
-    </div>
+    </details>
   </div>
 
   <footer>Nevada Eco Peças &middot; Os dados ficam salvos neste computador.</footer>
