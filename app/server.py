@@ -494,6 +494,30 @@ def montar_venda(vendedor_id: str, body: dict, ignorar_limite_retroativo: bool =
     return venda
 
 
+def existe_duplicata_recente(vendas: dict, vendedor_id: str, data_venda: str, produto: str, valor: float, janela_segundos: int = 8) -> bool:
+    """Detecta clique duplo/triplo no botão de salvar: mesma venda (produto,
+    valor, data) cadastrada há poucos segundos pelo mesmo vendedor."""
+    produto_norm = produto.strip().lower()
+    agora = datetime.now()
+    for v in vendas.values():
+        if v.get("tipo", "venda") != "venda":
+            continue
+        if v.get("vendedor_id") != vendedor_id:
+            continue
+        if v["data"] != data_venda or v["produto"].strip().lower() != produto_norm or v["valor"] != valor:
+            continue
+        criado_em = v.get("criado_em")
+        if not criado_em:
+            continue
+        try:
+            dt = datetime.fromisoformat(criado_em)
+        except ValueError:
+            continue
+        if (agora - dt).total_seconds() <= janela_segundos:
+            return True
+    return False
+
+
 def consumir_liberacao_retroativo(vendedor_id: str) -> bool:
     """Se o vendedor tem uma liberação pontual do gestor pra lançar retroativo
     além do limite normal, consome ela (vale só pra essa próxima operação)."""
@@ -518,6 +542,8 @@ def api_criar_venda():
         return jsonify({"erro": str(e)}), 400
 
     vendas = carregar_vendas_vendedor(vendedor_id)
+    if existe_duplicata_recente(vendas, vendedor_id, venda["data"], venda["produto"], venda["valor"]):
+        return jsonify({"erro": "Essa venda já foi salva há poucos segundos (mesmo produto, valor e data). Confira na lista antes de lançar de novo."}), 409
     novo_id = uuid.uuid4().hex[:12]
     vendas[novo_id] = venda
     salvar_vendas_vendedor(vendedor_id, vendas)

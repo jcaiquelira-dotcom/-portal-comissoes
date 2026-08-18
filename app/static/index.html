@@ -998,6 +998,9 @@ document.getElementById('mesInput').addEventListener('change', () => {
 });
 
 document.getElementById('addBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('addBtn');
+  if(btn.disabled) return;
+  btn.disabled = true;
   const status = document.getElementById('formStatus');
   const data = document.getElementById('dataInput').value;
   const produto = document.getElementById('produtoInput').value.trim();
@@ -1033,6 +1036,8 @@ document.getElementById('addBtn').addEventListener('click', async () => {
   }catch(e){
     status.textContent = 'Erro de conexão.';
     status.classList.add('show','err');
+  }finally{
+    btn.disabled = false;
   }
 });
 
@@ -1089,6 +1094,8 @@ document.getElementById('sheetAddRowBtn').addEventListener('click', () => {
 });
 
 document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('sheetSaveBtn');
+  if(btn.disabled) return;
   const status = document.getElementById('sheetStatus');
   status.classList.remove('show','err');
 
@@ -1109,6 +1116,7 @@ document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
     return;
   }
 
+  btn.disabled = true;
   try{
     const res = await fetch('/api/vendas/lote', {
       method:'POST',
@@ -1136,6 +1144,8 @@ document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
   }catch(e){
     status.textContent = 'Erro de conexão.';
     status.classList.add('show','err');
+  }finally{
+    btn.disabled = false;
   }
 });
 
