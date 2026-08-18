@@ -1200,14 +1200,33 @@ async function carregarVendedores(){
       const item = document.createElement('div');
       item.className = 'vendedor-item';
       const fotoHtml = v.foto ? `<img class="foto-thumb" src="/fotos/${v.foto}" alt="">` : '';
+      const liberacaoBadge = v.liberacao_retroativa ? '<span class="devolucao-badge">Retroativo liberado</span>' : '';
+      const liberacaoBtn = v.liberacao_retroativa
+        ? `<button class="small-btn" data-cancelar-liberacao="${v.id}">Cancelar liberação</button>`
+        : `<button class="small-btn" data-liberar="${v.id}">Liberar lançamento retroativo</button>`;
       item.innerHTML = `
-        <div class="info">${fotoHtml}${v.nome} <span class="pct">(${v.id} · ${v.percentual}%)</span></div>
+        <div class="info">${fotoHtml}${v.nome} <span class="pct">(${v.id} · ${v.percentual}%)</span> ${liberacaoBadge}</div>
         <div class="item-actions">
           <button class="small-btn" data-edit="${v.id}">Editar</button>
+          ${liberacaoBtn}
           <button class="small-btn" data-del="${v.id}">Remover</button>
         </div>
       `;
       el.appendChild(item);
+    });
+    el.querySelectorAll('[data-liberar]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const v = lista.find(x => x.id === btn.dataset.liberar);
+        if(!confirm(`Liberar ${v.nome} pra lançar uma venda retroativa sem limite de dias? Vale só pro próximo lançamento (ou lote), depois volta ao normal automaticamente.`)) return;
+        await fetch('/api/admin/vendedores/' + btn.dataset.liberar + '/liberar-retroativo', {method:'POST'});
+        carregarVendedores();
+      });
+    });
+    el.querySelectorAll('[data-cancelar-liberacao]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await fetch('/api/admin/vendedores/' + btn.dataset.cancelarLiberacao + '/liberar-retroativo', {method:'DELETE'});
+        carregarVendedores();
+      });
     });
     el.querySelectorAll('[data-edit]').forEach(btn => {
       btn.addEventListener('click', () => {

@@ -454,7 +454,7 @@ def validar_valor_produto(body: dict) -> tuple[float, str, str, str]:
     return valor, produto, canal, sku
 
 
-def validar_data_venda(data_venda: str) -> None:
+def validar_data_venda(data_venda: str, ignorar_limite: bool = False) -> None:
     """Confere se a data é válida e está dentro da janela permitida de lançamento."""
     try:
         data_obj = date.fromisoformat(data_venda)
@@ -463,19 +463,19 @@ def validar_data_venda(data_venda: str) -> None:
     hoje = date.today()
     if data_obj > hoje:
         raise ValueError("Não é possível usar uma data futura.")
-    if (hoje - data_obj).days > DIAS_MAXIMOS_RETROATIVOS:
+    if not ignorar_limite and (hoje - data_obj).days > DIAS_MAXIMOS_RETROATIVOS:
         raise ValueError(
             f"Essa data é de mais de {DIAS_MAXIMOS_RETROATIVOS} dias atrás. "
             "Fale com o gestor para lançar vendas retroativas além desse prazo."
         )
 
 
-def montar_venda(vendedor_id: str, body: dict) -> dict:
+def montar_venda(vendedor_id: str, body: dict, ignorar_limite_retroativo: bool = False) -> dict:
     """Valida os campos de uma venda e retorna o dict pronto para salvar.
     Lança ValueError com a mensagem de erro em caso de dado inválido."""
     valor, produto, canal, sku = validar_valor_produto(body)
     data_venda = (body.get("data") or date.today().isoformat()).strip()
-    validar_data_venda(data_venda)
+    validar_data_venda(data_venda, ignorar_limite=ignorar_limite_retroativo)
     if mes_esta_fechado(data_venda):
         raise ValueError("Esse mês já foi fechado pelo gestor e não aceita mais lançamentos.")
 
@@ -494,14 +494,26 @@ def montar_venda(vendedor_id: str, body: dict) -> dict:
     return venda
 
 
+def consumir_liberacao_retroativo(vendedor_id: str) -> bool:
+    """Se o vendedor tem uma liberação pontual do gestor pra lançar retroativo
+    além do limite normal, consome ela (vale só pra essa próxima operação)."""
+    vendedores = carregar_vendedores()
+    if not vendedores.get(vendedor_id, {}).get("liberacao_retroativa"):
+        return False
+    vendedores[vendedor_id].pop("liberacao_retroativa", None)
+    salvar_vendedores(vendedores)
+    return True
+
+
 @app.route("/api/vendas", methods=["POST"])
 def api_criar_venda():
     vendedor_id = exigir_vendedor()
     if not vendedor_id:
         return jsonify({"erro": "Não autenticado."}), 401
+    liberado = carregar_vendedores().get(vendedor_id, {}).get("liberacao_retroativa", False)
     body = request.get_json(force=True)
     try:
-        venda = montar_venda(vendedor_id, body)
+        venda = montar_venda(vendedor_id, body, ignorar_limite_retroativo=liberado)
     except ValueError as e:
         return jsonify({"erro": str(e)}), 400
 
@@ -510,6 +522,8 @@ def api_criar_venda():
     vendas[novo_id] = venda
     salvar_vendas_vendedor(vendedor_id, vendas)
     limpar_confirmacao(vendedor_id, venda["data"][:7])
+    if liberado:
+        consumir_liberacao_retroativo(vendedor_id)
     return jsonify({"ok": True, "id": novo_id})
 
 
@@ -518,6 +532,7 @@ def api_criar_vendas_lote():
     vendedor_id = exigir_vendedor()
     if not vendedor_id:
         return jsonify({"erro": "Não autenticado."}), 401
+    liberado = carregar_vendedores().get(vendedor_id, {}).get("liberacao_retroativa", False)
     body = request.get_json(force=True)
     linhas = body.get("vendas", [])
     if not isinstance(linhas, list) or not linhas:
@@ -529,7 +544,7 @@ def api_criar_vendas_lote():
     meses_afetados = set()
     for idx, linha in enumerate(linhas, start=1):
         try:
-            venda = montar_venda(vendedor_id, linha)
+            venda = montar_venda(vendedor_id, linha, ignorar_limite_retroativo=liberado)
         except ValueError as e:
             erros.append({"linha": idx, "erro": str(e)})
             continue
@@ -539,6 +554,8 @@ def api_criar_vendas_lote():
 
     if salvas:
         salvar_vendas_vendedor(vendedor_id, vendas)
+        if liberado:
+            consumir_liberacao_retroativo(vendedor_id)
         for mes in meses_afetados:
             limpar_confirmacao(vendedor_id, mes)
     return jsonify({"ok": True, "salvas": salvas, "erros": erros})
@@ -578,12 +595,13 @@ def api_editar_venda(venda_id):
     if mes_esta_fechado(atual["data"]):
         return jsonify({"erro": "Esse mês já foi fechado pelo gestor e não aceita mais alterações."}), 403
 
+    liberado = carregar_vendedores().get(vendedor_id, {}).get("liberacao_retroativa", False)
     body = request.get_json(force=True)
     try:
         valor, produto, canal, sku = validar_valor_produto(body)
         nova_data = (body.get("data") or atual["data"]).strip()
         if nova_data != atual["data"]:
-            validar_data_venda(nova_data)
+            validar_data_venda(nova_data, ignorar_limite=liberado)
             if mes_esta_fechado(nova_data):
                 raise ValueError("Esse mês já foi fechado pelo gestor.")
     except ValueError as e:
@@ -621,6 +639,8 @@ def api_editar_venda(venda_id):
         mudancas.append(f"data {atual['data']} → {nova_data}")
     nome = carregar_vendedores().get(vendedor_id, {}).get("nome", vendedor_id)
     registrar_acao(vendedor_id, nome, "editou", produto, valor, "; ".join(mudancas) or None)
+    if liberado:
+        consumir_liberacao_retroativo(vendedor_id)
     return jsonify({"ok": True})
 
 
@@ -1060,9 +1080,34 @@ def api_admin_listar_vendedores():
             "percentual": v.get("percentual", 0),
             "overrides": v.get("overrides", []),
             "foto": v.get("foto"),
+            "liberacao_retroativa": bool(v.get("liberacao_retroativa")),
         }
         for vid, v in sorted(vendedores.items(), key=lambda kv: kv[1]["nome"])
     ])
+
+
+@app.route("/api/admin/vendedores/<vendedor_id>/liberar-retroativo", methods=["POST"])
+def api_admin_liberar_retroativo(vendedor_id):
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    vendedores = carregar_vendedores()
+    if vendedor_id not in vendedores:
+        return jsonify({"erro": "Vendedor não encontrado."}), 404
+    vendedores[vendedor_id]["liberacao_retroativa"] = True
+    salvar_vendedores(vendedores)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/vendedores/<vendedor_id>/liberar-retroativo", methods=["DELETE"])
+def api_admin_cancelar_liberacao_retroativo(vendedor_id):
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    vendedores = carregar_vendedores()
+    if vendedor_id not in vendedores:
+        return jsonify({"erro": "Vendedor não encontrado."}), 404
+    vendedores[vendedor_id].pop("liberacao_retroativa", None)
+    salvar_vendedores(vendedores)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/admin/vendedores", methods=["POST"])
