@@ -113,6 +113,31 @@
     font-size:14px;
     padding:9px 10px;
   }
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator{
+    filter:invert(46%) sepia(60%) saturate(1200%) hue-rotate(346deg) brightness(95%) contrast(92%);
+    cursor:pointer;
+  }
+
+  .eye-toggle-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:36px;
+    height:36px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--muted);
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .eye-toggle-btn:hover{border-color:var(--accent);color:var(--accent-2);}
+  .eye-toggle-btn svg{width:18px;height:18px;}
+  body.ocultar-valores .valor-money{
+    filter:blur(6px);
+    user-select:none;
+  }
   .primary-btn{
     width:100%;
     background:var(--accent);
@@ -407,7 +432,10 @@
       <div class="logo-badge"><img src="logo.png" alt="Nevada Eco Peças"></div>
       <h1>Portal de Comissões</h1>
     </div>
-    <div class="top-actions" id="topActions"></div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <button class="eye-toggle-btn" id="toggleValoresBtn" title="Mostrar/ocultar valores" aria-label="Mostrar/ocultar valores"></button>
+      <div class="top-actions" id="topActions"></div>
+    </div>
   </header>
 
   <div id="loginCard" class="card">
@@ -454,15 +482,15 @@
     <div class="summary-row">
       <div class="stat-card">
         <div class="label">Total vendido no mês</div>
-        <div class="value" id="totalVendidoValue">R$ 0,00</div>
+        <div class="value valor-money" id="totalVendidoValue">R$ 0,00</div>
       </div>
       <div class="stat-card">
         <div class="label">Comissão prevista (<span id="percentualLabel">0%</span>)</div>
-        <div class="value" id="comissaoValue">R$ 0,00</div>
-        <div class="override-note" id="overrideNote"></div>
+        <div class="value valor-money" id="comissaoValue">R$ 0,00</div>
+        <div class="override-note valor-money" id="overrideNote"></div>
       </div>
     </div>
-    <div class="bonus-note" id="bonusNote"></div>
+    <div class="bonus-note valor-money" id="bonusNote"></div>
 
     <p class="section-title">Lançar venda</p>
     <div class="form-grid">
@@ -570,6 +598,24 @@ function todayStr(){
   const local = new Date(d.getTime() - off*60000);
   return local.toISOString().slice(0,10);
 }
+
+const ICONE_OLHO_ABERTO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICONE_OLHO_FECHADO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+function atualizarIconeOlho(){
+  const oculto = document.body.classList.contains('ocultar-valores');
+  document.getElementById('toggleValoresBtn').innerHTML = oculto ? ICONE_OLHO_FECHADO : ICONE_OLHO_ABERTO;
+}
+
+if(localStorage.getItem('ocultarValores') === '1'){
+  document.body.classList.add('ocultar-valores');
+}
+document.getElementById('toggleValoresBtn').addEventListener('click', () => {
+  document.body.classList.toggle('ocultar-valores');
+  localStorage.setItem('ocultarValores', document.body.classList.contains('ocultar-valores') ? '1' : '0');
+  atualizarIconeOlho();
+});
+atualizarIconeOlho();
 
 let eu = null;
 
@@ -770,7 +816,7 @@ async function carregarVendas(){
       const tr = document.createElement('tr');
       const dev = v.devolucao;
       const badge = dev
-        ? `<span class="devolucao-badge">${dev.tipo === 'total' ? 'Devolvido' : 'Dev. parcial ' + fmtMoeda(dev.valor_devolvido)}</span>`
+        ? `<span class="devolucao-badge valor-money">${dev.tipo === 'total' ? 'Devolvido' : 'Dev. parcial ' + fmtMoeda(dev.valor_devolvido)}</span>`
         : '';
       const devBtn = dev
         ? `<button class="devolucao-btn" data-devolucao="${v.id}">Editar devolução</button>
@@ -780,7 +826,7 @@ async function carregarVendas(){
       tr.innerHTML = `
         <td>${d}/${m}/${y}</td>
         <td class="produto-col">${v.produto}${skuLinha}</td>
-        <td>${fmtMoeda(v.valor)}</td>
+        <td class="valor-money">${fmtMoeda(v.valor)}</td>
         <td>
           ${badge}
           ${devBtn}
