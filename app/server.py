@@ -7,11 +7,33 @@ import secrets
 import urllib.error
 import urllib.request
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import Flask, jsonify, redirect, request, send_file, send_from_directory, session
 from openpyxl import Workbook
+
+# Servidor (Render) roda em UTC — Brasil não tem horário de verão desde 2019,
+# então um offset fixo de -3h é sempre correto, sem depender de tzdata/IANA.
+FUSO_BRASILIA = timezone(timedelta(hours=-3))
+
+
+def agora_br() -> datetime:
+    return datetime.now(FUSO_BRASILIA)
+
+
+def hoje_br() -> date:
+    return agora_br().date()
+
+
+def parse_dt_tolerante(valor: str) -> datetime:
+    """Converte uma string ISO em datetime timezone-aware. Registros gravados
+    antes da correção de fuso ficaram sem offset, no horário UTC do servidor
+    (Render) — nesse caso assumimos UTC. Registros novos já vêm com -03:00."""
+    dt = datetime.fromisoformat(valor)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.json"
@@ -206,7 +228,7 @@ def metas_vendedor(vendedor_id: str, metas: dict) -> dict:
 def registrar_acesso(tipo: str, sucesso: bool, vendedor_id: str = None, nome: str = None) -> None:
     log = ler_json(LOG_ACESSOS_FILE, [])
     log.append({
-        "quando": datetime.now().isoformat(timespec="seconds"),
+        "quando": agora_br().isoformat(timespec="seconds"),
         "tipo": tipo,
         "vendedor_id": vendedor_id,
         "nome": nome,
@@ -221,7 +243,7 @@ def registrar_acao(vendedor_id: str, nome: str, acao: str, produto: str, valor: 
     revisar o que cada vendedor mexeu — inclusive vendas já excluídas."""
     log = ler_json(LOG_ACOES_FILE, [])
     log.append({
-        "quando": datetime.now().isoformat(timespec="seconds"),
+        "quando": agora_br().isoformat(timespec="seconds"),
         "vendedor_id": vendedor_id,
         "nome": nome,
         "acao": acao,
@@ -236,11 +258,11 @@ def excedeu_tentativas_login(tipo: str, vendedor_id: str = None) -> bool:
     """Bloqueia login depois de várias senhas erradas seguidas, pra dificultar
     tentativa de adivinhação por força bruta (importante agora que fica na internet)."""
     log = ler_json(LOG_ACESSOS_FILE, [])
-    limite = datetime.now() - timedelta(minutes=LOGIN_JANELA_MINUTOS)
+    limite = agora_br() - timedelta(minutes=LOGIN_JANELA_MINUTOS)
     falhas = 0
     for item in reversed(log):
         try:
-            quando = datetime.fromisoformat(item["quando"])
+            quando = parse_dt_tolerante(item["quando"])
         except (KeyError, ValueError):
             continue
         if quando < limite:
@@ -403,7 +425,7 @@ def api_minha_comissao():
     vendedor_id = exigir_vendedor()
     if not vendedor_id:
         return jsonify({"erro": "Não autenticado."}), 401
-    mes = request.args.get("mes", date.today().isoformat()[:7])
+    mes = request.args.get("mes", hoje_br().isoformat()[:7])
     de, ate = mes_para_intervalo(mes)
     vendedores = carregar_vendedores()
     vendas = carregar_vendas_todos(vendedores)
@@ -428,7 +450,7 @@ def api_listar_vendas():
     if not vendedor_id:
         return jsonify({"erro": "Não autenticado."}), 401
     todos = request.args.get("todos") == "1"
-    mes = request.args.get("mes", date.today().isoformat()[:7])
+    mes = request.args.get("mes", hoje_br().isoformat()[:7])
     vendas = carregar_vendas_vendedor(vendedor_id)
     minhas = [
         {**v, "id": vid}
@@ -460,7 +482,7 @@ def validar_data_venda(data_venda: str, ignorar_limite: bool = False) -> None:
         data_obj = date.fromisoformat(data_venda)
     except ValueError:
         raise ValueError("Data inválida.")
-    hoje = date.today()
+    hoje = hoje_br()
     if data_obj > hoje:
         raise ValueError("Não é possível usar uma data futura.")
     if not ignorar_limite and (hoje - data_obj).days > DIAS_MAXIMOS_RETROATIVOS:
@@ -474,7 +496,7 @@ def montar_venda(vendedor_id: str, body: dict, ignorar_limite_retroativo: bool =
     """Valida os campos de uma venda e retorna o dict pronto para salvar.
     Lança ValueError com a mensagem de erro em caso de dado inválido."""
     valor, produto, canal, sku = validar_valor_produto(body)
-    data_venda = (body.get("data") or date.today().isoformat()).strip()
+    data_venda = (body.get("data") or hoje_br().isoformat()).strip()
     validar_data_venda(data_venda, ignorar_limite=ignorar_limite_retroativo)
     if mes_esta_fechado(data_venda):
         raise ValueError("Esse mês já foi fechado pelo gestor e não aceita mais lançamentos.")
@@ -485,7 +507,7 @@ def montar_venda(vendedor_id: str, body: dict, ignorar_limite_retroativo: bool =
         "valor": valor,
         "produto": produto,
         "tipo": "venda",
-        "criado_em": datetime.now().isoformat(timespec="seconds"),
+        "criado_em": agora_br().isoformat(timespec="seconds"),
     }
     if canal:
         venda["canal"] = canal
@@ -498,7 +520,7 @@ def existe_duplicata_recente(vendas: dict, vendedor_id: str, data_venda: str, pr
     """Detecta clique duplo/triplo no botão de salvar: mesma venda (produto,
     valor, data) cadastrada há poucos segundos pelo mesmo vendedor."""
     produto_norm = produto.strip().lower()
-    agora = datetime.now()
+    agora = agora_br()
     for v in vendas.values():
         if v.get("tipo", "venda") != "venda":
             continue
@@ -510,7 +532,7 @@ def existe_duplicata_recente(vendas: dict, vendedor_id: str, data_venda: str, pr
         if not criado_em:
             continue
         try:
-            dt = datetime.fromisoformat(criado_em)
+            dt = parse_dt_tolerante(criado_em)
         except ValueError:
             continue
         if (agora - dt).total_seconds() <= janela_segundos:
@@ -639,7 +661,7 @@ def api_editar_venda(venda_id):
         "data": nova_data,
         "valor": valor,
         "produto": produto,
-        "editado_em": datetime.now().isoformat(timespec="seconds"),
+        "editado_em": agora_br().isoformat(timespec="seconds"),
     }
     if canal:
         atualizada["canal"] = canal
@@ -704,7 +726,7 @@ def api_marcar_devolucao(venda_id):
         "devolucao": {
             "tipo": tipo,
             "valor_devolvido": valor_devolvido,
-            "marcado_em": datetime.now().isoformat(timespec="seconds"),
+            "marcado_em": agora_br().isoformat(timespec="seconds"),
         },
     }
     salvar_vendas_vendedor(vendedor_id, vendas)
@@ -747,7 +769,7 @@ def api_confirmar_mes():
     if len(mes) != 7 or mes[4] != "-":
         return jsonify({"erro": "Mês inválido."}), 400
     confirmacoes = carregar_confirmacoes(vendedor_id)
-    confirmacoes[mes] = datetime.now().isoformat(timespec="seconds")
+    confirmacoes[mes] = agora_br().isoformat(timespec="seconds")
     salvar_confirmacoes(vendedor_id, confirmacoes)
     return jsonify({"ok": True, "confirmado_em": confirmacoes[mes]})
 
@@ -757,7 +779,7 @@ def api_minha_confirmacao():
     vendedor_id = exigir_vendedor()
     if not vendedor_id:
         return jsonify({"erro": "Não autenticado."}), 401
-    mes = request.args.get("mes", date.today().isoformat()[:7])
+    mes = request.args.get("mes", hoje_br().isoformat()[:7])
     confirmacoes = carregar_confirmacoes(vendedor_id)
     return jsonify({"mes": mes, "confirmado_em": confirmacoes.get(mes)})
 
@@ -777,7 +799,7 @@ def api_painel_ranking():
     vendas = carregar_vendas_todos(vendedores)
     metas = carregar_metas()
 
-    hoje = date.today()
+    hoje = hoje_br()
     inicio_semana = hoje - timedelta(days=hoje.weekday())
     inicio_mes = hoje.replace(day=1)
 
@@ -808,7 +830,7 @@ def api_painel_ranking():
     grupo_metas = metas.get("grupo", {})
 
     return jsonify({
-        "agora": datetime.now().isoformat(timespec="seconds"),
+        "agora": agora_br().isoformat(timespec="seconds"),
         "grupo": {
             "hoje": round(grupo_hoje, 2),
             "semana": round(grupo_semana, 2),
@@ -898,7 +920,7 @@ def api_admin_gerar_codigo_recuperacao():
         codigo = "-".join(secrets.token_hex(2).upper() for _ in range(2))
     cred = carregar_credenciais()
     cred["recuperacao_hash"] = _hash_codigo(codigo)
-    cred["recuperacao_gerado_em"] = datetime.now().isoformat(timespec="seconds")
+    cred["recuperacao_gerado_em"] = agora_br().isoformat(timespec="seconds")
     escrever_json(CREDENCIAIS_FILE, cred)
     return jsonify({"codigo": codigo})
 
@@ -949,7 +971,7 @@ def api_admin_resumo():
     if not exigir_admin():
         return jsonify({"erro": "Não autenticado."}), 401
 
-    hoje = date.today().isoformat()
+    hoje = hoje_br().isoformat()
     de = request.args.get("de", f"{hoje[:7]}-01")
     ate = request.args.get("ate", f"{hoje[:7]}-31")
     filtro_vendedor = request.args.get("vendedor_id") or None

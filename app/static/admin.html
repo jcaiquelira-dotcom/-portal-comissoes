@@ -858,7 +858,7 @@ async function carregarLogAcessos(){
       : '<span class="confirm-pendente">Falhou</span>';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${dt.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${dt.toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
       <td>${quem}</td>
       <td>${resultado}</td>
       <td>${item.ip || '—'}</td>
@@ -887,7 +887,7 @@ async function carregarLogAcoes(){
     const dt = new Date(item.quando);
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${dt.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${dt.toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
       <td>${item.nome || item.vendedor_id || '—'}</td>
       <td>${item.acao}</td>
       <td>${item.produto || '—'}</td>
@@ -1068,7 +1068,7 @@ function renderConfirmacaoCelula(confirmadoEm){
   if(!resumoAtual.mes_unico) return '<span class="confirm-na">—</span>';
   if(confirmadoEm){
     const dt = new Date(confirmadoEm);
-    return `<span class="confirm-ok">Confirmado ${dt.toLocaleDateString('pt-BR')}</span>`;
+    return `<span class="confirm-ok">Confirmado ${dt.toLocaleDateString('pt-BR', {timeZone:'America/Sao_Paulo'})}</span>`;
   }
   return '<span class="confirm-pendente">Pendente</span>';
 }

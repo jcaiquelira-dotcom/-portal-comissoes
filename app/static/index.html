@@ -705,7 +705,7 @@ async function carregarConfirmacao(){
   const statusEl = document.getElementById('confirmStatus');
   if(c.confirmado_em){
     const dt = new Date(c.confirmado_em);
-    statusEl.textContent = 'Confirmado em ' + dt.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    statusEl.textContent = 'Confirmado em ' + dt.toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
     statusEl.classList.add('confirmado');
   }else{
     statusEl.textContent = 'Você ainda não confirmou as vendas deste mês.';

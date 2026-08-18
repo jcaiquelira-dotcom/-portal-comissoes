@@ -510,8 +510,8 @@ function iniciais(nome){
 
 function updateClock(){
   const now = new Date();
-  document.getElementById('clockTime').textContent = now.toLocaleTimeString('pt-BR');
-  document.getElementById('clockDate').textContent = now.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long'});
+  document.getElementById('clockTime').textContent = now.toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo'});
+  document.getElementById('clockDate').textContent = now.toLocaleDateString('pt-BR', {timeZone:'America/Sao_Paulo', weekday:'long', day:'2-digit', month:'long'});
 }
 setInterval(updateClock, 1000);
 updateClock();
