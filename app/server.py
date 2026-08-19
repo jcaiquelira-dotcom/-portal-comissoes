@@ -50,6 +50,7 @@ LOG_ACOES_FILE = SEGREDOS_DIR / "log_acoes.json"
 
 DATA_DIR_NAME = "data"
 DIAS_MAXIMOS_RETROATIVOS = 7
+LIBERACAO_RETROATIVA_MINUTOS = 5
 MAX_LOG_ACESSOS = 500
 MAX_LOG_ACOES = 500
 LOGIN_MAX_TENTATIVAS = 5
@@ -540,15 +541,16 @@ def existe_duplicata_recente(vendas: dict, vendedor_id: str, data_venda: str, pr
     return False
 
 
-def consumir_liberacao_retroativo(vendedor_id: str) -> bool:
-    """Se o vendedor tem uma liberação pontual do gestor pra lançar retroativo
-    além do limite normal, consome ela (vale só pra essa próxima operação)."""
-    vendedores = carregar_vendedores()
-    if not vendedores.get(vendedor_id, {}).get("liberacao_retroativa"):
+def retroativo_ativo(vendedor: dict) -> bool:
+    """Verifica se a liberação temporária de lançamento retroativo do gestor
+    ainda está dentro da janela de tempo (não é mais de uso único)."""
+    ate = vendedor.get("liberacao_retroativa_ate")
+    if not ate:
         return False
-    vendedores[vendedor_id].pop("liberacao_retroativa", None)
-    salvar_vendedores(vendedores)
-    return True
+    try:
+        return agora_br() < parse_dt_tolerante(ate)
+    except ValueError:
+        return False
 
 
 @app.route("/api/vendas", methods=["POST"])
@@ -556,7 +558,7 @@ def api_criar_venda():
     vendedor_id = exigir_vendedor()
     if not vendedor_id:
         return jsonify({"erro": "Não autenticado."}), 401
-    liberado = carregar_vendedores().get(vendedor_id, {}).get("liberacao_retroativa", False)
+    liberado = retroativo_ativo(carregar_vendedores().get(vendedor_id, {}))
     body = request.get_json(force=True)
     try:
         venda = montar_venda(vendedor_id, body, ignorar_limite_retroativo=liberado)
@@ -570,8 +572,6 @@ def api_criar_venda():
     vendas[novo_id] = venda
     salvar_vendas_vendedor(vendedor_id, vendas)
     limpar_confirmacao(vendedor_id, venda["data"][:7])
-    if liberado:
-        consumir_liberacao_retroativo(vendedor_id)
     return jsonify({"ok": True, "id": novo_id})
 
 
@@ -580,7 +580,7 @@ def api_criar_vendas_lote():
     vendedor_id = exigir_vendedor()
     if not vendedor_id:
         return jsonify({"erro": "Não autenticado."}), 401
-    liberado = carregar_vendedores().get(vendedor_id, {}).get("liberacao_retroativa", False)
+    liberado = retroativo_ativo(carregar_vendedores().get(vendedor_id, {}))
     body = request.get_json(force=True)
     linhas = body.get("vendas", [])
     if not isinstance(linhas, list) or not linhas:
@@ -602,8 +602,6 @@ def api_criar_vendas_lote():
 
     if salvas:
         salvar_vendas_vendedor(vendedor_id, vendas)
-        if liberado:
-            consumir_liberacao_retroativo(vendedor_id)
         for mes in meses_afetados:
             limpar_confirmacao(vendedor_id, mes)
     return jsonify({"ok": True, "salvas": salvas, "erros": erros})
@@ -643,7 +641,7 @@ def api_editar_venda(venda_id):
     if mes_esta_fechado(atual["data"]):
         return jsonify({"erro": "Esse mês já foi fechado pelo gestor e não aceita mais alterações."}), 403
 
-    liberado = carregar_vendedores().get(vendedor_id, {}).get("liberacao_retroativa", False)
+    liberado = retroativo_ativo(carregar_vendedores().get(vendedor_id, {}))
     body = request.get_json(force=True)
     try:
         valor, produto, canal, sku = validar_valor_produto(body)
@@ -687,8 +685,6 @@ def api_editar_venda(venda_id):
         mudancas.append(f"data {atual['data']} → {nova_data}")
     nome = carregar_vendedores().get(vendedor_id, {}).get("nome", vendedor_id)
     registrar_acao(vendedor_id, nome, "editou", produto, valor, "; ".join(mudancas) or None)
-    if liberado:
-        consumir_liberacao_retroativo(vendedor_id)
     return jsonify({"ok": True})
 
 
@@ -1128,7 +1124,8 @@ def api_admin_listar_vendedores():
             "percentual": v.get("percentual", 0),
             "overrides": v.get("overrides", []),
             "foto": v.get("foto"),
-            "liberacao_retroativa": bool(v.get("liberacao_retroativa")),
+            "liberacao_retroativa": retroativo_ativo(v),
+            "liberacao_retroativa_ate": v.get("liberacao_retroativa_ate") if retroativo_ativo(v) else None,
         }
         for vid, v in sorted(vendedores.items(), key=lambda kv: kv[1]["nome"])
     ])
@@ -1141,9 +1138,10 @@ def api_admin_liberar_retroativo(vendedor_id):
     vendedores = carregar_vendedores()
     if vendedor_id not in vendedores:
         return jsonify({"erro": "Vendedor não encontrado."}), 404
-    vendedores[vendedor_id]["liberacao_retroativa"] = True
+    ate = agora_br() + timedelta(minutes=LIBERACAO_RETROATIVA_MINUTOS)
+    vendedores[vendedor_id]["liberacao_retroativa_ate"] = ate.isoformat(timespec="seconds")
     salvar_vendedores(vendedores)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "liberacao_retroativa_ate": vendedores[vendedor_id]["liberacao_retroativa_ate"]})
 
 
 @app.route("/api/admin/vendedores/<vendedor_id>/liberar-retroativo", methods=["DELETE"])
@@ -1153,7 +1151,7 @@ def api_admin_cancelar_liberacao_retroativo(vendedor_id):
     vendedores = carregar_vendedores()
     if vendedor_id not in vendedores:
         return jsonify({"erro": "Vendedor não encontrado."}), 404
-    vendedores[vendedor_id].pop("liberacao_retroativa", None)
+    vendedores[vendedor_id].pop("liberacao_retroativa_ate", None)
     salvar_vendedores(vendedores)
     return jsonify({"ok": True})
 

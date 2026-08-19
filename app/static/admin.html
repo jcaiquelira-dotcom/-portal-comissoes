@@ -1246,7 +1246,9 @@ async function carregarVendedores(){
       const item = document.createElement('div');
       item.className = 'vendedor-item';
       const fotoHtml = v.foto ? `<img class="foto-thumb" src="/fotos/${v.foto}" alt="">` : '';
-      const liberacaoBadge = v.liberacao_retroativa ? '<span class="devolucao-badge">Retroativo liberado</span>' : '';
+      const liberacaoBadge = v.liberacao_retroativa
+        ? `<span class="devolucao-badge" data-retroativo-ate="${v.liberacao_retroativa_ate}">Retroativo liberado (--:--)</span>`
+        : '';
       const liberacaoBtn = v.liberacao_retroativa
         ? `<button class="small-btn" data-cancelar-liberacao="${v.id}">Cancelar liberação</button>`
         : `<button class="small-btn" data-liberar="${v.id}">Liberar lançamento retroativo</button>`;
@@ -1263,7 +1265,7 @@ async function carregarVendedores(){
     el.querySelectorAll('[data-liberar]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const v = lista.find(x => x.id === btn.dataset.liberar);
-        if(!confirm(`Liberar ${v.nome} pra lançar uma venda retroativa sem limite de dias? Vale só pro próximo lançamento (ou lote), depois volta ao normal automaticamente.`)) return;
+        if(!confirm(`Liberar ${v.nome} pra lançar e editar vendas retroativas sem limite de dias por 5 minutos? Depois desse tempo volta ao normal automaticamente.`)) return;
         await fetch('/api/admin/vendedores/' + btn.dataset.liberar + '/liberar-retroativo', {method:'POST'});
         carregarVendedores();
       });
@@ -1274,6 +1276,7 @@ async function carregarVendedores(){
         carregarVendedores();
       });
     });
+    atualizarContadoresRetroativo();
     el.querySelectorAll('[data-edit]').forEach(btn => {
       btn.addEventListener('click', () => {
         const v = lista.find(x => x.id === btn.dataset.edit);
@@ -1305,6 +1308,26 @@ async function carregarVendedores(){
   filtro.innerHTML = '<option value="">Todos</option>' + lista.map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
   filtro.value = valorAtual;
 }
+
+function atualizarContadoresRetroativo(){
+  const badges = document.querySelectorAll('[data-retroativo-ate]');
+  if(badges.length === 0) return;
+  let algumExpirou = false;
+  const agora = new Date();
+  badges.forEach(badge => {
+    const alvo = new Date(badge.dataset.retroativoAte);
+    const diffSeg = Math.round((alvo - agora) / 1000);
+    if(diffSeg <= 0){
+      algumExpirou = true;
+      return;
+    }
+    const mm = String(Math.floor(diffSeg / 60)).padStart(2, '0');
+    const ss = String(diffSeg % 60).padStart(2, '0');
+    badge.textContent = `Retroativo liberado (${mm}:${ss})`;
+  });
+  if(algumExpirou) carregarVendedores();
+}
+setInterval(atualizarContadoresRetroativo, 1000);
 
 document.getElementById('salvarVendedorBtn').addEventListener('click', async () => {
   const status = document.getElementById('vendedorStatus');
