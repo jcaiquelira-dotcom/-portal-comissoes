@@ -4,6 +4,7 @@ import json
 import os
 import re
 import secrets
+import sqlite3
 import urllib.error
 import urllib.request
 import uuid
@@ -138,6 +139,249 @@ else:
         caminho.parent.mkdir(parents=True, exist_ok=True)
         with open(caminho, "w", encoding="utf-8") as f:
             json.dump(dados, f, ensure_ascii=False, indent=2)
+
+
+# ============================================================
+# Simulador de desconto e parcelamento
+# ============================================================
+# O catálogo (ERP) e as regras de desconto são preparados pelo gestor no
+# projeto irmão portal-simulador, rodado localmente (edição de regras,
+# reimportação do ERP), e sincronizados pra cá com
+# portal-simulador/scripts/sincronizar_supabase.py. Aqui só existe a
+# consulta/simulação pros vendedores — sem tela de administração.
+#
+# Em modo local (sem DATABASE_URL), lê direto o simulador.db do projeto
+# irmão, só pra facilitar teste — em produção é sempre via Postgres.
+_SIMULADOR_DB_LOCAL = ROOT.parent / "portal-simulador" / "data" / "simulador.db"
+_unaccent_disponivel_simulador = {"valor": False}
+
+if DATABASE_URL:
+    def _simulador_preparar_schema() -> None:
+        with _db_conectar() as conn, conn.cursor() as cur:
+            try:
+                cur.execute("CREATE EXTENSION IF NOT EXISTS unaccent")
+                conn.commit()
+                _unaccent_disponivel_simulador["valor"] = True
+            except Exception:
+                conn.rollback()
+                _unaccent_disponivel_simulador["valor"] = False
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS catalogo_erp (
+                    id SERIAL PRIMARY KEY,
+                    cod_peca TEXT NOT NULL UNIQUE,
+                    nome_produto TEXT NOT NULL,
+                    etiqueta TEXT,
+                    preco DOUBLE PRECISION,
+                    qtd_disponivel INTEGER NOT NULL DEFAULT 0,
+                    condicao TEXT,
+                    localizacao TEXT,
+                    codigo_veiculo TEXT,
+                    categoria_auto TEXT NOT NULL,
+                    tipo_peca_auto TEXT NOT NULL,
+                    tipo_peca_rotulo TEXT NOT NULL,
+                    apelido_veiculo TEXT,
+                    data_compra_veiculo TEXT,
+                    tempo_estoque_conhecido INTEGER NOT NULL DEFAULT 0,
+                    classe_abc TEXT NOT NULL DEFAULT 'C',
+                    ingestido_em TEXT NOT NULL
+                )
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_catalogo_disponivel ON catalogo_erp(qtd_disponivel)")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS overrides_estoque (
+                    cod_peca TEXT PRIMARY KEY,
+                    data_entrada TEXT NOT NULL,
+                    definido_por TEXT,
+                    definido_em TEXT NOT NULL
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS etl_execucoes (
+                    id SERIAL PRIMARY KEY,
+                    executado_em TEXT NOT NULL,
+                    linhas_catalogo INTEGER,
+                    linhas_disponiveis INTEGER,
+                    linhas_com_tempo_estoque INTEGER,
+                    duracao_seg DOUBLE PRECISION
+                )
+            """)
+            conn.commit()
+
+    _simulador_preparar_schema()
+
+
+def _simulador_db_local():
+    conn = sqlite3.connect(_SIMULADOR_DB_LOCAL)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def buscar_pecas_simulador(q: str) -> list:
+    if DATABASE_URL:
+        termo = f"%{q}%"
+        campos = (
+            "cod_peca, nome_produto, etiqueta, preco, classe_abc, apelido_veiculo, "
+            "tempo_estoque_conhecido, tipo_peca_rotulo"
+        )
+        if _unaccent_disponivel_simulador["valor"]:
+            condicao = (
+                "(unaccent(nome_produto) ILIKE unaccent(%s) OR unaccent(cod_peca) ILIKE unaccent(%s) "
+                "OR unaccent(coalesce(etiqueta, '')) ILIKE unaccent(%s))"
+            )
+        else:
+            condicao = "(nome_produto ILIKE %s OR cod_peca ILIKE %s OR coalesce(etiqueta, '') ILIKE %s)"
+        with _db_conectar() as conn, conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {campos} FROM catalogo_erp WHERE qtd_disponivel > 0 AND {condicao} LIMIT 30",
+                (termo, termo, termo),
+            )
+            colunas = [d[0] for d in cur.description]
+            return [dict(zip(colunas, linha)) for linha in cur.fetchall()]
+
+    conn = _simulador_db_local()
+    termo = f"%{q}%"
+    linhas = conn.execute(
+        "SELECT cod_peca, nome_produto, etiqueta, preco, classe_abc, apelido_veiculo, "
+        "tempo_estoque_conhecido, tipo_peca_rotulo FROM catalogo_erp WHERE qtd_disponivel > 0 AND "
+        "(nome_produto LIKE ? OR cod_peca LIKE ? OR etiqueta LIKE ?) LIMIT 30",
+        (termo, termo, termo),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in linhas]
+
+
+def obter_peca_simulador(cod_peca: str):
+    if DATABASE_URL:
+        with _db_conectar() as conn, conn.cursor() as cur:
+            cur.execute("SELECT * FROM catalogo_erp WHERE cod_peca = %s", (cod_peca,))
+            linha = cur.fetchone()
+            if not linha:
+                return None
+            colunas = [d[0] for d in cur.description]
+            return dict(zip(colunas, linha))
+    conn = _simulador_db_local()
+    peca = conn.execute("SELECT * FROM catalogo_erp WHERE cod_peca = ?", (cod_peca,)).fetchone()
+    conn.close()
+    return dict(peca) if peca else None
+
+
+def definir_data_entrada_simulador(cod_peca: str, data_entrada_str: str, definido_por: str) -> bool:
+    """data_entrada_str já formatada como 'YYYY-MM-DD 00:00:00'. Retorna
+    False se a peça não existe no catálogo."""
+    agora = agora_br().isoformat()
+    if DATABASE_URL:
+        with _db_conectar() as conn, conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM catalogo_erp WHERE cod_peca = %s", (cod_peca,))
+            if not cur.fetchone():
+                return False
+            cur.execute(
+                "INSERT INTO overrides_estoque (cod_peca, data_entrada, definido_por, definido_em) "
+                "VALUES (%s,%s,%s,%s) ON CONFLICT (cod_peca) DO UPDATE SET "
+                "data_entrada=EXCLUDED.data_entrada, definido_por=EXCLUDED.definido_por, "
+                "definido_em=EXCLUDED.definido_em",
+                (cod_peca, data_entrada_str, definido_por, agora),
+            )
+            cur.execute(
+                "UPDATE catalogo_erp SET data_compra_veiculo=%s, tempo_estoque_conhecido=1 WHERE cod_peca=%s",
+                (data_entrada_str, cod_peca),
+            )
+            conn.commit()
+        return True
+
+    conn = _simulador_db_local()
+    peca = conn.execute("SELECT * FROM catalogo_erp WHERE cod_peca = ?", (cod_peca,)).fetchone()
+    if not peca:
+        conn.close()
+        return False
+    conn.execute(
+        "INSERT INTO overrides_estoque (cod_peca, data_entrada, definido_por, definido_em) "
+        "VALUES (?,?,?,?) ON CONFLICT(cod_peca) DO UPDATE SET "
+        "data_entrada=excluded.data_entrada, definido_por=excluded.definido_por, definido_em=excluded.definido_em",
+        (cod_peca, data_entrada_str, definido_por, agora),
+    )
+    conn.execute(
+        "UPDATE catalogo_erp SET data_compra_veiculo=?, tempo_estoque_conhecido=1 WHERE cod_peca=?",
+        (data_entrada_str, cod_peca),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def carregar_regras_simulador():
+    if DATABASE_URL:
+        return _db_ler("simulador_regras", None)
+    caminho = ROOT.parent / "portal-simulador" / "data" / "regras.json"
+    if not caminho.exists():
+        return None
+    return json.loads(caminho.read_text(encoding="utf-8"))
+
+
+def _faixa_tempo_de_simulador(dias, regras):
+    for faixa in regras["faixas_tempo"]:
+        if dias >= faixa["min_dias"] and (faixa["max_dias"] is None or dias <= faixa["max_dias"]):
+            return faixa
+    return regras["faixas_tempo"][-1]
+
+
+def _faixa_valor_de_simulador(valor, regras):
+    for faixa in regras["faixas_valor"]:
+        if valor >= faixa["min_valor"] and (faixa["max_valor"] is None or valor <= faixa["max_valor"]):
+            return faixa
+    return regras["faixas_valor"][-1]
+
+
+def montar_simulacao(valor_base, curva, dias_em_estoque, desconto_escolhido_pct, regras):
+    """Desconto vale só pra dinheiro/PIX à vista. Cartão de crédito NUNCA
+    tem desconto, nem em 1x — todas as opções de cartão são sobre o valor
+    cheio."""
+    faixa_tempo = (
+        _faixa_tempo_de_simulador(dias_em_estoque, regras)
+        if dias_em_estoque is not None else regras["faixas_tempo"][0]
+    )
+    desconto_max_pct = regras["desconto_max_pct"][curva][faixa_tempo["id"]]
+    nivel_flex = regras["nivel_flexibilidade"][curva][faixa_tempo["id"]]
+
+    desconto_pct = desconto_escolhido_pct if desconto_escolhido_pct is not None else desconto_max_pct
+    desconto_pct = max(0, min(desconto_pct, desconto_max_pct))
+    preco_dinheiro_pix = round(valor_base * (1 - desconto_pct / 100), 2)
+
+    parcelas_max = 1
+    if valor_base >= regras["valor_minimo_parcelamento"]:
+        faixa_valor = _faixa_valor_de_simulador(valor_base, regras)
+        parcelas_max = regras["parcelas_max"][faixa_valor["id"]][str(nivel_flex)]
+    opcoes_cartao = [
+        {"parcelas": n, "valor_parcela": round(valor_base / n, 2), "valor_total": valor_base}
+        for n in range(1, parcelas_max + 1)
+    ]
+
+    return {
+        "valor_base": valor_base,
+        "dias_em_estoque": dias_em_estoque,
+        "faixa_tempo": faixa_tempo,
+        "curva": curva,
+        "desconto_max_pct": desconto_max_pct,
+        "desconto_aplicado_pct": desconto_pct,
+        "nivel_flexibilidade": nivel_flex,
+        "preco_dinheiro_pix": preco_dinheiro_pix,
+        "opcoes_cartao": opcoes_cartao,
+    }
+
+
+def calcular_simulacao_peca(peca, valor_override, desconto_escolhido_pct, regras):
+    valor_base = valor_override if valor_override is not None else (peca["preco"] or 0)
+
+    if peca["tempo_estoque_conhecido"]:
+        data_compra = datetime.fromisoformat(peca["data_compra_veiculo"])
+        dias_em_estoque = (agora_br().date() - data_compra.date()).days
+        dias_em_estoque = max(dias_em_estoque, 0)
+    else:
+        dias_em_estoque = None
+
+    curva = peca["classe_abc"]
+    resultado = montar_simulacao(valor_base, curva, dias_em_estoque, desconto_escolhido_pct, regras)
+    resultado["tempo_estoque_conhecido"] = bool(peca["tempo_estoque_conhecido"])
+    return resultado
 
 
 def carregar_vendedores() -> dict:
@@ -1334,6 +1578,116 @@ def servir_foto(filename):
     if SUPABASE_URL:
         return redirect(f"{SUPABASE_URL}/storage/v1/object/public/fotos/{filename}")
     return send_from_directory(FOTOS_DIR, filename)
+
+
+@app.route("/simulador")
+def pagina_simulador():
+    return send_from_directory(STATIC_DIR, "simulador.html")
+
+
+@app.route("/api/simulador/regras")
+def api_simulador_regras():
+    if not exigir_vendedor():
+        return jsonify({"erro": "Não autenticado."}), 401
+    regras = carregar_regras_simulador()
+    if regras is None:
+        return jsonify({"erro": "As regras de desconto ainda não foram sincronizadas."}), 404
+    return jsonify(regras)
+
+
+@app.route("/api/simulador/buscar")
+def api_simulador_buscar():
+    if not exigir_vendedor():
+        return jsonify({"erro": "Não autenticado."}), 401
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify([])
+    return jsonify(buscar_pecas_simulador(q))
+
+
+@app.route("/api/simulador/simular", methods=["POST"])
+def api_simulador_simular():
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    cod_peca = (corpo.get("cod_peca") or "").strip()
+    if not cod_peca:
+        return jsonify({"erro": "cod_peca é obrigatório"}), 400
+
+    peca = obter_peca_simulador(cod_peca)
+    if not peca:
+        return jsonify({"erro": "peça não encontrada"}), 404
+
+    regras = carregar_regras_simulador()
+    if regras is None:
+        return jsonify({"erro": "As regras de desconto ainda não foram sincronizadas."}), 404
+
+    valor_override = corpo.get("valor_base")
+    desconto_escolhido = corpo.get("desconto_pct")
+    resultado = calcular_simulacao_peca(peca, valor_override, desconto_escolhido, regras)
+    resultado["cod_peca"] = peca["cod_peca"]
+    resultado["nome_produto"] = peca["nome_produto"]
+    resultado["etiqueta"] = peca["etiqueta"]
+    resultado["apelido_veiculo"] = peca["apelido_veiculo"]
+    resultado["tipo_peca_rotulo"] = peca["tipo_peca_rotulo"]
+    return jsonify(resultado)
+
+
+@app.route("/api/simulador/simular-rapido", methods=["POST"])
+def api_simulador_simular_rapido():
+    """Simulação sem buscar peça no catálogo: o vendedor informa valor,
+    curva e faixa de tempo em estoque na mão — pensado pra atender o
+    cliente rápido no balcão, sem precisar achar o item no sistema."""
+    if not exigir_vendedor():
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    try:
+        valor_base = float(corpo.get("valor_base"))
+    except (TypeError, ValueError):
+        return jsonify({"erro": "valor_base é obrigatório e deve ser numérico"}), 400
+    if valor_base <= 0:
+        return jsonify({"erro": "valor_base deve ser maior que zero"}), 400
+
+    regras = carregar_regras_simulador()
+    if regras is None:
+        return jsonify({"erro": "As regras de desconto ainda não foram sincronizadas."}), 404
+
+    curva = (corpo.get("curva") or "").strip()
+    if curva not in regras["desconto_max_pct"]:
+        return jsonify({"erro": "curva inválida"}), 400
+
+    faixa_tempo_id = (corpo.get("faixa_tempo_id") or "").strip()
+    ids_validos = {f["id"] for f in regras["faixas_tempo"]}
+    if faixa_tempo_id not in ids_validos:
+        return jsonify({"erro": "faixa_tempo_id inválida"}), 400
+    dias_representativos = next(f["min_dias"] for f in regras["faixas_tempo"] if f["id"] == faixa_tempo_id)
+
+    desconto_escolhido = corpo.get("desconto_pct")
+    resultado = montar_simulacao(valor_base, curva, dias_representativos, desconto_escolhido, regras)
+    resultado["dias_em_estoque"] = None  # é uma faixa escolhida à mão, não uma data real
+    return jsonify(resultado)
+
+
+@app.route("/api/simulador/peca/<cod_peca>/data-entrada", methods=["POST"])
+def api_simulador_definir_data_entrada(cod_peca):
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    data_entrada = (corpo.get("data_entrada") or "").strip()
+    if not data_entrada:
+        return jsonify({"erro": "data_entrada é obrigatória"}), 400
+    try:
+        data_parseada = datetime.fromisoformat(data_entrada)
+    except ValueError:
+        return jsonify({"erro": "data inválida, use AAAA-MM-DD"}), 400
+
+    nome = carregar_vendedores().get(vendedor_id, {}).get("nome", vendedor_id)
+    ok = definir_data_entrada_simulador(cod_peca, data_parseada.strftime("%Y-%m-%d 00:00:00"), nome)
+    if not ok:
+        return jsonify({"erro": "peça não encontrada"}), 404
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":

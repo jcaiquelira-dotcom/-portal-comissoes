@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de Desconto · Nevada Eco Peças</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14171C;
+    --surface: #1E2229;
+    --surface-2: #262B33;
+    --line: #333944;
+    --accent: #C15A2A;
+    --accent-2: #E08A57;
+    --text: #EDEFF2;
+    --muted: #7A8290;
+    --good: #4CAF7D;
+    --bad: #E05B5B;
+    --info: #4C8AAF;
+    --gold: #D4AF37;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #1c212a 0%, transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    padding:18px 26px 60px;
+  }
+  .wrap{max-width:900px;margin:0 auto;}
+  .hidden{display:none !important;}
+
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:18px;
+    border-bottom:2px solid var(--line);
+    padding-bottom:9px;
+    margin-bottom:22px;
+  }
+  h1{
+    font-family:'Oswald',sans-serif;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    font-size:24px;
+    margin:0;
+  }
+  .top-actions{display:flex;align-items:center;gap:14px;}
+  .link-btn{
+    background:none;border:none;color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;font-size:12px;
+    text-decoration:underline;cursor:pointer;padding:0;
+  }
+  .link-btn:hover{color:var(--text);}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:20px 22px;
+  }
+
+  .tabs{display:flex;gap:8px;margin-bottom:14px;}
+  .tab-btn{
+    background:var(--surface);border:1px solid var(--line);color:var(--muted);
+    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.05em;
+    font-weight:600;font-size:13px;padding:9px 18px;border-radius:6px 6px 0 0;cursor:pointer;
+  }
+  .tab-btn.active{color:var(--accent-2);border-color:var(--accent);border-bottom-color:var(--surface);background:var(--surface);}
+  .grid-rapido{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:16px;}
+
+  .field{margin-bottom:14px;}
+  .field label{
+    display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;
+  }
+  select, input[type="text"], input[type="number"]{
+    width:100%;background:#0F1216;border:1px solid var(--line);border-radius:6px;
+    color:var(--text);font-family:'Inter',sans-serif;font-size:14px;padding:9px 10px;
+  }
+  .primary-btn{
+    background:var(--accent);color:#151719;border:none;font-family:'Oswald',sans-serif;
+    text-transform:uppercase;letter-spacing:.05em;font-weight:600;font-size:13px;
+    padding:11px 20px;border-radius:6px;cursor:pointer;
+  }
+  .primary-btn:hover{background:#ff7f52;}
+  .primary-btn:disabled{opacity:.5;cursor:default;}
+  .secondary-btn{
+    background:var(--surface-2);color:var(--text);border:1px solid var(--line);
+    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.05em;
+    font-weight:600;font-size:13px;padding:11px 20px;border-radius:6px;cursor:pointer;
+  }
+  .secondary-btn:hover{border-color:var(--accent);}
+  .erro-msg{color:var(--bad);font-size:13px;margin-top:8px;min-height:16px;}
+
+  .busca-row{position:relative;margin-bottom:20px;}
+  #resultados{
+    position:absolute;top:100%;left:0;right:0;z-index:5;
+    background:var(--surface-2);border:1px solid var(--line);border-top:none;
+    border-radius:0 0 8px 8px;max-height:340px;overflow-y:auto;
+  }
+  .resultado-item{
+    padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--line);
+    display:flex;justify-content:space-between;gap:10px;align-items:center;
+  }
+  .resultado-item:hover{background:var(--surface);}
+  .resultado-item:last-child{border-bottom:none;}
+  .resultado-nome{font-size:14px;}
+  .resultado-meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);white-space:nowrap;}
+
+  .badge{
+    display:inline-flex;align-items:center;justify-content:center;
+    font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;
+    width:26px;height:26px;border-radius:50%;
+  }
+  .badge-A{background:rgba(76,175,125,.18);color:var(--good);}
+  .badge-B{background:rgba(76,138,175,.18);color:var(--info);}
+  .badge-C{background:rgba(224,91,91,.18);color:var(--bad);}
+
+  #painelPeca{margin-top:6px;}
+  .peca-titulo{font-family:'Oswald',sans-serif;font-weight:600;font-size:19px;margin-bottom:2px;}
+  .peca-sub{color:var(--muted);font-size:13px;margin-bottom:16px;}
+  .grid-info{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:14px;margin-bottom:20px;
+  }
+  .info-box{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:12px 14px;}
+  .info-box .label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .info-box .valor{font-family:'Oswald',sans-serif;font-weight:600;font-size:18px;}
+
+  .desconto-row{display:flex;align-items:center;gap:16px;margin-bottom:6px;}
+  input[type="range"]{flex:1;accent-color:var(--accent);}
+  .desconto-valor{font-family:'Oswald',sans-serif;font-weight:700;font-size:22px;color:var(--accent-2);min-width:60px;text-align:right;}
+  .hint{color:var(--muted);font-size:12px;margin-bottom:20px;}
+
+  .preco-final{
+    display:flex;justify-content:space-between;align-items:baseline;
+    background:var(--surface-2);border:1px solid var(--accent);border-radius:6px;
+    padding:14px 18px;margin-bottom:20px;
+  }
+  .preco-final .original{color:var(--muted);font-size:13px;text-decoration:line-through;margin-right:10px;}
+  .preco-final .final{font-family:'Oswald',sans-serif;font-weight:700;font-size:26px;color:var(--gold);}
+
+  table{width:100%;border-collapse:collapse;}
+  th,td{padding:8px 10px;text-align:left;font-size:13px;border-bottom:1px solid var(--line);}
+  th{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);}
+  td.mono{font-family:'IBM Plex Mono',monospace;}
+
+  .tempo-desconhecido{
+    background:rgba(224,91,91,.12);border:1px solid var(--bad);border-radius:6px;
+    padding:10px 14px;font-size:13px;margin-bottom:16px;color:var(--text);
+  }
+  .erro-geral{
+    background:rgba(224,91,91,.12);border:1px solid var(--bad);border-radius:6px;
+    padding:14px 18px;font-size:13px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="appArea" class="hidden">
+    <header>
+      <h1>Simulador de Desconto</h1>
+      <div class="top-actions">
+        <span id="nomeVendedor" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);"></span>
+        <a class="link-btn" href="/">Voltar ao portal</a>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tabBuscar" data-tab="buscar">Buscar peça</button>
+      <button class="tab-btn" id="tabRapido" data-tab="rapido">Simulação rápida</button>
+    </div>
+
+    <div id="painelBuscar" class="card">
+      <div class="busca-row">
+        <input type="text" id="campoBusca" placeholder="Buscar peça por nome, código ou etiqueta...">
+        <div id="resultados" class="hidden"></div>
+      </div>
+
+      <div id="painelPeca" class="hidden"></div>
+      <div id="semSelecao" style="color:var(--muted);text-align:center;padding:30px 0;">
+        Busque uma peça acima pra começar a simulação.
+      </div>
+    </div>
+
+    <div id="painelRapido" class="card hidden">
+      <div class="hint" style="margin-bottom:16px;">Pra atender rápido no balcão: informe o valor, a curva e mais ou menos há quanto tempo a peça está parada — sem precisar achar ela no sistema.</div>
+      <div class="grid-rapido">
+        <div class="field">
+          <label>Valor do produto (R$)</label>
+          <input type="number" id="rapidoValor" min="0" step="0.01" placeholder="0,00">
+        </div>
+        <div class="field">
+          <label>Curva ABC</label>
+          <select id="rapidoCurva">
+            <option value="A">A (mais líquida)</option>
+            <option value="B">B</option>
+            <option value="C">C (menos líquida)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Tempo em estoque</label>
+          <select id="rapidoFaixa"></select>
+        </div>
+      </div>
+      <button class="primary-btn" id="btnSimularRapido">Simular</button>
+      <div id="painelRapidoResultado" style="margin-top:20px;"></div>
+    </div>
+  </div>
+
+  <div id="erroArea" class="hidden">
+    <div class="erro-geral" id="erroGeralTexto"></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let pecaAtual = null;
+
+async function api(path, opts) {
+  const res = await fetch(path, Object.assign({headers:{'Content-Type':'application/json'}}, opts || {}));
+  const dados = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(dados.erro || 'erro');
+  return dados;
+}
+
+function fmtMoeda(v) {
+  return (v ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+}
+
+async function iniciar() {
+  let eu;
+  try {
+    const res = await fetch('/api/me');
+    if (!res.ok) { location.href = '/'; return; }
+    eu = await res.json();
+  } catch (e) {
+    location.href = '/';
+    return;
+  }
+  $('nomeVendedor').textContent = 'Olá, ' + eu.nome;
+  $('appArea').classList.remove('hidden');
+  try {
+    await popularFaixasRapido();
+  } catch (e) {
+    $('appArea').classList.add('hidden');
+    $('erroArea').classList.remove('hidden');
+    $('erroGeralTexto').textContent = e.message;
+  }
+}
+
+let buscaTimeout = null;
+$('campoBusca').addEventListener('input', () => {
+  clearTimeout(buscaTimeout);
+  const q = $('campoBusca').value.trim();
+  if (q.length < 2) { $('resultados').classList.add('hidden'); return; }
+  buscaTimeout = setTimeout(() => buscar(q), 250);
+});
+
+async function buscar(q) {
+  const itens = await api('/api/simulador/buscar?q=' + encodeURIComponent(q));
+  const el = $('resultados');
+  if (!itens.length) {
+    el.innerHTML = '<div class="resultado-item" style="cursor:default;color:var(--muted);">Nenhuma peça disponível encontrada</div>';
+  } else {
+    el.innerHTML = itens.map(p => `
+      <div class="resultado-item" data-cod="${p.cod_peca}">
+        <div>
+          <div class="resultado-nome">${p.nome_produto}${p.etiqueta ? ` <span style="font-family:'IBM Plex Mono',monospace;color:var(--accent-2);">#${p.etiqueta}</span>` : ''}</div>
+          <div class="resultado-meta">${p.apelido_veiculo || 'sem veículo vinculado'} · ${fmtMoeda(p.preco)}</div>
+        </div>
+        <span class="badge badge-${p.classe_abc}">${p.classe_abc}</span>
+      </div>`).join('');
+  }
+  el.classList.remove('hidden');
+  el.querySelectorAll('.resultado-item[data-cod]').forEach(item => {
+    item.addEventListener('click', () => selecionarPeca(item.dataset.cod));
+  });
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.busca-row')) $('resultados').classList.add('hidden');
+});
+
+async function selecionarPeca(codPeca) {
+  $('resultados').classList.add('hidden');
+  $('campoBusca').value = '';
+  const sim = await api('/api/simulador/simular', {method:'POST', body: JSON.stringify({cod_peca: codPeca})});
+  pecaAtual = sim;
+  renderPeca(sim);
+}
+
+async function atualizarDesconto(pct) {
+  const sim = await api('/api/simulador/simular', {method:'POST', body: JSON.stringify({cod_peca: pecaAtual.cod_peca, desconto_pct: pct})});
+  pecaAtual = sim;
+  renderPeca(sim, pct);
+}
+
+function montarBlocoResultado(sim, desconto) {
+  return `
+    <div class="grid-info">
+      <div class="info-box"><div class="label">Curva ABC</div><div class="valor"><span class="badge badge-${sim.curva}">${sim.curva}</span></div></div>
+      <div class="info-box"><div class="label">Tempo em estoque</div><div class="valor">${sim.dias_em_estoque !== null ? sim.dias_em_estoque + ' dias' : '—'}</div></div>
+      <div class="info-box"><div class="label">Faixa</div><div class="valor" style="font-size:14px;">${sim.faixa_tempo.label}</div></div>
+      <div class="info-box"><div class="label">Desconto máx.</div><div class="valor">${sim.desconto_max_pct}%</div></div>
+    </div>
+
+    <div class="field">
+      <label>Desconto dinheiro/PIX</label>
+      <div class="desconto-row">
+        <input type="range" class="slider-desconto" min="0" max="${sim.desconto_max_pct}" step="0.5" value="${desconto}">
+        <div class="desconto-valor label-desconto">${desconto}%</div>
+      </div>
+      <div class="hint">Máximo permitido: ${sim.desconto_max_pct}% (curva ${sim.curva}, ${sim.faixa_tempo.label}). Desconto vale só pra dinheiro ou PIX à vista — cartão de crédito não tem desconto, nem em 1x.</div>
+    </div>
+
+    <div class="preco-final">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">dinheiro / pix à vista</div>
+        <span class="original">${fmtMoeda(sim.valor_base)}</span>
+      </div>
+      <div class="final">${fmtMoeda(sim.preco_dinheiro_pix)}</div>
+    </div>
+
+    <div class="label" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Cartão de crédito — sem desconto, valor cheio</div>
+    <table>
+      <thead><tr><th>Parcelas</th><th>Valor por parcela</th><th>Total</th></tr></thead>
+      <tbody>
+        ${sim.opcoes_cartao.map(o => `<tr><td class="mono">${o.parcelas}x</td><td class="mono">${fmtMoeda(o.valor_parcela)}${o.parcelas > 1 ? ' sem juros' : ''}</td><td class="mono">${fmtMoeda(o.valor_total)}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function ligarEventosResultado(container, onAtualizar) {
+  const slider = container.querySelector('.slider-desconto');
+  const label = container.querySelector('.label-desconto');
+  slider.addEventListener('input', (e) => { label.textContent = e.target.value + '%'; });
+  slider.addEventListener('change', (e) => { onAtualizar(parseFloat(e.target.value)); });
+}
+
+function renderPeca(sim, descontoAtual) {
+  $('semSelecao').classList.add('hidden');
+  const painel = $('painelPeca');
+  painel.classList.remove('hidden');
+  const desconto = descontoAtual ?? sim.desconto_aplicado_pct;
+
+  const avisoTempo = !sim.tempo_estoque_conhecido
+    ? `<div class="tempo-desconhecido">
+        Essa peça é avulsa (sem veículo de origem vinculado no cadastro) — não temos a data de entrada em estoque.
+        Aplicando o nível mais rígido de desconto até você confirmar a data manualmente.
+        <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+          <input type="text" id="inputDataEntrada" placeholder="AAAA-MM-DD" style="max-width:160px;">
+          <button class="secondary-btn" id="btnSalvarData" style="padding:8px 14px;font-size:12px;">Confirmar data de entrada</button>
+        </div>
+      </div>`
+    : '';
+
+  painel.innerHTML = `
+    <div class="peca-titulo">${sim.nome_produto}${sim.etiqueta ? ` <span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--accent-2);">#${sim.etiqueta}</span>` : ''}</div>
+    <div class="peca-sub">${sim.apelido_veiculo || 'peça avulsa'} · ${sim.tipo_peca_rotulo}</div>
+    ${avisoTempo}
+    ${montarBlocoResultado(sim, desconto)}
+  `;
+
+  ligarEventosResultado(painel, atualizarDesconto);
+
+  const btnSalvarData = $('btnSalvarData');
+  if (btnSalvarData) {
+    btnSalvarData.addEventListener('click', async () => {
+      const data = $('inputDataEntrada').value.trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { alert('use o formato AAAA-MM-DD'); return; }
+      try {
+        await api(`/api/simulador/peca/${sim.cod_peca}/data-entrada`, {method:'POST', body: JSON.stringify({data_entrada: data})});
+        const atualizado = await api('/api/simulador/simular', {method:'POST', body: JSON.stringify({cod_peca: sim.cod_peca})});
+        pecaAtual = atualizado;
+        renderPeca(atualizado);
+      } catch (e) {
+        alert('erro ao salvar data: ' + e.message);
+      }
+    });
+  }
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const rapido = btn.dataset.tab === 'rapido';
+    $('painelBuscar').classList.toggle('hidden', rapido);
+    $('painelRapido').classList.toggle('hidden', !rapido);
+  });
+});
+
+let rapidoAtual = null;
+
+async function popularFaixasRapido() {
+  const regras = await api('/api/simulador/regras');
+  $('rapidoFaixa').innerHTML = regras.faixas_tempo.map(f => `<option value="${f.id}">${f.label}</option>`).join('');
+}
+
+async function simularRapido(descontoEscolhido) {
+  const valor = parseFloat($('rapidoValor').value);
+  if (!valor || valor <= 0) { alert('informe um valor válido'); return; }
+  const corpo = {valor_base: valor, curva: $('rapidoCurva').value, faixa_tempo_id: $('rapidoFaixa').value};
+  if (descontoEscolhido !== undefined) corpo.desconto_pct = descontoEscolhido;
+  try {
+    const sim = await api('/api/simulador/simular-rapido', {method:'POST', body: JSON.stringify(corpo)});
+    rapidoAtual = sim;
+    renderRapido(sim, descontoEscolhido);
+  } catch (e) {
+    alert('erro ao simular: ' + e.message);
+  }
+}
+
+function renderRapido(sim, descontoAtual) {
+  const desconto = descontoAtual ?? sim.desconto_aplicado_pct;
+  const cont = $('painelRapidoResultado');
+  cont.innerHTML = montarBlocoResultado(sim, desconto);
+  ligarEventosResultado(cont, (pct) => simularRapido(pct));
+}
+
+$('btnSimularRapido').addEventListener('click', () => simularRapido());
+
+iniciar();
+</script>
+</body>
+</html>
