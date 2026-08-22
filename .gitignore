@@ -1,4 +1,8 @@
 .env
 eventos.db
+vendas.db
+insights_output.txt
+mensagem-suporte-totalk.txt
+skill-test/
 __pycache__/
 *.pyc
