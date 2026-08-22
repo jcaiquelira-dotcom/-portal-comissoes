@@ -550,7 +550,7 @@
   </section>
 
   <footer>
-    Gerado a partir da API oficial do Totalk (api.wts.chat). "Resposta humana" considera qualquer mensagem enviada por um usuário identificado (não o bot). Filtros recalculam tudo no navegador, sem precisar de servidor.
+    Gerado a partir da API oficial do Totalk (api.wts.chat). "Resposta humana" considera qualquer mensagem enviada por um usuário identificado (não o bot). Ticket médio (R$1.445) extraído do valor final negociado nas próprias conversas — mensagens com preço amarrado à palavra "pix" (99 de 486 vendas prováveis, 20,4% de cobertura); mediana real R$580, média R$1.445, usada aqui por estimar receita total. Filtros recalculam tudo no navegador, sem precisar de servidor.
   </footer>
 
 </div>
@@ -619,7 +619,11 @@
     return (100 * n / total).toFixed(1).replace('.', ',') + '%';
   }
 
-  const TICKET_MEDIO = 600;
+  // ticket medio real, extraido do texto das conversas convertidas (valor mencionado
+  // junto de "pix" — sinal de preco final negociado, nao so uma cotacao descartada).
+  // n=99 de 486 conversas convertidas (20,4% de cobertura); mediana R$580, media R$1.445.
+  // usamos a media porque o objetivo aqui e estimar receita total (soma), nao o "ticket tipico".
+  const TICKET_MEDIO = 1445;
 
   function fmtBRL(valor) {
     return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
