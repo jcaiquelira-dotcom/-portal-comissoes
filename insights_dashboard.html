@@ -550,7 +550,7 @@
   </section>
 
   <footer>
-    Gerado a partir da API oficial do Totalk (api.wts.chat). "Resposta humana" considera qualquer mensagem enviada por um usuário identificado (não o bot). Ticket médio (R$1.445) extraído do valor final negociado nas próprias conversas — mensagens com preço amarrado à palavra "pix" (99 de 486 vendas prováveis, 20,4% de cobertura); mediana real R$580, média R$1.445, usada aqui por estimar receita total. Filtros recalculam tudo no navegador, sem precisar de servidor.
+    Gerado a partir da API oficial do Totalk (api.wts.chat). "Resposta humana" considera qualquer mensagem enviada por um usuário identificado (não o bot). Ticket médio (R$968) calibrado contra as vendas reais do portal-comissões de Flávia/Gustavo/Matheus entre 07/07 e 18/08 (R$502.544 em 519 vendas) — mais confiável que o valor extraído por texto (R$1.445), que superestimava por só capturar vendas com preço explícito escrito no "pix". Ressalva importante: a contagem de "vendas prováveis" deste painel identificou 461 das 519 vendas reais no mesmo período (89%) — o total estimado de receita ainda tende a ficar um pouco abaixo do real, já que parte das vendas não deixa rastro textual completo de pagamento+logística. Filtros recalculam tudo no navegador, sem precisar de servidor.
   </footer>
 
 </div>
@@ -619,11 +619,11 @@
     return (100 * n / total).toFixed(1).replace('.', ',') + '%';
   }
 
-  // ticket medio real, extraido do texto das conversas convertidas (valor mencionado
-  // junto de "pix" — sinal de preco final negociado, nao so uma cotacao descartada).
-  // n=99 de 486 conversas convertidas (20,4% de cobertura); mediana R$580, media R$1.445.
-  // usamos a media porque o objetivo aqui e estimar receita total (soma), nao o "ticket tipico".
-  const TICKET_MEDIO = 1445;
+  // ticket medio calibrado contra vendas reais do portal-comissoes (07/07 a 18/08):
+  // R$502.544 / 519 vendas reais = R$968,29. Preferido sobre o valor extraido por texto
+  // (R$1.445) porque aquele tinha vies — vendas caras tendem a ter o preco confirmado
+  // por escrito com mais frequencia, entao a extracao superestimava o ticket medio real.
+  const TICKET_MEDIO = 968;
 
   function fmtBRL(valor) {
     return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
