@@ -113,12 +113,22 @@ def cliente_ficou_esperando(tipo: str | None, texto: str | None) -> bool:
 def main():
     conn = sqlite3.connect(SQLITE_PATH)
 
-    links_site = set(
-        sid for (sid,) in conn.execute(
-            "SELECT DISTINCT session_id FROM mensagens WHERE direction='FROM_HUB' "
-            "AND text LIKE '%nevadaautopecas.com.br%'"
-        )
-    )
+    # O link do site so indica ORIGEM se aparecer logo no comeco. Link colado no meio da
+    # conversa costuma ser o cliente devolvendo um link que o proprio vendedor mandou --
+    # contar isso como "veio do site" inflava o canal (auditoria: 38 casos, convertendo
+    # 31,6%, contra 11,0% dos que realmente chegaram pelo site).
+    links_site = set()
+    for (sid,) in conn.execute(
+        "SELECT DISTINCT session_id FROM mensagens WHERE direction='FROM_HUB' "
+        "AND text LIKE '%nevadaautopecas.com.br%'"
+    ):
+        primeiras = conn.execute(
+            "SELECT text FROM mensagens WHERE session_id=? AND direction='FROM_HUB' "
+            "AND text IS NOT NULL ORDER BY created_at ASC LIMIT 3",
+            (sid,),
+        ).fetchall()
+        if any("nevadaautopecas.com.br" in (t or "") for (t,) in primeiras):
+            links_site.add(sid)
     ig_organico = set(
         sid for (sid,) in conn.execute(
             "SELECT DISTINCT session_id FROM mensagens WHERE direction='FROM_HUB' "
