@@ -84,6 +84,11 @@ def main():
     imagem_cliente = defaultdict(int)
     bot_textos = defaultdict(lambda: defaultdict(int))
     primeira_resposta_humana = {}
+    # comportamento do vendedor (so mensagens humanas, nao do bot)
+    msgs_vendedor = defaultdict(int)
+    midia_vendedor = defaultdict(int)
+    textos_vendedor = defaultdict(list)
+    ultima_direcao = {}
 
     for sid, direction, tipo, texto, created_at, origin_json in conn.execute(
         "SELECT session_id, direction, type, text, created_at, raw FROM mensagens ORDER BY created_at ASC"
@@ -92,12 +97,19 @@ def main():
             textos_por_sessao[sid].append(texto.lower())
         if direction == "FROM_HUB" and tipo in ("IMAGE", "DOCUMENT"):
             imagem_cliente[sid] += 1
+        ultima_direcao[sid] = direction
         if direction == "TO_HUB":
             d = json.loads(origin_json)
             if d.get("origin") == "BOT" and texto:
                 bot_textos[sid][texto] += 1
-            if sid not in primeira_resposta_humana and d.get("userId"):
-                primeira_resposta_humana[sid] = created_at
+            if d.get("userId"):
+                if sid not in primeira_resposta_humana:
+                    primeira_resposta_humana[sid] = created_at
+                msgs_vendedor[sid] += 1
+                if tipo in ("IMAGE", "VIDEO"):
+                    midia_vendedor[sid] += 1
+                if texto:
+                    textos_vendedor[sid].append(texto.lower())
 
     loop_sessoes = set()
     for sid, contagens in bot_textos.items():
@@ -179,6 +191,15 @@ def main():
                 categoria_peca = nome_cat
                 break
 
+        # depois de avisar que nao tem a peca, o vendedor parou ali ou seguiu oferecendo
+        # alternativa? (2+ mensagens depois = seguiu). None quando nunca disse que nao tinha.
+        comportamento_sem_estoque = None
+        msgs_v = textos_vendedor.get(sid, [])
+        for i, t in enumerate(msgs_v):
+            if contem(t, R_SEM_ESTOQUE):
+                comportamento_sem_estoque = "seguiu" if (len(msgs_v) - i - 1) >= 2 else "parou"
+                break
+
         ad_content = None
         ad_source = None
         if utm:
@@ -200,6 +221,13 @@ def main():
             "pc": categoria_peca,
             "nv": novo_por_sessao.get(sid),
             "ei": origin_sessao == "Empresa",
+            # comportamento do vendedor, pra aba de dicas
+            "nm": msgs_vendedor.get(sid, 0),
+            "fv": midia_vendedor.get(sid, 0) > 0,
+            # abandonada por nos: cliente falou por ultimo e a venda nao saiu
+            "ab": ultima_direcao.get(sid) == "FROM_HUB" and conv != "P",
+            # comportamento apos dizer "nao tenho": parou ali ou seguiu oferecendo
+            "ne": comportamento_sem_estoque,
         })
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
