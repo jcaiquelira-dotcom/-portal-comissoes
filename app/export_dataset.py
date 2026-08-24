@@ -1,5 +1,7 @@
 import json
+import re
 import sqlite3
+import unicodedata
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -64,6 +66,50 @@ def contem(texto, termos):
     return any(t in texto for t in termos)
 
 
+# --- o cliente ficou esperando, ou so se despediu? ---
+# Sem esse cuidado, toda conversa que termina com "obrigado" viraria "abandonamos o
+# cliente" — e na pratica 2 em cada 3 sao so encerramento educado, nao lead perdido.
+VAZIO = set("""ok okk okay oks blz blza blzz beleza belezaa obrigado obrigada obg obgg brigado brigada
+vlw valeu valew agradeco agradecido agradecemos grato grata ta tah bom certo tudo bem entendi entendido
+show perfeito isso sim nao ata ah aa ahh a e eh ate mais tchau abraco falou falo de nada joia tranquilo
+fechou fecho amigo amiga irmao mano cara senhor senhora voce vc vcs dia tarde noite oi ola opa boa bao
+entao muito mto por favor pf gratidao ha td dmr chefe deus abencoe top otimo excelente legal certeza
+uhum sla kk kkk rs rsrs ne so""".split())
+
+INTERROG = re.compile(
+    r"\b(qual|quais|quanto|quantos|quanta|tem|teria|tinha|consegue|conseguiria|pode|poderia|"
+    r"sabe|quando|onde|como|qto|ainda|disponivel|serve|manda|orcamento|valor|preco)\b"
+)
+
+AUTORESPOSTA = re.compile(
+    r"nao estamos disponiveis|obrigado por entrar em contato|responderemos|mensagem automatica"
+)
+
+
+def _sem_acento(t: str) -> str:
+    t = unicodedata.normalize("NFKD", t.lower())
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9? ]", " ", t)
+
+
+def cliente_ficou_esperando(tipo: str | None, texto: str | None) -> bool:
+    """True quando a ultima mensagem do cliente pedia algo que ficou sem resposta."""
+    if tipo in ("IMAGE", "AUDIO", "VIDEO", "DOCUMENT", "CONTACT", "BUTTONS"):
+        return True  # mandou foto/audio/clicou e ninguem voltou
+    if tipo == "STICKER" or not texto:
+        return False
+    n = _sem_acento(texto)
+    if AUTORESPOSTA.search(n):
+        return False  # robo da empresa do proprio cliente
+    palavras = [p for p in n.replace("?", " ").split() if p]
+    substantivas = [p for p in palavras if p not in VAZIO and not p.isdigit()]
+    if not substantivas:
+        return False  # so cortesia/saudacao
+    if "?" in texto or INTERROG.search(n):
+        return True
+    return len(substantivas) >= 2
+
+
 def main():
     conn = sqlite3.connect(SQLITE_PATH)
 
@@ -89,6 +135,7 @@ def main():
     midia_vendedor = defaultdict(int)
     textos_vendedor = defaultdict(list)
     ultima_direcao = {}
+    ultima_msg = {}
 
     for sid, direction, tipo, texto, created_at, origin_json in conn.execute(
         "SELECT session_id, direction, type, text, created_at, raw FROM mensagens ORDER BY created_at ASC"
@@ -98,6 +145,7 @@ def main():
         if direction == "FROM_HUB" and tipo in ("IMAGE", "DOCUMENT"):
             imagem_cliente[sid] += 1
         ultima_direcao[sid] = direction
+        ultima_msg[sid] = (direction, tipo, texto)
         if direction == "TO_HUB":
             d = json.loads(origin_json)
             if d.get("origin") == "BOT" and texto:
@@ -224,8 +272,14 @@ def main():
             # comportamento do vendedor, pra aba de dicas
             "nm": msgs_vendedor.get(sid, 0),
             "fv": midia_vendedor.get(sid, 0) > 0,
-            # abandonada por nos: cliente falou por ultimo e a venda nao saiu
-            "ab": ultima_direcao.get(sid) == "FROM_HUB" and conv != "P",
+            # cliente ficou esperando: mandou a ultima mensagem, pedindo algo (nao so
+            # "obrigado"), e a venda nao saiu. Ver cliente_ficou_esperando() -- sem esse
+            # filtro o numero fica ~4x inflado por conversas encerradas com cortesia.
+            "ab": (
+                ultima_direcao.get(sid) == "FROM_HUB"
+                and conv != "P"
+                and cliente_ficou_esperando(*ultima_msg.get(sid, (None, None, None))[1:])
+            ),
             # comportamento apos dizer "nao tenho": parou ali ou seguiu oferecendo
             "ne": comportamento_sem_estoque,
         })
