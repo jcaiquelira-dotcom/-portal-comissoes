@@ -6,3 +6,7 @@ mensagem-suporte-totalk.txt
 skill-test/
 __pycache__/
 *.pyc
+
+# relatorio
+_relatorio_print.html
+*.pdf
