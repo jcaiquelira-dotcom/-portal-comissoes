@@ -593,10 +593,20 @@ function fmtMoeda(v){
   return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
 }
 function todayStr(){
-  const d = new Date();
-  const off = d.getTimezoneOffset();
-  const local = new Date(d.getTime() - off*60000);
-  return local.toISOString().slice(0,10);
+  // Sempre a data de Brasília, independente do fuso configurado no celular
+  // ou computador do vendedor — senão a venda podia cair no dia errado.
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const obter = tipo => partes.find(p => p.type === tipo).value;
+  return `${obter('year')}-${obter('month')}-${obter('day')}`;
+}
+
+function novoEnvioId(){
+  // crypto.randomUUID() não existe quando o portal é acessado por IP na rede
+  // local (http://192.168.x.x), só em https/localhost — daí a alternativa.
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'e-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
 }
 
 const ICONE_OLHO_ABERTO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
@@ -998,10 +1008,15 @@ document.getElementById('mesInput').addEventListener('change', () => {
   carregarConfirmacao();
 });
 
+// Identifica UMA tentativa de lançamento. Fica guardado até dar certo: se o
+// servidor demorar e o vendedor mandar de novo, o envio repetido chega com o
+// mesmo id e o servidor devolve a venda que já salvou, em vez de duplicar.
+let envioPendenteId = null;
+let envioLotePendenteId = null;
+
 document.getElementById('addBtn').addEventListener('click', async () => {
   const btn = document.getElementById('addBtn');
   if(btn.disabled) return;
-  btn.disabled = true;
   const status = document.getElementById('formStatus');
   const data = document.getElementById('dataInput').value;
   const produto = document.getElementById('produtoInput').value.trim();
@@ -1010,35 +1025,55 @@ document.getElementById('addBtn').addEventListener('click', async () => {
   const canal = document.getElementById('canalInput').value.trim();
   status.classList.remove('show','err');
 
+  if(!produto || !valor){
+    status.textContent = 'Preencha o produto e o valor.';
+    status.classList.add('show','err');
+    return;
+  }
+
   const editando = !!editandoId;
   const url = editando ? '/api/vendas/' + editandoId : '/api/vendas';
   const method = editando ? 'PUT' : 'POST';
+
+  if(!editando && !envioPendenteId) envioPendenteId = novoEnvioId();
+
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+  status.textContent = 'Salvando, aguarde...';
+  status.classList.add('show');
 
   try{
     const res = await fetch(url, {
       method,
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({data, produto, valor, sku, canal})
+      body: JSON.stringify({data, produto, valor, sku, canal, envio_id: envioPendenteId})
     });
-    const dados = await res.json();
+    const dados = await res.json().catch(() => ({}));
     if(!res.ok){
       status.textContent = dados.erro || 'Erro ao salvar.';
       status.classList.add('show','err');
       return;
     }
+    envioPendenteId = null;
     status.textContent = editando ? 'Venda atualizada.' : 'Venda adicionada.';
+    status.classList.remove('err');
     status.classList.add('show');
+    const mesDaVenda = (data || todayStr()).slice(0,7);
+    const mesInput = document.getElementById('mesInput');
+    // Se a venda for de outro mês, muda a visualização pra esse mês em vez de
+    // não atualizar nada — antes o vendedor via "Venda adicionada" mas a lista
+    // continuava igual, achava que não tinha salvo e lançava de novo.
+    if(mesDaVenda !== mesInput.value) mesInput.value = mesDaVenda;
     sairModoEdicao();
-    if(data.slice(0,7) === document.getElementById('mesInput').value){
-      carregarVendas();
-      carregarComissao();
-      carregarConfirmacao();
-    }
+    await Promise.all([carregarVendas(), carregarComissao(), carregarConfirmacao()]);
   }catch(e){
-    status.textContent = 'Erro de conexão.';
+    status.textContent = 'Sem conexão com o servidor. A venda pode não ter sido salva — confira na lista antes de lançar de novo.';
     status.classList.add('show','err');
   }finally{
     btn.disabled = false;
+    // sairModoEdicao() já zera editandoId quando salvou; se deu erro no meio de
+    // uma edição, o botão continua como "Salvar edição".
+    btn.textContent = editandoId ? 'Salvar edição' : 'Adicionar';
   }
 });
 
@@ -1117,19 +1152,26 @@ document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
     return;
   }
 
+  if(!envioLotePendenteId) envioLotePendenteId = novoEnvioId();
+
   btn.disabled = true;
+  btn.textContent = 'Salvando...';
+  status.textContent = 'Salvando, aguarde...';
+  status.classList.add('show');
   try{
     const res = await fetch('/api/vendas/lote', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({vendas: linhas})
+      body: JSON.stringify({vendas: linhas, envio_id: envioLotePendenteId})
     });
-    const dados = await res.json();
+    const dados = await res.json().catch(() => ({}));
     if(!res.ok){
       status.textContent = dados.erro || 'Erro ao salvar.';
       status.classList.add('show','err');
       return;
     }
+    envioLotePendenteId = null;
+    status.classList.remove('err');
     if(dados.erros && dados.erros.length > 0){
       const detalhes = dados.erros.map(e => `linha ${e.linha}: ${e.erro}`).join(' | ');
       status.textContent = `${dados.salvas} salva(s), ${dados.erros.length} com erro — ${detalhes}`;
@@ -1139,13 +1181,12 @@ document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
       status.classList.add('show');
       iniciarSheetVazia();
     }
-    carregarVendas();
-    carregarComissao();
-    carregarConfirmacao();
+    await Promise.all([carregarVendas(), carregarComissao(), carregarConfirmacao()]);
   }catch(e){
-    status.textContent = 'Erro de conexão.';
+    status.textContent = 'Sem conexão com o servidor. As vendas podem não ter sido salvas — confira na lista antes de lançar de novo.';
     status.classList.add('show','err');
   }finally{
+    btn.textContent = 'Salvar tudo';
     btn.disabled = false;
   }
 });

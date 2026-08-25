@@ -11,7 +11,10 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from flask import Flask, jsonify, redirect, request, send_file, send_from_directory, session
+from flask import (
+    Flask, g, has_request_context, jsonify, redirect, request, send_file,
+    send_from_directory, session,
+)
 from openpyxl import Workbook
 
 # Servidor (Render) roda em UTC — Brasil não tem horário de verão desde 2019,
@@ -84,6 +87,17 @@ def resolver_pasta_dados() -> Path:
     return data_dir
 
 
+def _cache_requisicao():
+    """Memória de curta duração, válida só durante uma requisição. Várias
+    funções carregam o mesmo dado (ex.: `carregar_vendedores()` é chamada 2-3x
+    por requisição) — sem isso, cada chamada dessas era uma ida ao banco."""
+    if not has_request_context():
+        return None
+    if not hasattr(g, "_cache_db"):
+        g._cache_db = {}
+    return g._cache_db
+
+
 def _chave_de(caminho: Path) -> str:
     """Deriva uma chave curta e única a partir do nome do arquivo (sem extensão) —
     todos os arquivos do projeto já têm nomes únicos (vendedores, vendas_brenda, etc.)."""
@@ -94,11 +108,62 @@ if DATABASE_URL:
     import psycopg2
     from psycopg2.extras import Json as _PgJson
 
+    # Reaproveita uma única conexão em vez de abrir uma nova a cada leitura/
+    # escrita. Antes, um clique em "Adicionar venda" abria ~17 conexões novas
+    # (cada uma com handshake TLS completo com o Supabase), o que deixava o
+    # portal lento a ponto do vendedor achar que travou e clicar de novo —
+    # gerando venda duplicada. Detalhe importante: `with psycopg2.connect(...)`
+    # NÃO fecha a conexão (só encerra a transação), então o modelo antigo ainda
+    # dependia do coletor de lixo pra liberar cada conexão.
+    _conn_cache = {"conn": None}
+
+    def _db_descartar_conexao(conn) -> None:
+        """Some com uma conexão que deu erro, pra próxima operação abrir uma
+        nova e limpa em vez de reaproveitar uma transação abortada."""
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+        if _conn_cache.get("conn") is conn:
+            _conn_cache["conn"] = None
+        cache = _cache_requisicao()
+        if cache is not None:
+            cache.pop("_conexao_ok", None)
+
     def _db_conectar():
-        return psycopg2.connect(DATABASE_URL)
+        conn = _conn_cache["conn"]
+        cache = _cache_requisicao()
+        if conn is not None and conn.closed == 0:
+            # A conexão reaproveitada pode ter caído entre uma requisição e
+            # outra (Supabase derruba conexões ociosas), então confirmamos que
+            # ainda está viva — mas só uma vez por requisição, senão esse
+            # "SELECT 1" viraria uma ida ao banco a cada leitura.
+            if cache is not None and cache.get("_conexao_ok"):
+                return conn
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                if cache is not None:
+                    cache["_conexao_ok"] = True
+                return conn
+            except Exception:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        conn = psycopg2.connect(DATABASE_URL)
+        _conn_cache["conn"] = conn
+        if cache is not None:
+            cache["_conexao_ok"] = True
+        return conn
 
     def _db_preparar_tabela() -> None:
-        with _db_conectar() as conn, conn.cursor() as cur:
+        conn = _db_conectar()
+        with conn.cursor() as cur:
             cur.execute(
                 "CREATE TABLE IF NOT EXISTS dados_json ("
                 "chave TEXT PRIMARY KEY, valor JSONB NOT NULL)"
@@ -108,19 +173,40 @@ if DATABASE_URL:
     _db_preparar_tabela()
 
     def _db_ler(chave: str, padrao):
-        with _db_conectar() as conn, conn.cursor() as cur:
-            cur.execute("SELECT valor FROM dados_json WHERE chave = %s", (chave,))
-            linha = cur.fetchone()
-            return linha[0] if linha else padrao
+        cache = _cache_requisicao()
+        if cache is not None and chave in cache:
+            return cache[chave]
+        conn = _db_conectar()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT valor FROM dados_json WHERE chave = %s", (chave,))
+                linha = cur.fetchone()
+                valor = linha[0] if linha else padrao
+        except Exception:
+            # Sem o rollback, a conexão reaproveitada ficaria travada em
+            # "transação abortada" e derrubaria as próximas consultas também.
+            _db_descartar_conexao(conn)
+            raise
+        if cache is not None:
+            cache[chave] = valor
+        return valor
 
     def _db_escrever(chave: str, dados) -> None:
-        with _db_conectar() as conn, conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
-                "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
-                (chave, _PgJson(dados)),
-            )
-            conn.commit()
+        conn = _db_conectar()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
+                    "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
+                    (chave, _PgJson(dados)),
+                )
+                conn.commit()
+        except Exception:
+            _db_descartar_conexao(conn)
+            raise
+        cache = _cache_requisicao()
+        if cache is not None:
+            cache[chave] = dados
 
     def ler_json(caminho: Path, padrao):
         return _db_ler(_chave_de(caminho), padrao)
@@ -413,6 +499,22 @@ def salvar_vendas_vendedor(vendedor_id: str, vendas: dict) -> None:
     escrever_json(arquivo_vendas(vendedor_id), vendas)
 
 
+def carregar_vendas_para_comissao(vendedor_id: str, vendedores: dict) -> dict:
+    """Carrega só as vendas que a comissão desse vendedor realmente usa: as
+    dele e as de quem ele tem override. Antes carregava as de todo mundo (~4.400
+    registros) em toda atualização de tela, mesmo pra quem não tem override."""
+    info = vendedores.get(vendedor_id, {})
+    ids = {vendedor_id}
+    for over in info.get("overrides", []):
+        outro = over.get("vendedor_id")
+        if outro in vendedores:
+            ids.add(outro)
+    todas = {}
+    for vid in ids:
+        todas.update(carregar_vendas_vendedor(vid))
+    return todas
+
+
 def carregar_vendas_todos(vendedores: dict) -> dict:
     """Junta as vendas de todos os vendedores — usado só para comissão com
     overrides e para o resumo do gestor, que precisam da visão completa."""
@@ -673,7 +775,7 @@ def api_minha_comissao():
     mes = request.args.get("mes", hoje_br().isoformat()[:7])
     de, ate = mes_para_intervalo(mes)
     vendedores = carregar_vendedores()
-    vendas = carregar_vendas_todos(vendedores)
+    vendas = carregar_vendas_para_comissao(vendedor_id, vendedores)
     return jsonify(calcular_comissao(vendedor_id, de, ate, vendedores, vendas))
 
 
@@ -810,6 +912,20 @@ def api_criar_venda():
         return jsonify({"erro": str(e)}), 400
 
     vendas = carregar_vendas_vendedor(vendedor_id)
+
+    # Proteção contra duplicidade. O `envio_id` é gerado pelo navegador uma vez
+    # por lançamento: se a mesma tentativa chegar de novo (clique duplo, conexão
+    # lenta que o vendedor achou que travou, refresh no meio do envio), a gente
+    # devolve a venda que já foi salva em vez de criar outra. É mais confiável
+    # que a checagem por tempo, que falhava justamente no caso ruim — servidor
+    # demorando pra responder e vendedor tentando de novo depois de 8 segundos.
+    envio_id = (body.get("envio_id") or "").strip()
+    if envio_id:
+        for vid_existente, v in vendas.items():
+            if v.get("envio_id") == envio_id:
+                return jsonify({"ok": True, "id": vid_existente, "ja_existia": True})
+        venda["envio_id"] = envio_id
+
     if existe_duplicata_recente(vendas, vendedor_id, venda["data"], venda["produto"], venda["valor"]):
         return jsonify({"erro": "Essa venda já foi salva há poucos segundos (mesmo produto, valor e data). Confira na lista antes de lançar de novo."}), 409
     novo_id = uuid.uuid4().hex[:12]
@@ -831,6 +947,17 @@ def api_criar_vendas_lote():
         return jsonify({"erro": "Nenhuma linha para salvar."}), 400
 
     vendas = carregar_vendas_vendedor(vendedor_id)
+
+    # Mesma proteção do lançamento avulso: um `envio_id` por clique em "Salvar
+    # tudo". Aqui ela é ainda mais importante, porque um lote pode ter linhas
+    # legitimamente iguais (duas peças iguais vendidas no mesmo dia), então não
+    # dá pra deduplicar comparando produto/valor/data como no avulso.
+    envio_id = (body.get("envio_id") or "").strip()
+    if envio_id:
+        ja_salvas = [vid for vid, v in vendas.items() if v.get("envio_id") == envio_id]
+        if ja_salvas:
+            return jsonify({"ok": True, "salvas": len(ja_salvas), "erros": [], "ja_existia": True})
+
     salvas = 0
     erros = []
     meses_afetados = set()
@@ -840,6 +967,8 @@ def api_criar_vendas_lote():
         except ValueError as e:
             erros.append({"linha": idx, "erro": str(e)})
             continue
+        if envio_id:
+            venda["envio_id"] = envio_id
         vendas[uuid.uuid4().hex[:12]] = venda
         salvas += 1
         meses_afetados.add(venda["data"][:7])
