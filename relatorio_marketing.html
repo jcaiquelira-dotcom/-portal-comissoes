@@ -1,4 +1,4 @@
-<title>Relatório de Aquisição — Nevada Ecopeças</title>
+<title>Retorno da Mídia Paga — Nevada Ecopeças</title>
 <style>
   @page { size: A4; margin: 14mm 13mm; }
 
@@ -14,28 +14,21 @@
     --good-soft: #E6F2EA;
     --bad: #A33232;
     --bad-soft: #FAE9E8;
+    --aviso: #8A6416;
+    --aviso-soft: #FBF2DC;
     --surface: #FBF8F3;
   }
 
   * { box-sizing: border-box; }
 
   body {
-    margin: 0;
-    background: #fff;
-    color: var(--ink);
+    margin: 0; background: #fff; color: var(--ink);
     font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
-    font-size: 10.5pt;
-    line-height: 1.5;
+    font-size: 10.5pt; line-height: 1.5;
   }
-
   .page { max-width: 190mm; margin: 0 auto; padding: 0 0 10mm; }
 
-  /* cabeçalho */
-  header {
-    border-bottom: 2.5pt solid var(--ink);
-    padding-bottom: 7pt;
-    margin-bottom: 16pt;
-  }
+  header { border-bottom: 2.5pt solid var(--ink); padding-bottom: 7pt; margin-bottom: 14pt; }
   .marca {
     font-size: 8pt; font-weight: 700; letter-spacing: 0.16em;
     text-transform: uppercase; color: var(--accent); margin-bottom: 3pt;
@@ -44,34 +37,34 @@
   .subtitulo { font-size: 9.5pt; color: var(--ink-3); }
 
   h2 {
-    font-size: 12.5pt; font-weight: 800; margin: 20pt 0 3pt;
+    font-size: 12.5pt; font-weight: 800; margin: 19pt 0 3pt;
     letter-spacing: -0.01em; page-break-after: avoid;
   }
-  h2 .num {
-    display: inline-block; width: 15pt; color: var(--accent);
-  }
+  h2 .num { display: inline-block; width: 15pt; color: var(--accent); }
   .sub-h2 { font-size: 9pt; color: var(--ink-3); margin-bottom: 8pt; page-break-after: avoid; }
 
   p { margin: 0 0 7pt; }
   b, strong { color: var(--ink); font-weight: 700; }
 
-  /* destaque principal */
+  .correcao {
+    background: var(--aviso-soft); border-left: 3.5pt solid var(--aviso);
+    padding: 10pt 12pt; margin-bottom: 12pt; page-break-inside: avoid;
+    font-size: 9.5pt; color: var(--ink-2);
+  }
+  .correcao .rot {
+    font-size: 8pt; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--aviso); margin-bottom: 4pt;
+  }
+  .correcao p { margin: 0; }
+
   .destaque {
-    background: var(--accent-soft);
-    border-left: 3.5pt solid var(--accent);
-    padding: 11pt 13pt;
-    margin-bottom: 6pt;
-    page-break-inside: avoid;
+    background: var(--good-soft); border-left: 3.5pt solid var(--good);
+    padding: 11pt 13pt; margin-bottom: 6pt; page-break-inside: avoid;
   }
-  .destaque-titulo {
-    font-size: 11.5pt; font-weight: 800; margin-bottom: 5pt; letter-spacing: -0.01em;
-  }
+  .destaque-titulo { font-size: 11.5pt; font-weight: 800; margin-bottom: 5pt; letter-spacing: -0.01em; }
   .destaque p { font-size: 10pt; color: var(--ink-2); margin: 0; }
 
-  .numeros {
-    display: flex; gap: 10pt; margin: 10pt 0 4pt;
-    page-break-inside: avoid;
-  }
+  .numeros { display: flex; gap: 9pt; margin: 10pt 0 4pt; page-break-inside: avoid; }
   .num-card {
     flex: 1; border: 0.75pt solid var(--line); background: var(--surface);
     padding: 9pt 10pt; border-radius: 3pt;
@@ -80,9 +73,9 @@
     font-size: 7.5pt; font-weight: 700; letter-spacing: 0.07em;
     text-transform: uppercase; color: var(--ink-3); margin-bottom: 3pt;
   }
-  .num-card .val { font-size: 18pt; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
-  .num-card .val.bad { color: var(--bad); }
+  .num-card .val { font-size: 17pt; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
   .num-card .val.good { color: var(--good); }
+  .num-card .val.bad { color: var(--bad); }
   .num-card .nota { font-size: 8pt; color: var(--ink-3); margin-top: 3pt; }
 
   table {
@@ -100,34 +93,13 @@
     font-variant-numeric: tabular-nums;
   }
   td.nome { font-variant-numeric: normal; font-weight: 600; }
-  tr.total td {
-    border-top: 1pt solid var(--ink); border-bottom: none;
-    font-weight: 800; padding-top: 6pt;
-  }
-  tr.destaque-linha td { background: var(--good-soft); }
-  tr.alerta-linha td { background: var(--bad-soft); }
-  .tag {
-    display: inline-block; font-size: 7.5pt; font-weight: 700;
-    padding: 1pt 5pt; border-radius: 8pt; white-space: nowrap;
-  }
-  .tag.ok { background: var(--good-soft); color: var(--good); }
-  .tag.ruim { background: var(--bad-soft); color: var(--bad); }
-  .tag.fraco { background: #F0EDE6; color: var(--ink-3); }
+  tr.total td { border-top: 1pt solid var(--ink); border-bottom: none; font-weight: 800; padding-top: 6pt; }
+  tr.otimo td { background: var(--good-soft); }
+  tr.ruim td { background: var(--bad-soft); }
 
-  .criativo { font-variant-numeric: normal; font-size: 9pt; line-height: 1.35; }
-  .criativo .plat {
-    font-size: 7.5pt; font-weight: 700; color: var(--ink-3);
-    text-transform: uppercase; letter-spacing: 0.05em;
-  }
-
+  .rec { border: 0.75pt solid var(--line); border-radius: 3pt; padding: 10pt 12pt; margin-bottom: 7pt; page-break-inside: avoid; }
   .recomendacoes { counter-reset: rec; }
-  .rec {
-    border: 0.75pt solid var(--line); border-radius: 3pt;
-    padding: 10pt 12pt; margin-bottom: 7pt; page-break-inside: avoid;
-  }
-  .rec-titulo {
-    font-size: 10.5pt; font-weight: 800; margin-bottom: 3pt;
-  }
+  .rec-titulo { font-size: 10.5pt; font-weight: 800; margin-bottom: 3pt; }
   .rec-titulo::before {
     counter-increment: rec; content: counter(rec);
     display: inline-block; width: 15pt; height: 15pt; line-height: 15pt;
@@ -137,9 +109,8 @@
   .rec p { font-size: 9.5pt; color: var(--ink-2); margin: 0; }
 
   .metodologia {
-    background: var(--surface); border: 0.75pt solid var(--line);
-    border-radius: 3pt; padding: 10pt 12pt; font-size: 8.5pt;
-    color: var(--ink-2); page-break-inside: avoid;
+    background: var(--surface); border: 0.75pt solid var(--line); border-radius: 3pt;
+    padding: 10pt 12pt; font-size: 8.5pt; color: var(--ink-2); page-break-inside: avoid;
   }
   .metodologia p { margin: 0 0 5pt; }
   .metodologia p:last-child { margin: 0; }
@@ -149,429 +120,299 @@
     margin-top: 16pt; padding-top: 7pt; border-top: 0.75pt solid var(--line);
     font-size: 8pt; color: var(--ink-3);
   }
-
   .quebra { page-break-before: always; }
 </style>
 
 <div class="page">
 
   <header>
-    <div class="marca">Nevada Ecopeças · Relatório interno</div>
-    <h1>Aquisição de leads pelo WhatsApp</h1>
+    <div class="marca">Nevada Ecopeças · Relatório interno · versão 2</div>
+    <h1>Retorno da mídia paga no WhatsApp</h1>
     <div class="subtitulo">
       Período: 7 de julho a 21 de agosto de 2026 (45 dias) &nbsp;·&nbsp;
-      Base: 8.009 atendimentos e 154.062 mensagens, extraídos da API oficial da plataforma de atendimento
+      Cruzamento entre o investimento do Gerenciador de Anúncios (Meta) e as vendas
+      identificadas nos 8.143 atendimentos da plataforma de WhatsApp
     </div>
   </header>
 
-  <div class="destaque">
-    <div class="destaque-titulo">O anúncio pago traz quase um terço dos contatos — e menos de um décimo das vendas</div>
+  <div class="correcao">
+    <div class="rot">Esta versão corrige a anterior</div>
     <p>
-      Facebook e Instagram Ads responderam por <b>31,7% de todos os leads</b> do período (2.540 contatos),
-      mas geraram apenas <b>8,4% das vendas</b> (41 de 486). Os canais não pagos — site, contato direto e
-      Instagram orgânico — trouxeram 68,3% dos leads e <b>91,6% das vendas</b>. A diferença não está no
-      atendimento: está na intenção de compra de quem chega por cada canal.
+      O relatório anterior recomendava <b>realocar verba para fora da mídia paga</b>, com base na
+      taxa de conversão baixa dos anúncios (1,6%). Aquela análise não tinha o valor investido —
+      limitação que o próprio relatório apontava como pendência. Com o custo agora disponível, a
+      conclusão muda: <b>o anúncio dá retorno de 7,3x e não deve ser cortado</b>. O que precisa mudar
+      é <b>como a verba está distribuída entre os anúncios</b>.
+    </p>
+  </div>
+
+  <div class="destaque">
+    <div class="destaque-titulo">A mídia paga se paga — o problema é onde o dinheiro está indo</div>
+    <p>
+      Foram <b>R$ 5.546,50</b> investidos em 45 dias, gerando <b>42 vendas</b> identificadas e
+      <b>R$ 40.656</b> em receita estimada: <b>7,3 vezes o investido</b>, a um custo de
+      <b>R$ 132 por venda</b> contra um ticket médio de R$ 968. Só que o retorno varia
+      <b>12 vezes</b> entre o melhor e o pior anúncio, e a verba hoje está dividida quase
+      igualmente entre eles.
     </p>
   </div>
 
   <div class="numeros">
     <div class="num-card">
-      <div class="rot">Leads de anúncio</div>
-      <div class="val">2.540</div>
-      <div class="nota">31,7% do total de contatos</div>
+      <div class="rot">Investido</div>
+      <div class="val">R$ 5.547</div>
+      <div class="nota">45 dias, 14 anúncios</div>
     </div>
     <div class="num-card">
-      <div class="rot">Vendas de anúncio</div>
-      <div class="val bad">41</div>
-      <div class="nota">8,4% do total de vendas</div>
+      <div class="rot">Custo por conversa</div>
+      <div class="val">R$ 1,80</div>
+      <div class="nota">3.078 conversas iniciadas</div>
     </div>
     <div class="num-card">
-      <div class="rot">Receita — anúncio</div>
-      <div class="val bad">R$ 39.688</div>
-      <div class="nota">estimada, ticket médio R$ 968</div>
+      <div class="rot">Custo por venda</div>
+      <div class="val good">R$ 132</div>
+      <div class="nota">ticket médio de R$ 968</div>
     </div>
     <div class="num-card">
-      <div class="rot">Receita — não pago</div>
-      <div class="val good">R$ 430.760</div>
-      <div class="nota">11x a receita do pago</div>
+      <div class="rot">Retorno</div>
+      <div class="val good">7,3x</div>
+      <div class="nota">sobre receita, não lucro</div>
     </div>
   </div>
 
-  <h2><span class="num">1</span>De onde vêm os contatos × de onde vêm as vendas</h2>
-  <div class="sub-h2">O volume de leads e a origem do faturamento são quase opostos entre si</div>
+  <h2><span class="num">1</span>Custo por venda, anúncio por anúncio</h2>
+  <div class="sub-h2">
+    O Gerenciador sabe quanto custou; ele não sabe quais conversas viraram venda —
+    as colunas "Compras" e "ROAS" vêm vazias, porque a venda acontece no WhatsApp e no balcão.
+    Esta tabela junta os dois lados.
+  </div>
 
   <table>
     <thead>
       <tr>
-        <th>Canal</th>
-        <th class="n">Leads</th>
-        <th class="n">% dos leads</th>
+        <th>Anúncio</th>
+        <th class="n">Investido</th>
+        <th class="n">Conversas</th>
         <th class="n">Vendas</th>
-        <th class="n">Conversão</th>
-        <th class="n">% das vendas</th>
         <th class="n">Receita est.</th>
+        <th class="n">Custo/venda</th>
+        <th class="n">Retorno</th>
       </tr>
     </thead>
     <tbody>
-      <tr class="destaque-linha">
-        <td class="nome">Site (página de produto)</td>
-        <td class="n">1.680</td><td class="n">21,0%</td>
-        <td class="n">185</td><td class="n"><b>11,01%</b></td>
-        <td class="n">38,1%</td><td class="n">R$ 179.080</td>
+      <tr class="otimo">
+        <td class="nome">Tiguan 250 / 350 TSI</td>
+        <td class="n">R$ 588</td><td class="n">336</td><td class="n">11</td>
+        <td class="n">R$ 10.648</td><td class="n"><b>R$ 53</b></td><td class="n"><b>18,1x</b></td>
       </tr>
-      <tr class="destaque-linha">
-        <td class="nome">Contato direto</td>
-        <td class="n">2.663</td><td class="n">33,3%</td>
-        <td class="n">233</td><td class="n"><b>8,75%</b></td>
-        <td class="n">47,9%</td><td class="n">R$ 225.544</td>
+      <tr class="otimo">
+        <td class="nome">Golf GTI</td>
+        <td class="n">R$ 653</td><td class="n">524</td><td class="n">10</td>
+        <td class="n">R$ 9.680</td><td class="n"><b>R$ 65</b></td><td class="n"><b>14,8x</b></td>
+      </tr>
+      <tr class="otimo">
+        <td class="nome">Audi A3</td>
+        <td class="n">R$ 626</td><td class="n">438</td><td class="n">8</td>
+        <td class="n">R$ 7.744</td><td class="n"><b>R$ 78</b></td><td class="n"><b>12,4x</b></td>
       </tr>
       <tr>
-        <td class="nome">Instagram — link da bio</td>
-        <td class="n">1.126</td><td class="n">14,1%</td>
-        <td class="n">27</td><td class="n">2,40%</td>
-        <td class="n">5,6%</td><td class="n">R$ 26.136</td>
+        <td class="nome">Nivus GTS</td>
+        <td class="n">R$ 665</td><td class="n">318</td><td class="n">3</td>
+        <td class="n">R$ 2.904</td><td class="n">R$ 222</td><td class="n">4,4x</td>
       </tr>
-      <tr class="alerta-linha">
-        <td class="nome">Facebook Ads</td>
-        <td class="n">602</td><td class="n">7,5%</td>
-        <td class="n">14</td><td class="n">2,33%</td>
-        <td class="n">2,9%</td><td class="n">R$ 13.552</td>
+      <tr>
+        <td class="nome">Jetta GLI</td>
+        <td class="n">R$ 664</td><td class="n">408</td><td class="n">3</td>
+        <td class="n">R$ 2.904</td><td class="n">R$ 221</td><td class="n">4,4x</td>
       </tr>
-      <tr class="alerta-linha">
-        <td class="nome">Instagram Ads</td>
-        <td class="n">1.938</td><td class="n">24,2%</td>
-        <td class="n">27</td><td class="n"><b>1,39%</b></td>
-        <td class="n">5,6%</td><td class="n">R$ 26.136</td>
+      <tr>
+        <td class="nome">Polo GTS</td>
+        <td class="n">R$ 714</td><td class="n">446</td><td class="n">3</td>
+        <td class="n">R$ 2.904</td><td class="n">R$ 238</td><td class="n">4,1x</td>
+      </tr>
+      <tr>
+        <td class="nome">Motor (genérico)</td>
+        <td class="n">R$ 640</td><td class="n">150</td><td class="n">2</td>
+        <td class="n">R$ 1.936</td><td class="n">R$ 320</td><td class="n">3,0x</td>
+      </tr>
+      <tr class="ruim">
+        <td class="nome">Up TSI com kit swap T-Cross</td>
+        <td class="n">R$ 661</td><td class="n">323</td><td class="n">1</td>
+        <td class="n">R$ 968</td><td class="n">R$ 661</td><td class="n">1,5x</td>
+      </tr>
+      <tr class="ruim">
+        <td class="nome">VW Tera Highline 2026</td>
+        <td class="n">R$ 184</td><td class="n">74</td><td class="n">0</td>
+        <td class="n">—</td><td class="n">sem venda</td><td class="n">0x</td>
+      </tr>
+      <tr class="ruim">
+        <td class="nome">Camaro SS</td>
+        <td class="n">R$ 138</td><td class="n">58</td><td class="n">0</td>
+        <td class="n">—</td><td class="n">sem venda</td><td class="n">0x</td>
+      </tr>
+      <tr>
+        <td class="nome">Tiguan RLine 2024</td>
+        <td class="n">R$ 15</td><td class="n">3</td><td class="n">0</td>
+        <td class="n">—</td><td class="n">sem venda</td><td class="n">0x</td>
       </tr>
       <tr class="total">
         <td class="nome">Total</td>
-        <td class="n">8.009</td><td class="n">100%</td>
-        <td class="n">486</td><td class="n">6,07%</td>
-        <td class="n">100%</td><td class="n">R$ 470.448</td>
+        <td class="n">R$ 5.547</td><td class="n">3.078</td><td class="n">42</td>
+        <td class="n">R$ 40.656</td><td class="n">R$ 132</td><td class="n">7,3x</td>
       </tr>
     </tbody>
   </table>
 
-  <p style="font-size:9.5pt;color:var(--ink-2)">
-    O <b>Instagram Ads é o segundo maior canal em volume</b> (1.938 leads, 24,2%) e o <b>último em conversão</b>
-    (1,39%). Já o site, com menos leads (1.680), gera quase sete vezes mais vendas que ele.
+  <h2><span class="num">2</span>A oportunidade está na redistribuição</h2>
+  <div class="sub-h2">Mesmo investimento total, resultado muito diferente</div>
+
+  <p>
+    Os três melhores anúncios — <b>Tiguan, Golf GTI e Audi A3</b> — receberam <b>34% da verba</b>
+    (R$ 1.867) e entregaram <b>71% das vendas</b> (29 de 42), a um custo médio de <b>R$ 64 por venda</b>.
   </p>
-
-  <h2><span class="num">2</span>Não é falta de atendimento — é intenção de compra</h2>
-  <div class="sub-h2">
-    Para descartar a hipótese de que o lead de anúncio converte menos por ser mal atendido,
-    comparamos apenas conversas igualmente engajadas (com 6 ou mais respostas do vendedor)
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Canal</th>
-        <th class="n">Chegam a engajar</th>
-        <th class="n">Conversão quando engajam</th>
-        <th class="n">Leitura</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr class="destaque-linha">
-        <td class="nome">Site (página de produto)</td>
-        <td class="n">30,1%</td><td class="n"><b>34,2%</b></td>
-        <td class="n"><span class="tag ok">alta intenção</span></td>
-      </tr>
-      <tr class="destaque-linha">
-        <td class="nome">Contato direto</td>
-        <td class="n">31,3%</td><td class="n"><b>25,7%</b></td>
-        <td class="n"><span class="tag ok">alta intenção</span></td>
-      </tr>
-      <tr>
-        <td class="nome">Facebook Ads</td>
-        <td class="n">25,1%</td><td class="n">9,3%</td>
-        <td class="n"><span class="tag fraco">média</span></td>
-      </tr>
-      <tr>
-        <td class="nome">Instagram — link da bio</td>
-        <td class="n">27,0%</td><td class="n">8,6%</td>
-        <td class="n"><span class="tag fraco">média</span></td>
-      </tr>
-      <tr class="alerta-linha">
-        <td class="nome">Instagram Ads</td>
-        <td class="n">28,3%</td><td class="n"><b>4,4%</b></td>
-        <td class="n"><span class="tag ruim">baixa intenção</span></td>
-      </tr>
-    </tbody>
-  </table>
-
-  <p style="font-size:9.5pt;color:var(--ink-2)">
-    Todos os canais engajam numa faixa parecida (25% a 31%) — ou seja, o time conversa com o lead de anúncio
-    tanto quanto com os outros. Mas <b>entre conversas igualmente engajadas</b>, o lead vindo do site converte
-    <b>34,2%</b> e o de Instagram Ads, <b>4,4%</b>. O anúncio traz gente que conversa e não compra.
+  <p>
+    No outro extremo, <b>Up TSI, VW Tera e Camaro SS</b> consumiram <b>R$ 983</b> e geraram
+    <b>uma única venda</b> no período inteiro.
   </p>
-
-  <div class="quebra"></div>
-
-  <h2><span class="num">3</span>O mesmo criativo rende de forma muito diferente em cada plataforma</h2>
-  <div class="sub-h2">Criativos veiculados nas duas redes, comparados lado a lado</div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Criativo</th>
-        <th class="n" colspan="2">Facebook</th>
-        <th class="n" colspan="2">Instagram</th>
-      </tr>
-      <tr>
-        <th></th>
-        <th class="n">Leads</th><th class="n">Conv.</th>
-        <th class="n">Leads</th><th class="n">Conv.</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr class="destaque-linha">
-        <td class="criativo">Sucata Golf GTI para retirada de peças</td>
-        <td class="n">78</td><td class="n"><b>7,7%</b></td>
-        <td class="n">310</td><td class="n"><b>0,3%</b></td>
-      </tr>
-      <tr>
-        <td class="criativo">Você iria de qual? Tiguan 250 / 350 TSI</td>
-        <td class="n">101</td><td class="n">5,0%</td>
-        <td class="n">203</td><td class="n">3,0%</td>
-      </tr>
-      <tr>
-        <td class="criativo">Chegaram novas oportunidades — Audi A3 2.0 Turbo</td>
-        <td class="n">108</td><td class="n">0,0%</td>
-        <td class="n">254</td><td class="n">3,1%</td>
-      </tr>
-      <tr>
-        <td class="criativo">Sucata Polo GTS 1.4 TSI</td>
-        <td class="n">39</td><td class="n">2,6%</td>
-        <td class="n">333</td><td class="n">0,6%</td>
-      </tr>
-      <tr>
-        <td class="criativo">3x Sucata Jetta GLI</td>
-        <td class="n">83</td><td class="n">0,0%</td>
-        <td class="n">260</td><td class="n">1,2%</td>
-      </tr>
-      <tr>
-        <td class="criativo">Up TSI com kit swap T-Cross</td>
-        <td class="n">86</td><td class="n">0,0%</td>
-        <td class="n">202</td><td class="n">0,5%</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <p style="font-size:9.5pt;color:var(--ink-2)">
-    O caso mais claro é o <b>Sucata Golf GTI</b>: no Facebook fez <b>6 vendas em 78 leads</b>; no Instagram,
-    <b>1 venda em 310 leads</b> — quatro vezes mais tráfego e um sexto das vendas. Como o criativo é o mesmo,
-    a diferença está em <b>quem está sendo alcançado</b>, não na peça de comunicação. Vale revisar segmentação
-    e posicionamento (feed, stories, reels) das campanhas de Instagram.
+  <p>
+    Se esses R$ 983 tivessem rendido como os três melhores, teriam virado cerca de
+    <b>15 vendas em vez de 1</b> — aproximadamente <b>R$ 13.800 a mais em receita</b>, sem
+    aumentar um centavo de investimento.
   </p>
-
-  <h2><span class="num">4</span>Ranking de criativos</h2>
-  <div class="sub-h2">
-    Ordenado por confiabilidade estatística, não pela taxa bruta — um criativo com 1 venda em 12 leads
-    aparenta 8,3% de conversão, mas é acaso de amostra pequena
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Criativo</th>
-        <th class="n">Rede</th>
-        <th class="n">Leads</th>
-        <th class="n">Vendas</th>
-        <th class="n">Conversão</th>
-        <th class="n">Receita est.</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr class="destaque-linha">
-        <td class="criativo">Sucata Golf GTI para retirada de peças</td>
-        <td class="n"><span class="plat">Facebook</span></td>
-        <td class="n">78</td><td class="n">6</td><td class="n"><b>7,7%</b></td><td class="n">R$ 5.808</td>
-      </tr>
-      <tr class="destaque-linha">
-        <td class="criativo">Você iria de qual? Tiguan 250 / 350 TSI</td>
-        <td class="n"><span class="plat">Facebook</span></td>
-        <td class="n">101</td><td class="n">5</td><td class="n"><b>5,0%</b></td><td class="n">R$ 4.840</td>
-      </tr>
-      <tr class="destaque-linha">
-        <td class="criativo">Chegaram novas oportunidades — Audi A3 2.0 Turbo</td>
-        <td class="n"><span class="plat">Instagram</span></td>
-        <td class="n">254</td><td class="n">8</td><td class="n"><b>3,1%</b></td><td class="n">R$ 7.744</td>
-      </tr>
-      <tr>
-        <td class="criativo">Você iria de qual? Tiguan 250 / 350 TSI</td>
-        <td class="n"><span class="plat">Instagram</span></td>
-        <td class="n">203</td><td class="n">6</td><td class="n">3,0%</td><td class="n">R$ 5.808</td>
-      </tr>
-      <tr>
-        <td class="criativo">Golf GTI repleto de upgrades</td>
-        <td class="n"><span class="plat">Instagram</span></td>
-        <td class="n">36</td><td class="n">2</td><td class="n">5,6%</td><td class="n">R$ 1.936</td>
-      </tr>
-      <tr>
-        <td class="criativo">Projeto Gaiola com motor 1.4 TSI</td>
-        <td class="n"><span class="plat">Instagram</span></td>
-        <td class="n">63</td><td class="n">2</td><td class="n">3,2%</td><td class="n">R$ 1.936</td>
-      </tr>
-      <tr>
-        <td class="criativo">Golf GTI repleto de upgrades</td>
-        <td class="n"><span class="plat">Facebook</span></td>
-        <td class="n">12</td><td class="n">1</td><td class="n">8,3% <span class="tag fraco">amostra pequena</span></td><td class="n">R$ 968</td>
-      </tr>
-      <tr>
-        <td class="criativo">Sucata Polo GTS 1.4 TSI</td>
-        <td class="n"><span class="plat">Facebook</span></td>
-        <td class="n">39</td><td class="n">1</td><td class="n">2,6%</td><td class="n">R$ 968</td>
-      </tr>
-      <tr>
-        <td class="criativo">Primeira sucata de Nivus GTS do Brasil</td>
-        <td class="n"><span class="plat">Facebook</span></td>
-        <td class="n">51</td><td class="n">1</td><td class="n">2,0%</td><td class="n">R$ 968</td>
-      </tr>
-      <tr class="alerta-linha">
-        <td class="criativo">3x Sucata Jetta GLI</td>
-        <td class="n"><span class="plat">Instagram</span></td>
-        <td class="n">260</td><td class="n">3</td><td class="n">1,2%</td><td class="n">R$ 2.904</td>
-      </tr>
-      <tr class="alerta-linha">
-        <td class="criativo">Primeira sucata de Nivus GTS do Brasil</td>
-        <td class="n"><span class="plat">Instagram</span></td>
-        <td class="n">182</td><td class="n">2</td><td class="n">1,1%</td><td class="n">R$ 1.936</td>
-      </tr>
-      <tr class="alerta-linha">
-        <td class="criativo">Sucata Polo GTS 1.4 TSI</td>
-        <td class="n"><span class="plat">Instagram</span></td>
-        <td class="n">333</td><td class="n">2</td><td class="n">0,6%</td><td class="n">R$ 1.936</td>
-      </tr>
-      <tr class="alerta-linha">
-        <td class="criativo">Up TSI com kit swap T-Cross</td>
-        <td class="n"><span class="plat">Instagram</span></td>
-        <td class="n">202</td><td class="n">1</td><td class="n">0,5%</td><td class="n">R$ 968</td>
-      </tr>
-      <tr class="alerta-linha">
-        <td class="criativo">Sucata Golf GTI para retirada de peças</td>
-        <td class="n"><span class="plat">Instagram</span></td>
-        <td class="n">310</td><td class="n">1</td><td class="n">0,3%</td><td class="n">R$ 968</td>
-      </tr>
-      <tr class="alerta-linha">
-        <td class="criativo">Chegaram novas oportunidades — Audi A3 2.0 Turbo</td>
-        <td class="n"><span class="plat">Facebook</span></td>
-        <td class="n">108</td><td class="n">0</td><td class="n">0,0%</td><td class="n">—</td>
-      </tr>
-      <tr class="alerta-linha">
-        <td class="criativo">Up TSI com kit swap T-Cross</td>
-        <td class="n"><span class="plat">Facebook</span></td>
-        <td class="n">86</td><td class="n">0</td><td class="n">0,0%</td><td class="n">—</td>
-      </tr>
-      <tr class="alerta-linha">
-        <td class="criativo">3x Sucata Jetta GLI</td>
-        <td class="n"><span class="plat">Facebook</span></td>
-        <td class="n">83</td><td class="n">0</td><td class="n">0,0%</td><td class="n">—</td>
-      </tr>
-      <tr class="alerta-linha">
-        <td class="criativo">Sucata VW Tera Highline 2026</td>
-        <td class="n"><span class="plat">IG + FB</span></td>
-        <td class="n">56</td><td class="n">0</td><td class="n">0,0%</td><td class="n">—</td>
-      </tr>
-      <tr class="alerta-linha">
-        <td class="criativo">Sucata de Camaro SS 2011 V8 6.2</td>
-        <td class="n"><span class="plat">IG + FB</span></td>
-        <td class="n">50</td><td class="n">0</td><td class="n">0,0%</td><td class="n">—</td>
-      </tr>
-    </tbody>
-  </table>
-
   <p style="font-size:9pt;color:var(--ink-3)">
-    Outros 5 criativos tiveram menos de 20 leads cada e nenhuma venda, e foram omitidos por volume
-    insuficiente para qualquer leitura.
+    Ressalva: isso pressupõe que os anúncios bons escalariam na mesma eficiência com mais verba,
+    o que nem sempre acontece — audiência satura e o custo por resultado tende a subir. Trate como
+    ordem de grandeza da oportunidade, não como projeção garantida. O caminho seguro é aumentar aos
+    poucos e reavaliar.
   </p>
 
   <div class="quebra"></div>
+
+  <h2><span class="num">3</span>O que separa os anúncios que vendem</h2>
+  <div class="sub-h2">Olhando o que os três melhores têm em comum, e o que falta nos piores</div>
+
+  <p>
+    Os anúncios de melhor retorno divulgam <b>um veículo popular e de alto giro, com peças que muita
+    gente procura</b> — Tiguan, Golf GTI e Audi A3 estão entre os modelos mais mencionados nos
+    atendimentos do período. Os de pior retorno anunciam <b>veículos de nicho</b>: Camaro SS e VW Tera
+    trouxeram 132 conversas somadas e nenhuma venda; são carros que geram curiosidade e pouca intenção
+    real de compra de peça.
+  </p>
+  <p>
+    O caso do <b>Up TSI com kit swap T-Cross</b> merece atenção à parte: trouxe volume alto
+    (323 conversas, custo baixo de R$ 2,05 por conversa) e converteu uma vez só. É um anúncio que
+    <b>atrai público entusiasta</b> — gente interessada no projeto, não em comprar a peça.
+  </p>
+
+  <h2><span class="num">4</span>Sobre a diferença de contagem de leads</h2>
+  <div class="sub-h2">Ponto levantado pela agência, verificado</div>
+
+  <p>
+    O Gerenciador registra <b>3.078 conversas iniciadas</b> no período; o painel de atendimento
+    identificou <b>2.589</b> com rastreamento de anúncio — diferença de <b>489 (15,9%)</b>.
+    A verificação encontrou as duas causas:
+  </p>
+  <p>
+    <b>Cerca de 273</b> são conversas que chegaram sem o parâmetro de rastreamento, mas que abrem com
+    a frase automática que o Meta injeta no clique. Elas foram classificadas como "contato direto" e
+    são, de fato, leads de anúncio — falha de atribuição já identificada. Essas conversas <b>já foram reclassificadas</b> no painel de atendimento, que agora as exibe como "anúncio (sem rastreio)".
+    A extração também foi refeita para cobrir os 45 dias completos — a versão anterior começava às 17h32 de 07/07
+    e perdia 135 atendimentos daquele dia. O que ainda sobra se explica pela janela de atribuição do Meta,
+    que credita a conversa à data do clique e não à da mensagem.
+  </p>
+  <p>
+    <b>A diferença não altera nenhuma conclusão deste relatório.</b> Ao contrário: com mais leads no
+    denominador e as mesmas 42 vendas, o custo por venda continua o mesmo (ele é calculado sobre o
+    investimento, não sobre a contagem de leads) e a taxa de conversão do anúncio fica ainda menor —
+    o que reforça que o mérito da mídia paga aqui está no <b>custo baixo por lead</b>, não na
+    qualidade dele.
+  </p>
 
   <h2><span class="num">5</span>Recomendações</h2>
   <div class="sub-h2">Em ordem de impacto esperado</div>
 
   <div class="recomendacoes">
     <div class="rec">
-      <div class="rec-titulo">Revisar segmentação do Instagram Ads antes de mexer no criativo</div>
+      <div class="rec-titulo">Concentrar verba nos três anúncios que já provaram retorno</div>
       <p>
-        O Instagram Ads consome quase um quarto de todos os leads e devolve 1,39% de conversão. Como o mesmo
-        criativo converte muito melhor no Facebook, o problema aparenta estar no público alcançado, não na peça.
-        Vale testar segmentação por interesse automotivo específico, exclusão de públicos amplos e revisão de
-        posicionamento antes de produzir criativo novo.
+        Tiguan 250/350, Golf GTI e Audi A3 entregam venda entre R$ 53 e R$ 78. Aumentar
+        gradualmente o orçamento deles — acompanhando se o custo por resultado se mantém — é a
+        ação de maior impacto imediato disponível.
       </p>
     </div>
     <div class="rec">
-      <div class="rec-titulo">Realocar parte da verba de Instagram para Facebook</div>
+      <div class="rec-titulo">Pausar Camaro SS e VW Tera Highline</div>
       <p>
-        O Facebook converte 2,33% contra 1,39% do Instagram — 68% melhor — e concentra os dois criativos de
-        melhor desempenho do período. Hoje o Instagram recebe três vezes mais leads que o Facebook (1.938
-        contra 602), proporção que os resultados não sustentam.
+        R$ 322 investidos, 132 conversas, zero venda no período. São veículos de nicho que geram
+        interesse sem intenção de compra. Vale pausar e reavaliar se houver estoque relevante
+        desses modelos no futuro.
       </p>
     </div>
     <div class="rec">
-      <div class="rec-titulo">Investir no site como canal de aquisição, não só como vitrine</div>
+      <div class="rec-titulo">Revisar o anúncio de Up TSI antes de continuar investindo</div>
       <p>
-        O lead que chega pela página de produto converte 11,01% — o melhor de todos os canais — e já responde
-        por 38,1% das vendas. Melhorar SEO, cobertura de catálogo e a visibilidade do botão de WhatsApp nas
-        páginas de peça tende a render mais por real investido do que a mídia paga atual.
+        É o terceiro maior gasto do período (R$ 661) com uma venda. Traz volume barato mas de
+        público entusiasta. Vale testar uma versão que mostre a peça à venda com preço, em vez do
+        projeto montado, e comparar antes de manter o orçamento atual.
       </p>
     </div>
     <div class="rec">
-      <div class="rec-titulo">Repetir o formato dos criativos que funcionam</div>
+      <div class="rec-titulo">Anunciar o veículo que está no pátio, com a peça visível</div>
       <p>
-        Os melhores resultados vieram de anúncios que mostram <b>um veículo específico com peças
-        identificáveis</b> (Golf GTI, Tiguan, Audi A3 2.0 Turbo). Os de pior desempenho são os mais genéricos
-        ou de modelos de nicho (Camaro SS, VW Tera). Anunciar o carro que a loja realmente desmontou, com a
-        peça visível, é o padrão a repetir.
+        O padrão que separa os anúncios vencedores é divulgar modelo popular com peça de alto giro.
+        Vale alinhar o calendário de campanhas com o que a loja realmente desmontou e tem em
+        estoque — anúncio de carro raro rende curiosidade, não venda.
       </p>
     </div>
     <div class="rec">
-      <div class="rec-titulo">Trazer o custo das campanhas para dentro desta análise</div>
+      <div class="rec-titulo">Corrigir o rastreamento das campanhas</div>
       <p>
-        Este relatório mede receita gerada por canal, mas não o quanto foi investido em cada um. Com o valor
-        gasto por campanha (disponível no Gerenciador de Anúncios), é possível calcular custo por venda e ROI
-        real por criativo — a informação que fecha a decisão de onde colocar a verba.
+        Cerca de 273 leads de anúncio chegaram sem parâmetro de rastreamento e ficaram
+        contabilizados como contato direto. Revisar a configuração de UTM das campanhas dá medição
+        mais fiel — e evita a divergência de números entre agência e loja nos próximos relatórios.
       </p>
     </div>
   </div>
 
   <h2><span class="num">6</span>Como os números foram apurados</h2>
-  <div class="sub-h2">Metodologia e limitações — leia antes de tomar decisão de verba com base neste relatório</div>
+  <div class="sub-h2">Metodologia e limitações — leia antes de decidir verba com base neste relatório</div>
 
   <div class="metodologia">
     <p>
-      <b>Origem do lead.</b> Determinada pelo rastreamento da própria plataforma de atendimento: anúncios são
-      identificados pelos parâmetros de campanha (UTM) que o Facebook e o Instagram anexam ao clique, incluindo
-      o texto do criativo. "Site" é o contato que chega com o link de uma página de produto nas primeiras
-      mensagens. "Instagram bio" é quem chega pelo link do perfil, sem anúncio. "Contato direto" é o restante —
-      número salvo, indicação, retorno de cliente.
+      <b>Investimento.</b> Exportação do Gerenciador de Anúncios (Meta), período de 07/07 a 21/08/2026,
+      14 anúncios. A soma dos anúncios confere exatamente com o total da conta (R$ 5.546,50).
     </p>
     <p>
-      <b>Venda.</b> Não existe integração entre o WhatsApp e o sistema de vendas, então a conversão é estimada
-      pelo conteúdo da conversa: consideramos venda provável quando aparecem sinais de pagamento (pix,
-      comprovante, transferência) <b>e</b> de entrega (motoboy, retirada, endereço, rastreio) no mesmo
-      atendimento. Esse critério foi conferido contra as vendas reais lançadas no portal de comissões entre
-      7/7 e 18/8: <b>identificou 461 das 519 vendas do período, ou 89%</b>. Ou seja, os números aqui tendem a
-      ser levemente conservadores.
+      <b>Venda.</b> Não existe integração entre o WhatsApp e o sistema de vendas — o Gerenciador não
+      enxerga a venda (as colunas "Compras" e "ROAS" vêm vazias). A conversão é identificada pelo
+      conteúdo da conversa: sinais de pagamento (pix, comprovante, transferência) junto com sinais de
+      entrega (motoboy, retirada, endereço, rastreio). Conferido contra as vendas reais lançadas no
+      portal de comissões, o método encontra <b>89% delas</b> — os números aqui tendem a ser
+      levemente conservadores.
     </p>
     <p>
-      <b>Receita.</b> Calculada como vendas prováveis multiplicadas pelo ticket médio real de <b>R$ 968</b>,
-      obtido das vendas efetivamente registradas no portal de comissões no mesmo período (R$ 502.544 em 519
-      vendas). São valores estimados, não faturamento contábil.
+      <b>Receita e ticket.</b> Vendas multiplicadas pelo ticket médio real de <b>R$ 968</b>, apurado
+      das vendas efetivamente registradas no portal de comissões no mesmo período (R$ 502.544 em 519
+      vendas). <b>O retorno de 7,3x é sobre receita, não sobre lucro</b> — a margem da peça usada
+      precisa entrar nessa conta antes de qualquer decisão definitiva de orçamento.
+    </p>
+    <p>
+      <b>Casamento anúncio × criativo.</b> O Gerenciador identifica o anúncio por nome
+      ("ADV08 - Polo GTS") e o rastreamento traz o texto do criativo. O pareamento foi feito por
+      modelo de veículo. Nos veículos específicos é seguro; o grupo <b>"Motor (genérico)"</b> é o mais
+      frágil — R$ 640 investidos e 150 conversas no Meta contra 76 leads pareados no painel.
     </p>
     <p>
       <b>Limitações conhecidas.</b> Cerca de 15% das conversas contêm áudios do cliente, que não são
-      transcritos e portanto não entram na análise de texto. Conversas fechadas por telefone ou presencialmente
-      não aparecem. E a taxa de conversão por criativo carrega incerteza estatística proporcional ao volume:
-      criativos com menos de 50 leads devem ser lidos como indício, não como conclusão.
+      transcritos e ficam fora da análise de texto. Vendas fechadas por telefone ou presencialmente não
+      aparecem. E anúncios com poucas vendas carregam incerteza estatística alta: a diferença entre 3 e
+      1 venda pode ser acaso, enquanto a diferença entre 11 e 0 dificilmente é.
     </p>
   </div>
 
   <footer>
-    Relatório gerado a partir da base de atendimentos da Nevada Ecopeças · Dados de 7/7/2026 a 21/8/2026 ·
-    Documento interno
+    Nevada Ecopeças · Dados de 7/7/2026 a 21/8/2026 · Fontes: Gerenciador de Anúncios (Meta) e
+    plataforma de atendimento WhatsApp · Documento interno · Versão 2 — substitui a anterior
   </footer>
 
 </div>

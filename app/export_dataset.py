@@ -137,6 +137,23 @@ def main():
         )
     )
 
+    # Anuncio que chegou sem UTM. O Meta injeta uma frase automatica no clique do
+    # anuncio; dessas conversas, 87% a 91% chegam COM utm -- ou seja, a frase e
+    # assinatura de anuncio, e quando o utm falta e falha de rastreamento, nao outro
+    # canal. Sem isso, 273 leads pagos ficavam contados como "contato direto".
+    # (As frases do botao do site sao outras e trazem link junto; ficam de fora.)
+    FRASES_META = ["tenho interesse e queria mais informa", "posso ter mais informa"]
+    anuncio_sem_rastreio = set()
+    for sid, texto in conn.execute(
+        "SELECT session_id, text FROM mensagens WHERE direction='FROM_HUB' "
+        "AND type='TEXT' AND text IS NOT NULL"
+    ):
+        if sid in links_site:
+            continue
+        t = _sem_acento(texto)
+        if any(f in t for f in (_sem_acento(x) for x in FRASES_META)):
+            anuncio_sem_rastreio.add(sid)
+
     textos_por_sessao = defaultdict(list)
     imagem_cliente = defaultdict(int)
     bot_textos = defaultdict(lambda: defaultdict(int))
@@ -199,6 +216,8 @@ def main():
             canal_cod = "AF" if fonte_utm == "FACEBOOK" else "AI" if fonte_utm == "INSTAGRAM" else "AO"
         elif sid in links_site:
             canal_cod = "S"
+        elif sid in anuncio_sem_rastreio:
+            canal_cod = "AX"  # anuncio, rastreio perdido (plataforma nao identificada)
         elif sid in ig_organico:
             canal_cod = "I"
         else:
