@@ -863,28 +863,19 @@ def montar_venda(vendedor_id: str, body: dict, ignorar_limite_retroativo: bool =
     return venda
 
 
-def existe_duplicata_recente(vendas: dict, vendedor_id: str, data_venda: str, produto: str, valor: float, janela_segundos: int = 8) -> bool:
-    """Detecta clique duplo/triplo no botão de salvar: mesma venda (produto,
-    valor, data) cadastrada há poucos segundos pelo mesmo vendedor."""
+def venda_igual_no_mes(vendas: dict, produto: str, valor: float, mes: str):
+    """Devolve uma venda do mesmo mês com produto e valor idênticos, se houver.
+    Serve pro aviso de "esse produto já foi lançado" na hora do lançamento —
+    é só um alerta, porque duas peças iguais de carros iguais são possíveis."""
     produto_norm = produto.strip().lower()
-    agora = agora_br()
     for v in vendas.values():
         if v.get("tipo", "venda") != "venda":
             continue
-        if v.get("vendedor_id") != vendedor_id:
+        if v["data"][:7] != mes:
             continue
-        if v["data"] != data_venda or v["produto"].strip().lower() != produto_norm or v["valor"] != valor:
-            continue
-        criado_em = v.get("criado_em")
-        if not criado_em:
-            continue
-        try:
-            dt = parse_dt_tolerante(criado_em)
-        except ValueError:
-            continue
-        if (agora - dt).total_seconds() <= janela_segundos:
-            return True
-    return False
+        if v["produto"].strip().lower() == produto_norm and v["valor"] == valor:
+            return v
+    return None
 
 
 def retroativo_ativo(vendedor: dict) -> bool:
@@ -926,8 +917,17 @@ def api_criar_venda():
                 return jsonify({"ok": True, "id": vid_existente, "ja_existia": True})
         venda["envio_id"] = envio_id
 
-    if existe_duplicata_recente(vendas, vendedor_id, venda["data"], venda["produto"], venda["valor"]):
-        return jsonify({"erro": "Essa venda já foi salva há poucos segundos (mesmo produto, valor e data). Confira na lista antes de lançar de novo."}), 409
+    # Aviso (não bloqueio): já existe venda igual em produto e valor no mesmo
+    # mês? Pode ser legítimo — duas peças iguais de carros iguais — então só
+    # perguntamos. O vendedor reenvia com `confirmar_duplicata` pra confirmar.
+    if not body.get("confirmar_duplicata"):
+        igual = venda_igual_no_mes(vendas, venda["produto"], venda["valor"], venda["data"][:7])
+        if igual:
+            return jsonify({
+                "confirmar_duplicata": True,
+                "existente": {"data": igual["data"], "produto": igual["produto"], "valor": igual["valor"]},
+            }), 409
+
     novo_id = uuid.uuid4().hex[:12]
     vendas[novo_id] = venda
     salvar_vendas_vendedor(vendedor_id, vendas)

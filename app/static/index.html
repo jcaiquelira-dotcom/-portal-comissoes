@@ -291,6 +291,47 @@
     margin-right:6px;
   }
 
+  /* Marca a venda que tem outra igual (mesmo produto e valor) no mês, pro
+     vendedor conferir se foi engano. É aviso, não bloqueio. */
+  .dup-badge{
+    display:inline-block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    color:var(--gold, #E8B84B);
+    border:1px solid var(--gold, #E8B84B);
+    border-radius:4px;
+    padding:1px 5px;
+    margin-left:8px;
+    cursor:help;
+    vertical-align:middle;
+  }
+
+  .busca-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-bottom:10px;
+  }
+  .busca-row input{
+    flex:1;
+    background:#0F1216;
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    padding:8px 10px;
+  }
+  .busca-row input:focus{outline:none;border-color:var(--accent);}
+  .busca-resumo{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+
   .modal-overlay{
     display:none;
     position:fixed;
@@ -551,6 +592,11 @@
       <p class="section-title" style="flex:1;margin:0;">Minhas vendas do mês</p>
       <button class="small-btn" id="exportMinhasVendasBtn">Exportar CSV</button>
     </div>
+    <div class="busca-row">
+      <input type="text" id="buscaVendasInput" placeholder="Pesquisar no mês: motor, jetta, SKU, valor...">
+      <button type="button" class="small-btn" id="limparBuscaBtn" style="display:none;">Limpar</button>
+      <span class="busca-resumo" id="buscaResumo"></span>
+    </div>
     <table>
       <thead>
         <tr><th>Data</th><th>Produto</th><th>Valor</th><th></th></tr>
@@ -809,17 +855,50 @@ async function logout(){
   renderTopActions();
 }
 
+let vendasDoMes = [];
+
+function chaveDuplicata(v){
+  return v.produto.trim().toLowerCase() + '|' + v.valor;
+}
+
+// Quantas vendas do mês têm o mesmo produto e valor — usado pra marcar as
+// repetidas na lista, pro vendedor revisar e apagar se tiver sido engano.
+function contarRepetidas(vendas){
+  const cont = {};
+  vendas.forEach(v => { const k = chaveDuplicata(v); cont[k] = (cont[k] || 0) + 1; });
+  return cont;
+}
+
+function textoDaVenda(v){
+  const [y,m,d] = v.data.split('-');
+  return [v.produto, v.sku, v.canal, `${d}/${m}/${y}`, String(v.valor).replace('.', ',')]
+    .filter(Boolean).join(' ').toLowerCase();
+}
+
 async function carregarVendas(){
   const mes = document.getElementById('mesInput').value;
   const res = await fetch('/api/vendas?mes=' + mes);
   if(res.status === 401){ logout(); return; }
-  const vendas = await res.json();
+  vendasDoMes = await res.json();
+  renderVendas();
+}
+
+function renderVendas(){
+  const termo = (document.getElementById('buscaVendasInput')?.value || '').trim().toLowerCase();
+  const repetidas = contarRepetidas(vendasDoMes);
+  const vendas = termo
+    ? vendasDoMes.filter(v => termo.split(/\s+/).every(p => textoDaVenda(v).includes(p)))
+    : vendasDoMes;
 
   const body = document.getElementById('vendasBody');
   const empty = document.getElementById('emptyVendas');
+  const resumoBusca = document.getElementById('buscaResumo');
   body.innerHTML = '';
   if(vendas.length === 0){
     empty.style.display = 'block';
+    empty.textContent = termo
+      ? 'Nenhuma venda encontrada com esse termo neste mês.'
+      : 'Nenhuma venda lançada neste mês ainda.';
   }else{
     empty.style.display = 'none';
     vendas.forEach(v => {
@@ -829,6 +908,9 @@ async function carregarVendas(){
       const badge = dev
         ? `<span class="devolucao-badge valor-money">${dev.tipo === 'total' ? 'Devolvido' : 'Dev. parcial ' + fmtMoeda(dev.valor_devolvido)}</span>`
         : '';
+      const repetida = repetidas[chaveDuplicata(v)] > 1
+        ? `<span class="dup-badge" title="Existe outra venda deste mês com o mesmo produto e valor. Se foi engano, exclua uma delas.">repetida</span>`
+        : '';
       const devBtn = dev
         ? `<button class="devolucao-btn" data-devolucao="${v.id}">Editar devolução</button>
            <button class="devolucao-btn" data-remover-devolucao="${v.id}">Desfazer devolução</button>`
@@ -836,7 +918,7 @@ async function carregarVendas(){
       const skuLinha = v.sku ? `<br><span style="color:var(--muted);font-size:11px;">SKU ${v.sku}</span>` : '';
       tr.innerHTML = `
         <td>${d}/${m}/${y}</td>
-        <td class="produto-col">${v.produto}${skuLinha}</td>
+        <td class="produto-col">${v.produto}${repetida}${skuLinha}</td>
         <td class="valor-money">${fmtMoeda(v.valor)}</td>
         <td>
           ${badge}
@@ -847,6 +929,13 @@ async function carregarVendas(){
       `;
       body.appendChild(tr);
     });
+  }
+
+  if(resumoBusca){
+    const totalFiltrado = vendas.reduce((s,v) => s + v.valor, 0);
+    resumoBusca.textContent = termo
+      ? `${vendas.length} de ${vendasDoMes.length} venda(s) · ${fmtMoeda(totalFiltrado)}`
+      : '';
   }
 
   body.querySelectorAll('[data-editid]').forEach(btn => {
@@ -1003,9 +1092,28 @@ async function carregarComissao(){
 
 document.getElementById('mesInput').addEventListener('change', () => {
   sairModoEdicao();
+  document.getElementById('buscaVendasInput').value = '';
+  document.getElementById('limparBuscaBtn').style.display = 'none';
   carregarVendas();
   carregarComissao();
   carregarConfirmacao();
+});
+
+// Busca dentro do mês, filtrando conforme digita (sem ir ao servidor, porque
+// as vendas do mês já estão carregadas). Aceita várias palavras: "motor jetta"
+// só mostra quem tem as duas.
+document.getElementById('buscaVendasInput').addEventListener('input', () => {
+  const termo = document.getElementById('buscaVendasInput').value.trim();
+  document.getElementById('limparBuscaBtn').style.display = termo ? 'inline-block' : 'none';
+  renderVendas();
+});
+
+document.getElementById('limparBuscaBtn').addEventListener('click', () => {
+  const campo = document.getElementById('buscaVendasInput');
+  campo.value = '';
+  document.getElementById('limparBuscaBtn').style.display = 'none';
+  renderVendas();
+  campo.focus();
 });
 
 // Identifica UMA tentativa de lançamento. Fica guardado até dar certo: se o
@@ -1043,12 +1151,36 @@ document.getElementById('addBtn').addEventListener('click', async () => {
   status.classList.add('show');
 
   try{
-    const res = await fetch(url, {
+    const enviar = (confirmarDuplicata) => fetch(url, {
       method,
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({data, produto, valor, sku, canal, envio_id: envioPendenteId})
+      body: JSON.stringify({data, produto, valor, sku, canal, envio_id: envioPendenteId,
+                            confirmar_duplicata: !!confirmarDuplicata})
     });
-    const dados = await res.json().catch(() => ({}));
+
+    let res = await enviar(false);
+    let dados = await res.json().catch(() => ({}));
+
+    // O servidor achou uma venda igual (mesmo produto e valor) no mês e está
+    // perguntando antes de lançar de novo.
+    if(res.status === 409 && dados.confirmar_duplicata){
+      const ex = dados.existente || {};
+      const [ey,em,ed] = (ex.data || '').split('-');
+      const quando = ed ? `${ed}/${em}/${ey}` : 'este mês';
+      const querReplicar = confirm(
+        `Esse produto já foi lançado neste mês:\n\n` +
+        `${ex.produto}\n${fmtMoeda(ex.valor)} — ${quando}\n\n` +
+        `Quer lançar mesmo assim? (Só confirme se foram duas vendas de verdade.)`
+      );
+      if(!querReplicar){
+        status.textContent = 'Lançamento cancelado — o produto já estava na lista.';
+        status.classList.add('show','err');
+        return;
+      }
+      res = await enviar(true);
+      dados = await res.json().catch(() => ({}));
+    }
+
     if(!res.ok){
       status.textContent = dados.erro || 'Erro ao salvar.';
       status.classList.add('show','err');
