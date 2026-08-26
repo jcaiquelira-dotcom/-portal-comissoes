@@ -1136,6 +1136,7 @@ document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
   status.classList.remove('show','err');
 
   const linhas = [];
+  const elementosDasLinhas = [];
   document.getElementById('sheetBody').querySelectorAll('tr').forEach(tr => {
     const produto = tr.querySelector('.sheet-produto').value.trim();
     const valor = tr.querySelector('.sheet-valor').value;
@@ -1144,6 +1145,7 @@ document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
     const canal = tr.querySelector('.sheet-canal').value.trim();
     if(!produto && !valor) return;
     linhas.push({data, produto, valor, sku, canal});
+    elementosDasLinhas.push(tr);
   });
 
   if(linhas.length === 0){
@@ -1173,8 +1175,15 @@ document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
     envioLotePendenteId = null;
     status.classList.remove('err');
     if(dados.erros && dados.erros.length > 0){
+      // Tira da planilha o que já foi salvo e deixa só as linhas com erro pra
+      // corrigir — senão, ao salvar de novo, o que já entrou entraria de novo.
+      (dados.linhas_salvas || []).forEach(idx => {
+        const tr = elementosDasLinhas[idx - 1];
+        if(tr) tr.remove();
+      });
+      if(document.getElementById('sheetBody').children.length === 0) iniciarSheetVazia();
       const detalhes = dados.erros.map(e => `linha ${e.linha}: ${e.erro}`).join(' | ');
-      status.textContent = `${dados.salvas} salva(s), ${dados.erros.length} com erro — ${detalhes}`;
+      status.textContent = `${dados.salvas} salva(s). Corrija e salve só o que ficou: ${detalhes}`;
       status.classList.add('show','err');
     }else{
       status.textContent = `${dados.salvas} venda(s) salva(s).`;

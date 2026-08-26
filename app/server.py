@@ -960,6 +960,7 @@ def api_criar_vendas_lote():
 
     salvas = 0
     erros = []
+    linhas_salvas = []
     meses_afetados = set()
     for idx, linha in enumerate(linhas, start=1):
         try:
@@ -971,13 +972,18 @@ def api_criar_vendas_lote():
             venda["envio_id"] = envio_id
         vendas[uuid.uuid4().hex[:12]] = venda
         salvas += 1
+        linhas_salvas.append(idx)
         meses_afetados.add(venda["data"][:7])
 
     if salvas:
         salvar_vendas_vendedor(vendedor_id, vendas)
         for mes in meses_afetados:
             limpar_confirmacao(vendedor_id, mes)
-    return jsonify({"ok": True, "salvas": salvas, "erros": erros})
+    # `linhas_salvas` deixa o navegador apagar da planilha só as linhas que
+    # realmente entraram, mantendo as que deram erro. Sem isso, quando parte do
+    # lote falhava a planilha continuava inteira na tela e o vendedor corrigia
+    # e salvava tudo de novo — duplicando o que já tinha sido salvo.
+    return jsonify({"ok": True, "salvas": salvas, "erros": erros, "linhas_salvas": linhas_salvas})
 
 
 @app.route("/api/vendas/<venda_id>", methods=["DELETE"])
