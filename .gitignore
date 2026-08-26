@@ -10,3 +10,5 @@ __pycache__/
 # relatorio
 _relatorio_print.html
 *.pdf
+session_ids.json
+*.xlsx

@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SQLITE_PATH = ROOT / "vendas.db"
 OUT_PATH = ROOT / "dataset.json"
+IDS_PATH = ROOT / "session_ids.json"
 
 AGENTES = {
     "75f20108-887e-47c1-b245-b1c12565e484": "Flávia",
@@ -189,6 +190,7 @@ def main():
             novo_por_sessao[sid] = "novo"
 
     dataset = []
+    ids_ordem = []
     for sid, created_at, ended_at, status, user_id, utm, origin_sessao in conn.execute(
         "SELECT id, created_at, ended_at, status, user_id, utm, origin FROM sessoes"
     ):
@@ -265,6 +267,7 @@ def main():
             ad_content = (u.get("content") or "").strip().replace("\n", " ") or None
             ad_source = u.get("source")
 
+        ids_ordem.append(sid)
         dataset.append({
             "d": data_str,
             "u": vendedor,
@@ -296,6 +299,13 @@ def main():
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(dataset, f, ensure_ascii=False, separators=(",", ":"))
+
+    # Os ids ficam num arquivo separado, na mesma ordem do dataset. Sem isso, quem
+    # quiser parear dataset.json com o banco precisa adivinhar a ordem das linhas --
+    # e "SELECT id FROM sessoes" usa indice de cobertura e devolve em ordem alfabetica,
+    # diferente de qualquer query que toque a tabela. Ja gerou analise errada aqui.
+    with open(IDS_PATH, "w", encoding="utf-8") as f:
+        json.dump(ids_ordem, f, separators=(",", ":"))
 
     print(f"{len(dataset)} sessoes exportadas para {OUT_PATH}")
     print(f"tamanho do arquivo: {OUT_PATH.stat().st_size / 1024:.1f} KB")
