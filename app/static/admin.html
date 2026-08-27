@@ -2307,6 +2307,9 @@ function renderMarketing(d){
   const ef = d.periodo_efetivo || {};
   const janelaCurta = ef.ate && d.ate && ef.ate < d.ate;
 
+  const mt = m.meta;
+  const rat = m.meta_rateio;
+
   const kpi = (rot, num, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
     <div class="num valor-money">${num}</div>
     ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
@@ -2316,12 +2319,33 @@ function renderMarketing(d){
     kpi('Com sinal de compra', t.sinal, t.leads ? (100 * t.sinal / t.leads).toFixed(1) + '% dos leads' : ''),
     kpi('Vendas', d.vendas.qtd, fmtMoeda(d.vendas.total)),
     kpi('Conversão', (d.conversao ?? 0) + '%', 'venda ÷ lead'),
-    kpi('Investimento', fmtMoeda(m.investimento),
-        m.meta_rateio ? 'Google + Meta' : 'só Google Ads'),
     kpi('Custo por lead', m.custo_por_lead === null ? '—' : fmtMoeda(m.custo_por_lead)),
     kpi('Custo por venda', m.custo_por_venda === null ? '—' : fmtMoeda(m.custo_por_venda)),
-    kpi('CPC', m.cpc === null ? '—' : fmtMoeda(m.cpc), m.ctr === null ? '' : `CTR ${m.ctr}%`),
   ].join('');
+
+  // Investimento separado por fonte: somado, os dois viram um numero que nao
+  // diz onde o dinheiro esta indo — que e a decisao que o gestor toma aqui.
+  const g = m.google || {investimento: 0, clicks: 0};
+  const invGoogle = `<div class="dp-kpi"><div class="rot">Google Ads</div>
+    <div class="num valor-money">${fmtMoeda(g.investimento)}</div>
+    <span class="dp-var neutro">${g.clicks
+      ? `${g.clicks.toLocaleString('pt-BR')} cliques · CPC ${m.cpc === null ? '—' : fmtMoeda(m.cpc)}`
+      : 'sem cliques no período'}</span></div>`;
+  const invMeta = `<div class="dp-kpi"><div class="rot">Meta Ads</div>
+    <div class="num valor-money">${rat ? fmtMoeda(rat.spend) : '—'}</div>
+    <span class="dp-var neutro">${rat
+      ? (rat.integral
+          ? `${mt.conversas.toLocaleString('pt-BR')} conversas iniciadas`
+          : `rateado · ${rat.dias_dentro} de ${rat.dias_relatorio} dias do relatório`)
+      : 'sem relatório neste período'}</span></div>`;
+  const invTotal = `<div class="dp-kpi"><div class="rot">Investimento total</div>
+    <div class="num valor-money">${fmtMoeda(m.investimento)}</div>
+    <span class="dp-var neutro">${rat ? 'Google + Meta' : 'só Google Ads'}</span></div>`;
+
+  const cardInvestimento = `<div class="card" style="margin-bottom:14px;">
+    <p class="card-titulo">Investimento em mídia</p>
+    <div class="dp-kpis" style="margin-bottom:0;">${invGoogle}${invMeta}${invTotal}</div>
+  </div>`;
 
   const maxCanal = Math.max(...d.por_canal.map(c => c.leads), 1);
   const cardCanais = `<div class="card">
@@ -2352,8 +2376,6 @@ function renderMarketing(d){
       As vendas dessa pessoa também ficam de fora, senão a conversão sairia inflada.</div>` : ''}
   </div>`;
 
-  const mt = m.meta;
-  const rat = m.meta_rateio;
   const cardMeta = mt ? `<div class="card" style="margin-bottom:14px;">
     <p class="card-titulo">Meta Ads — anúncios</p>
     ${rat && !rat.integral ? `<p class="fechamento-nota" style="margin:0 0 12px;">
@@ -2428,6 +2450,7 @@ function renderMarketing(d){
 
   document.getElementById('mktCorpo').innerHTML = `
     <div class="dp-kpis">${kpis}</div>
+    ${cardInvestimento}
     <div class="card" style="margin-bottom:14px;">
       <p class="card-titulo">Leads dia a dia</p>
       ${mktGraficoDia(d.por_dia, m.por_dia)}
