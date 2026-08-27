@@ -144,6 +144,42 @@
     border:1px solid var(--bad);border-radius:5px;padding:6px 10px;
   }
   .sep{flex:1;}
+
+  /* mensagem pronta */
+  .btn-msg{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    font-size:12px;padding:5px 9px;border-radius:5px;cursor:pointer;
+    font-family:inherit;white-space:nowrap;
+  }
+  .btn-msg:hover{border-color:var(--accent);}
+  .btn-msg.on{border-color:var(--accent);color:var(--accent);}
+  .msg-caixa{
+    display:none;gap:6px;align-items:flex-start;
+    margin:7px 0 2px;padding:7px 8px;
+    background:var(--surface-2);border:1px solid var(--line);border-radius:6px;
+  }
+  .msg-caixa.aberta{display:flex;}
+  .msg-caixa textarea{
+    flex:1;min-height:52px;resize:vertical;
+    background:var(--surface);color:var(--text);
+    border:1px solid var(--line);border-radius:5px;padding:6px 8px;
+    font-family:inherit;font-size:12.5px;line-height:1.5;
+  }
+  .msg-caixa textarea:focus{outline:none;border-color:var(--accent);}
+  .msg-lado{display:flex;flex-direction:column;gap:4px;flex-shrink:0;}
+  .msg-sit{
+    font-size:10px;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--muted);text-align:center;
+  }
+
+  /* aviso de copiado — sem ele o vendedor nao sabe que ja pode colar */
+  .toast{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+    background:var(--text);color:var(--surface);
+    font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;
+    opacity:0;pointer-events:none;transition:opacity .18s;z-index:60;
+  }
+  .toast.on{opacity:1;}
   .sbtn{
     background:var(--surface-2);border:1px solid var(--line);color:var(--muted);
     font-size:12px;padding:5px 9px;border-radius:4px;cursor:pointer;white-space:nowrap;
@@ -369,8 +405,24 @@ function item(it){
   // abrir a conversa e a acao principal, e nao um link secundario.
   const chamar = it.link
     ? '<a class="btn-chamar" href="' + esc(it.link) + '" target="_blank" rel="noopener"'
-      + ' data-chamar="' + it.sid + '">Chamar o cliente</a>'
+      + ' data-chamar="' + it.sid + '" title="Copia a mensagem e abre a conversa">'
+      + 'Chamar o cliente</a>'
     : '<span class="sem-link">sem link da conversa</span>';
+
+  // A mensagem ja vem pronta do servidor. Fica dobrada porque na maioria das
+  // vezes ele nao precisa ler — clica em chamar, cola e envia.
+  const temMsg = it.msg && it.msg.texto;
+  const btnMsg = temMsg
+    ? '<button class="btn-msg" data-msg="' + it.sid + '" title="Ver e editar a mensagem">✎</button>'
+    : '';
+  const caixaMsg = temMsg
+    ? '<div class="msg-caixa" data-caixa="' + it.sid + '">'
+      + '<textarea data-texto="' + it.sid + '">' + esc(it.msg.texto) + '</textarea>'
+      + '<div class="msg-lado">'
+        + '<button class="btn-chamar" data-copiar="' + it.sid + '">Copiar</button>'
+        + '<span class="msg-sit">' + esc(it.msg.situacao || '') + '</span>'
+      + '</div></div>'
+    : '';
 
   const botoes = ORDEM_BTN.map(s =>
     '<button class="sbtn' + (it.status === s ? ' on' : '') + '" data-s="' + s
@@ -387,7 +439,7 @@ function item(it){
     + '<div class="topo">'
       + '<span class="peca" title="' + esc(it.peca) + '">' + esc(it.peca) + '</span>'
       + '<span class="quando">' + esc(it.data.slice(0,5)) + ' · ' + it.dias + 'd</span>'
-      + '<div class="acoes">' + chamar + botoes + desmarcar + '</div>'
+      + '<div class="acoes">' + chamar + btnMsg + botoes + desmarcar + '</div>'
     + '</div>'
     + '<div class="baixo">'
       + '<span class="gancho">' + esc(it.gancho) + '</span>'
@@ -395,6 +447,7 @@ function item(it){
       + esc(it.canal) + ' · ' + (it.tinha === 'Sim' ? 'tínhamos' : 'tínhamos parecida') + '</span>'
       + contexto(it)
     + '</div>'
+    + caixaMsg
   + '</div>';
 }
 
@@ -419,7 +472,66 @@ async function marcar(sid, status){
   render();
 }
 
+/* Copiar precisa funcionar tambem em http (o portal roda em rede local, que
+   nao e contexto seguro e nao tem navigator.clipboard). */
+function copiarTexto(texto){
+  if (navigator.clipboard && window.isSecureContext){
+    return navigator.clipboard.writeText(texto).then(() => true).catch(() => false);
+  }
+  const t = document.createElement('textarea');
+  t.value = texto;
+  t.style.position = 'fixed';
+  t.style.opacity = '0';
+  document.body.appendChild(t);
+  t.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(t);
+  return Promise.resolve(ok);
+}
+
+let toastTimer = null;
+function toast(texto){
+  let el = document.getElementById('toast');
+  if (!el){
+    el = document.createElement('div');
+    el.className = 'toast';
+    el.id = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = texto;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('on'), 2200);
+}
+
+/* O texto que vai pro clipboard e o da caixa, nao o do servidor: se ele editou
+   a mensagem antes de chamar, e a versao dele que vale. */
+function textoAtual(sid){
+  const campo = document.querySelector('[data-texto="' + sid + '"]');
+  if (campo && campo.value.trim()) return campo.value.trim();
+  const it = itens.find(x => x.sid === sid);
+  return it && it.msg ? it.msg.texto : '';
+}
+
 document.addEventListener('click', ev => {
+  const verMsg = ev.target.closest('[data-msg]');
+  if (verMsg){
+    const sid = verMsg.dataset.msg;
+    const caixa = document.querySelector('[data-caixa="' + sid + '"]');
+    if (caixa){
+      const abriu = caixa.classList.toggle('aberta');
+      verMsg.classList.toggle('on', abriu);
+      if (abriu) caixa.querySelector('textarea').focus();
+    }
+    return;
+  }
+  const copiar = ev.target.closest('[data-copiar]');
+  if (copiar){
+    copiarTexto(textoAtual(copiar.dataset.copiar)).then(ok =>
+      toast(ok ? 'Mensagem copiada' : 'Não consegui copiar — selecione e copie na mão'));
+    return;
+  }
   // Abrir a conversa ja marca "chamei": e o momento em que o contato acontece
   // de verdade, e depender de um segundo toque faria o painel do gestor mostrar
   // menos trabalho do que o time realmente fez. Da pra corrigir no botao ↺.
@@ -427,6 +539,12 @@ document.addEventListener('click', ev => {
   if (chamar){
     const sid = chamar.dataset.chamar;
     const it = itens.find(x => x.sid === sid);
+    // Copiar junto com o clique e o ganho todo: ele abre a conversa e so cola.
+    // Tem que ser aqui dentro do gesto do usuario, senao o navegador bloqueia.
+    const texto = textoAtual(sid);
+    if (texto){
+      copiarTexto(texto).then(ok => { if (ok) toast('Mensagem copiada — é só colar'); });
+    }
     if (it && it.status === 'pendente') marcar(sid, 'chamei');
     return;
   }

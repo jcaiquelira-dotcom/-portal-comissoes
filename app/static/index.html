@@ -56,17 +56,43 @@
   .evo-wrap{overflow-x:auto;}
   .evo-svg{display:block;min-width:100%;}
 
-  .atalho-card{
-    display:flex;align-items:center;gap:12px;
-    padding:13px 15px;border-radius:12px;
+  /* ---- clientes pra chamar (no lugar dos atalhos, que so repetiam o menu) ---- */
+  .cli-ficha{
+    padding:10px 12px;border-radius:10px;margin-bottom:8px;
     background:var(--surface-2);border:1px solid var(--line);
-    text-decoration:none;margin-bottom:9px;
   }
-  .atalho-card:hover{border-color:var(--accent);}
-  .atalho-card .ic{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .atalho-card .ic svg{width:17px;height:17px;stroke-width:2;}
-  .atalho-card .tit{font-size:13.5px;font-weight:600;}
-  .atalho-card .sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .cli-ficha.alta{border-color:var(--bad);}
+  .cli-ficha.chamado{opacity:.5;}
+  .cli-topo{display:flex;align-items:baseline;gap:7px;margin-bottom:2px;}
+  .cli-nome{font-size:13px;font-weight:600;}
+  .cli-quando{font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap;}
+  .cli-tag{
+    font-size:9.5px;font-weight:700;letter-spacing:.05em;
+    color:var(--bad);border:1px solid var(--bad);border-radius:20px;padding:1px 6px;
+  }
+  .cli-peca{
+    font-size:12px;color:var(--muted);line-height:1.4;margin-bottom:8px;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .cli-btn{
+    display:inline-block;background:var(--accent);color:#fff;border:none;
+    font-family:inherit;font-size:12px;font-weight:600;
+    padding:5px 12px;border-radius:5px;cursor:pointer;text-decoration:none;
+  }
+  .cli-btn:hover{background:#ff7f52;}
+  .cli-todos{
+    display:block;text-align:center;font-size:12px;color:var(--muted);
+    text-decoration:none;padding-top:2px;
+  }
+  .cli-todos:hover{color:var(--accent);}
+
+  .toast{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+    background:var(--text);color:var(--surface);
+    font-size:13px;font-weight:600;padding:9px 16px;border-radius:8px;
+    opacity:0;pointer-events:none;transition:opacity .18s;z-index:60;
+  }
+  .toast.on{opacity:1;}
 
   /* ---- Lançar venda ---- */
   .form-grid{
@@ -250,8 +276,8 @@
         </div>
 
         <div class="card">
-          <p class="card-titulo">Atalhos</p>
-          <div id="atalhosPainel"></div>
+          <p class="card-titulo">Clientes pra chamar</p>
+          <div id="topoRetomada"></div>
         </div>
       </div>
 
@@ -1116,16 +1142,13 @@ function renderPainel(){
   miniMeta('Hoje', d.total_hoje, d.metas.diaria, 'miniHoje');
   miniMeta('Semana', d.total_semana, d.metas.semanal, 'miniSemana');
 
-  // ---- atalhos ----
+  // ---- clientes pra chamar ----
+  // Antes aqui tinha atalho pra Follow-up, Simulador e Ranking — tres links que
+  // ja estao no menu lateral. Ocupar essa area com os clientes mais quentes faz
+  // a primeira tela do dia mostrar trabalho a fazer, e nao navegacao.
   const ret = d.retomada;
   const pendentes = ret ? ret.pendente : 0;
-  document.getElementById('atalhosPainel').innerHTML =
-      atalho('/follow-up', IC.voltar, 'i-verde', 'Follow-up',
-             ret ? pendentes + ' cliente(s) esperando um retorno' : 'Sem fila gerada ainda')
-    + atalho('/simulador', IC.etiqueta, 'i-roxo', 'Simulador de desconto',
-             'Consultar desconto e parcelamento de uma peça')
-    + atalho('/painel.html', IC.alvo, 'i-amarelo', 'Ranking de vendas',
-             'Ver como está o time no mês');
+  renderTopoRetomada(ret);
   marcarBadge('retomada', pendentes || 0);
 
   renderEvolucao(d.evolucao);
@@ -1151,12 +1174,89 @@ function miniMeta(rotulo, valor, meta, prefixo){
   bar.classList.toggle('batida', p >= 100);
 }
 
-function atalho(href, icone, cor, titulo, sub){
-  const externo = href.endsWith('.html') ? ' target="_blank"' : '';
-  return '<a class="atalho-card" href="' + href + '"' + externo + '>'
-    + '<div class="ic ' + cor + '">' + icone + '</div>'
-    + '<div><div class="tit">' + titulo + '</div><div class="sub">' + sub + '</div></div></a>';
+function esc(t){
+  return String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
+
+function renderTopoRetomada(ret){
+  const el = document.getElementById('topoRetomada');
+  if(!ret || !ret.topo || !ret.topo.length){
+    el.innerHTML = ret
+      ? '<div class="vazio">Você chamou todo mundo da fila. 👏</div>'
+      : '<div class="vazio">Sem fila gerada ainda.</div>';
+    return;
+  }
+  el.innerHTML = ret.topo.map(c =>
+    '<div class="cli-ficha' + (c.prio === 'ALTA' ? ' alta' : '') + '" data-ficha="' + c.sid + '">'
+    + '<div class="cli-topo">'
+      + '<span class="cli-nome">' + esc(c.nome || 'Sem nome') + '</span>'
+      + (c.prio === 'ALTA' ? '<span class="cli-tag">ALTA</span>' : '')
+      + '<span class="cli-quando">' + (c.dias || 0) + ' dias</span>'
+    + '</div>'
+    + '<div class="cli-peca">' + esc(c.peca || '') + '</div>'
+    + (c.link
+        ? '<a class="cli-btn" href="' + esc(c.link) + '" target="_blank" rel="noopener"'
+          + ' data-chamar="' + c.sid + '">Chamar</a>'
+        : '<span class="cli-quando">sem link da conversa</span>')
+    + '</div>').join('')
+    + '<a class="cli-todos" href="/follow-up">ver os ' + (ret.pendente || 0) + ' da fila →</a>';
+}
+
+/* Precisa funcionar em http tambem: na rede local o navegador nao expoe
+   navigator.clipboard. */
+function copiarTexto(texto){
+  if(navigator.clipboard && window.isSecureContext){
+    return navigator.clipboard.writeText(texto).then(() => true).catch(() => false);
+  }
+  const t = document.createElement('textarea');
+  t.value = texto;
+  t.style.position = 'fixed';
+  t.style.opacity = '0';
+  document.body.appendChild(t);
+  t.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch(e){ ok = false; }
+  document.body.removeChild(t);
+  return Promise.resolve(ok);
+}
+
+let toastTimer = null;
+function toast(texto){
+  let el = document.getElementById('toast');
+  if(!el){
+    el = document.createElement('div');
+    el.className = 'toast';
+    el.id = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = texto;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('on'), 2200);
+}
+
+/* Chamar daqui faz o mesmo que no Follow-up: copia a mensagem pronta, abre a
+   conversa e ja marca "chamei" — senao o painel do gestor mostraria menos
+   trabalho do que o vendedor realmente fez. */
+document.addEventListener('click', ev => {
+  const btn = ev.target.closest('#topoRetomada [data-chamar]');
+  if(!btn) return;
+  const sid = btn.dataset.chamar;
+  const cli = (dadosPainel && dadosPainel.retomada && dadosPainel.retomada.topo || [])
+                .find(x => x.sid === sid);
+  if(cli && cli.msg && cli.msg.texto){
+    copiarTexto(cli.msg.texto).then(ok => { if(ok) toast('Mensagem copiada — é só colar'); });
+  }
+  const ficha = document.querySelector('[data-ficha="' + sid + '"]');
+  if(ficha) ficha.classList.add('chamado');
+  fetch('/api/retomada/' + sid + '/status', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status: 'chamei'}),
+  }).catch(() => {});
+});
 
 function renderBarras(alvoId, itens, cor){
   const el = document.getElementById(alvoId);

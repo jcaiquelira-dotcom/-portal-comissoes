@@ -848,6 +848,10 @@ def api_meu_painel():
     fila = carregar_fila_retomada(vendedor_id)
     status_retomada = carregar_status_retomada(vendedor_id)
     resumo_retomada = _resumo_retomada(fila.get("itens", []), status_retomada) if fila else None
+    if resumo_retomada:
+        # Os tres primeiros ja no painel: e a primeira tela que ele abre, e ali o
+        # follow-up vira trabalho a fazer em vez de mais um link no menu.
+        resumo_retomada["topo"] = _topo_retomada(fila.get("itens", []), status_retomada)
 
     return jsonify({
         "mes": mes,
@@ -1985,6 +1989,243 @@ def _resumo_retomada(itens: list, status: dict) -> dict:
     return contagem
 
 
+# ---------- Mensagem pronta pra cada cliente ----------
+# O vendedor não deixa de chamar porque não sabe o que dizer — deixa porque dá
+# preguiça de escrever a mesma coisa 50 vezes. Então cada ficha já chega com o
+# texto montado, e ele só revisa e envia.
+#
+# A situação sai de dois sinais que a fila já traz: `gancho` (por que a conversa
+# morreu, sempre preenchido) e o assunto da última fala do cliente. O assunto
+# manda quando dá pra identificar, porque responder o que ele perguntou converte
+# mais que uma reativação genérica; sem assunto, cai no gancho.
+#
+# `tinha` também pesa: quando a peça exata não era nossa ("Parecida"), a
+# mensagem não pode prometer "tenho ela aqui" — isso queima o vendedor na hora.
+
+# Assunto pela última fala do cliente. Ordem importa: a lista é percorrida de
+# cima pra baixo e o primeiro que casar vence, então o mais decisivo vem antes.
+ASSUNTOS_MSG = [
+    ("fechar",  r"vou compr|quero compr|pode separar|vou fechar|realizar a compra|manda o pix|mandar o pix|fazer o pix"),
+    ("foto",    r"\bfoto|\bvídeo|\bvideo|imagem|manda uma foto|ver a peç"),
+    ("compat",  r"\bserve\b|compatív|compativ|código|codigo|numeraç|original|se encaixa|dá certo no"),
+    ("frete",   r"\bfrete|entreg|\bprazo|quanto tempo|quantos dias|chega em|correio|transportadora|sedex"),
+    ("terceiro", r"mecânic|mecanic|meu marido|minha esposa|patrão|patrao|meu chefe|confirmaç[aã]o do|falar com o"),
+    ("preco",   r"\bpreç|\bpreco|\bvalor|quanto (fica|custa|sai|é)|desconto|mais barat|melhor preç|tá caro|ta caro"),
+    ("pensar",  r"vou ver|vou pensar|depois eu|te falo|semana que vem|mês que vem|mes que vem|mais pra frente|qualquer coisa eu"),
+]
+
+# Por que a conversa morreu (campo `gancho` da fila).
+GANCHOS_MSG = {
+    "A conversa parou do nosso lado": "nosso_lado",
+    "Respondemos tudo e ele sumiu": "sumiu",
+    "Conversou e não fechou": "nao_fechou",
+    "Achou caro — cabe negociar": "caro",
+    "Travou no frete ou no prazo": "frete",
+}
+
+# Como cada situação aparece pro gestor na tela de edição.
+ROTULOS_SITUACAO = {
+    "fechar": "Já ia comprar",
+    "foto": "Pediu foto ou vídeo",
+    "compat": "Perguntou se serve no carro dele",
+    "frete": "Perguntou frete ou prazo",
+    "terceiro": "Ia confirmar com o mecânico",
+    "preco": "Falou de preço ou desconto",
+    "pensar": "Disse que ia pensar",
+    "nosso_lado": "A conversa parou do nosso lado",
+    "sumiu": "Respondemos tudo e ele sumiu",
+    "nao_fechou": "Conversou e não fechou",
+    "caro": "Achou caro",
+}
+
+# Os textos evitam de propósito pronome e adjetivo com gênero ("tenho ela
+# separada", "ainda está disponível pra você"): a peça vem do texto livre da
+# conversa e não dá pra saber o gênero com segurança. Onde precisa de artigo,
+# entra {a}, que é calculado por peça. O resto fala "a peça", que é sempre
+# feminino e nunca erra.
+MODELOS_PADRAO = {
+    "saudacao": "Oi {nome}, tudo bem?",
+    # Quando a bola ficou com a gente, pedir desculpa é a abertura certa: o
+    # cliente não sumiu, nós que não voltamos.
+    "saudacao_atraso": "Oi {nome}, tudo bem? Desculpa a demora pra te responder.",
+    "corpo": {
+        "fechar": "Vi que você ia fechar {a} {peca} e a gente acabou não concluindo. Ainda não vendi essa peça — quer que eu te mande os dados do pix?",
+        "foto": "Sobre {a} {peca}: tenho fotos e vídeo aqui. Quer que eu te mande pra você conferir?",
+        "compat": "Sobre {a} {peca}: consigo confirmar a compatibilidade pelo número da peça. Me passa o ano e o modelo do carro que eu te garanto se serve.",
+        "frete": "Sobre {a} {peca}: consigo te confirmar o prazo e o frete certinho. Me passa seu CEP que eu calculo agora.",
+        "terceiro": "Você ia confirmar {a} {peca}. Conseguiu falar com o mecânico? A peça continua aqui.",
+        "preco": "Sobre {a} {peca} que você olhou com a gente: consigo ver uma condição melhor pra fechar. Ainda está precisando?",
+        "pensar": "Passando pra saber se você chegou a decidir sobre {a} {peca}. Ainda tenho a peça disponível.",
+        "nosso_lado": "Sobre {a} {peca} que você procurou: ficou faltando eu te retornar. Ainda está precisando?",
+        "sumiu": "Sobre {a} {peca} que a gente conversou: ainda está precisando? A peça continua aqui comigo.",
+        "nao_fechou": "Sobre {a} {peca} que você procurou com a gente: ainda tenho aqui. Quer que eu retome o orçamento?",
+        "caro": "Sobre {a} {peca}: sei que o valor pesou. Me fala quanto você conseguiria pagar que eu vejo o que dá pra fazer por você.",
+    },
+    # Trocas pra quando a peça exata não era nossa (`tinha` = "Parecida"):
+    # aqui a gente não tem o que prometer, tem o que oferecer.
+    "corpo_parecida": {
+        "fechar": "Vi que você ia fechar {a} {peca}. Consegui uma opção compatível aqui — quer que eu te mande os detalhes?",
+        "terceiro": "Você ia confirmar {a} {peca}. Deu certo com o mecânico? Consigo uma compatível aqui.",
+        "pensar": "Passando pra saber se você resolveu {a} {peca}. Se ainda precisar, consigo uma opção compatível.",
+        "nosso_lado": "Sobre {a} {peca} que você procurou: ficou faltando eu te retornar. Se ainda precisar, consigo uma opção compatível.",
+        "sumiu": "Sobre {a} {peca} que a gente conversou: ainda está precisando? Consigo uma opção compatível aqui.",
+        "nao_fechou": "Sobre {a} {peca}: se ainda precisar, consigo uma opção compatível. Quer que eu veja pra você?",
+        "caro": "Sobre {a} {peca}: sei que o valor pesou. Me fala quanto cabe no seu orçamento que eu procuro uma opção.",
+    },
+}
+
+MODELOS_FILE = "crm_modelos"
+
+# Nomes salvos no WhatsApp que não servem pra abrir uma mensagem.
+NOMES_RUINS = {"cliente", "contato", "whatsapp", "teste", "novo", "sim", "nao", "não", "ok"}
+
+# Masculinos terminados em -a, que fugiriam da regra pela terminação.
+MASCULINOS_EM_A = {"sistema", "problema", "mapa", "dia", "emblema",
+                   "paralama", "para-lama", "parabrisa", "para-brisa"}
+
+# Femininos que não terminam em -a — a regra pela terminação chamaria de
+# masculino e sairia "o central multimídia".
+FEMININAS_EXTRA = {"central", "chave", "luz", "grade", "ponte", "lente", "haste",
+                   "torre", "base", "fonte", "corrente", "árvore", "arvore",
+                   "hélice", "helice", "cruz", "face", "rede", "sede", "parte",
+                   "mangá"}
+
+
+def carregar_modelos_msg() -> dict:
+    salvos = ler_json(resolver_pasta_dados() / f"{MODELOS_FILE}.json", None)
+    if not salvos:
+        return MODELOS_PADRAO
+    # Mescla com o padrão: se um dia entrar uma situação nova no código, ela
+    # aparece pro time sem precisar que o gestor salve a tela de novo.
+    return {
+        "saudacao": salvos.get("saudacao") or MODELOS_PADRAO["saudacao"],
+        "saudacao_atraso": salvos.get("saudacao_atraso") or MODELOS_PADRAO["saudacao_atraso"],
+        "corpo": {**MODELOS_PADRAO["corpo"], **(salvos.get("corpo") or {})},
+        "corpo_parecida": {**MODELOS_PADRAO["corpo_parecida"], **(salvos.get("corpo_parecida") or {})},
+    }
+
+
+def _primeiro_nome(nome: str) -> str:
+    """Nome do WhatsApp é o que o cliente quis: tem '.', 'Fn', 'Dede_6cc'. Nesses
+    casos é melhor não chamar pelo nome do que chamar errado — a saudação sem
+    nome continua natural ('Oi, tudo bem?')."""
+    bruto = (nome or "").strip()
+    if not bruto:
+        return ""
+    # Pontuação nas pontas é comum e inofensiva ("Conrado…"); no meio do nome
+    # já é apelido de perfil ("Dede_6cc"), e aí é melhor não chamar pelo nome.
+    primeiro = re.sub(r"^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ]+$", "", bruto.split()[0])
+    valido = re.fullmatch(r"[A-Za-zÀ-ÿ]+(['-][A-Za-zÀ-ÿ]+)?", primeiro)
+    if len(primeiro) < 3 or not valido or primeiro.lower() in NOMES_RUINS:
+        return ""
+    limpo = primeiro
+    return limpo if (limpo[:1].isupper() and not limpo.isupper()) else limpo.capitalize()
+
+
+def _artigo(peca: str) -> str:
+    """'o motor', 'a bomba', 'as molas'. Sem isso sai 'a motor Audi Q3', que
+    entrega na hora que a mensagem foi feita por máquina."""
+    palavras = re.sub(r"[^a-zà-ÿ\s-]", " ", (peca or "").lower()).split()
+    if not palavras:
+        return "a"
+    primeira = palavras[0]
+    plural = primeira.endswith("s") and len(primeira) > 3
+    base = primeira[:-1] if plural else primeira
+    feminino = (base in FEMININAS_EXTRA
+                or base.endswith(("ção", "são", "dade", "gem"))
+                or (base.endswith("a") and base not in MASCULINOS_EM_A))
+    if plural:
+        return "as" if feminino else "os"
+    return "a" if feminino else "o"
+
+
+def _peca_curta(peca: str, limite: int = 55) -> str:
+    """A fila guarda a peça descrita inteira ('soleira dianteira direita e
+    friso/cromado do para-choque traseiro Volkswagen Tiguan R Line 2018/2019').
+    Numa mensagem isso não cabe: corta no primeiro separador natural, e quando a
+    IA não conseguiu identificar a peça, vira só 'peça'."""
+    texto = (peca or "").strip()
+    if not texto or re.search(r"não (especificad|identificad|inform)", texto, re.I):
+        return "peça"
+    if len(texto) > limite:
+        for corte in (",", " e "):
+            if corte in texto:
+                texto = texto.split(corte)[0].strip()
+                break
+    if len(texto) > limite:
+        texto = texto[:limite].rsplit(" ", 1)[0].rstrip(" ,;-/")
+    return texto or "peça"
+
+
+def _assunto_msg(ultimas) -> str:
+    """O que o cliente falou por último. Só as falas dele entram na fila, então
+    não tem risco de casar com o que a loja escreveu."""
+    texto = " ".join(ultimas or []).lower()
+    if not texto.strip():
+        return ""
+    for chave, padrao in ASSUNTOS_MSG:
+        if re.search(padrao, texto):
+            return chave
+    return ""
+
+
+def _limpar_msg(texto: str) -> str:
+    """Sem nome a saudação vira 'Oi , tudo bem?'. Arruma a pontuação solta."""
+    texto = re.sub(r"\s+([,.:;!?])", r"\1", texto)
+    return re.sub(r"\s{2,}", " ", texto).strip()
+
+
+def montar_mensagem(item: dict, modelos: dict) -> dict:
+    gancho = GANCHOS_MSG.get(item.get("gancho"), "sumiu")
+    assunto = _assunto_msg(item.get("ultimas"))
+    situacao = assunto or gancho
+
+    tabela = modelos["corpo"]
+    if item.get("tinha") != "Sim":
+        tabela = {**modelos["corpo"], **modelos["corpo_parecida"]}
+    corpo = tabela.get(situacao) or tabela.get(gancho) or modelos["corpo"]["sumiu"]
+
+    # A desculpa pela demora só entra quando a bola ficou mesmo com a gente.
+    saudacao = modelos["saudacao_atraso"] if gancho == "nosso_lado" else modelos["saudacao"]
+
+    peca = _peca_curta(item.get("peca"))
+    campos = {"nome": _primeiro_nome(item.get("nome")),
+              "peca": peca,
+              "a": _artigo(peca),
+              "dias": item.get("dias", 0)}
+
+    def preencher(txt):
+        try:
+            return txt.format(**campos)
+        except (KeyError, IndexError, ValueError):
+            # Texto editado pelo gestor com chave inventada não pode derrubar a
+            # fila inteira — melhor mostrar o modelo cru do que não mostrar nada.
+            return txt
+
+    return {"texto": _limpar_msg(preencher(saudacao) + " " + preencher(corpo)),
+            "situacao": situacao}
+
+
+def _topo_retomada(itens: list, status: dict, quantos: int = 3) -> list:
+    """Os clientes mais quentes que ainda não foram chamados. Mesma ordem da
+    fila (ALTA primeiro, depois conversa mais recente, nota desempata), pra o
+    painel e o follow-up nunca discordarem sobre quem vem primeiro."""
+    pendentes = [i for i in itens
+                 if (status.get(i["sid"]) or {}).get("status", "pendente") == "pendente"]
+    pendentes.sort(key=lambda x: (x.get("prio") != "ALTA", x.get("dias", 999), -x.get("nota", 0)))
+    modelos = carregar_modelos_msg()
+    return [{
+        "sid": i["sid"],
+        "nome": i.get("nome"),
+        "peca": i.get("peca"),
+        "dias": i.get("dias"),
+        "prio": i.get("prio"),
+        "link": i.get("link"),
+        "gancho": i.get("gancho"),
+        "msg": montar_mensagem(i, modelos),
+    } for i in pendentes[:quantos]]
+
+
 @app.route("/follow-up")
 @app.route("/retomada")   # endereco antigo, mantido pra nao quebrar link salvo
 def pagina_retomada():
@@ -2000,11 +2241,13 @@ def api_retomada_fila():
     if not fila:
         return jsonify({"sem_fila": True, "itens": [], "rotulos": STATUS_RETOMADA})
     status = carregar_status_retomada(vendedor_id)
+    modelos = carregar_modelos_msg()
     itens = []
     for item in fila.get("itens", []):
         marca = status.get(item["sid"]) or {}
         itens.append({**item, "status": marca.get("status", "pendente"),
-                      "marcado_em": marca.get("em")})
+                      "marcado_em": marca.get("em"),
+                      "msg": montar_mensagem(item, modelos)})
     # Pendente primeiro, e dentro dele prioridade ALTA sempre no topo — nesses a
     # conversa parou do nosso lado, ninguém disse não pro vendedor, e são os que
     # ele tem que chamar antes. Só depois a nota desempata. O que já foi
@@ -2060,6 +2303,34 @@ def api_retomada_status(sid):
     escrever_json(_caminho_crm("status", vendedor_id), status)
     return jsonify({"ok": True, "resumo": _resumo_retomada(itens, status),
                     "contatos_hoje": _contatos_de_hoje(status)})
+
+
+@app.route("/api/admin/retomada/modelos", methods=["GET", "POST"])
+def api_admin_modelos_msg():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    if request.method == "GET":
+        return jsonify({"modelos": carregar_modelos_msg(),
+                        "padrao": MODELOS_PADRAO,
+                        "rotulos": ROTULOS_SITUACAO})
+    corpo = request.get_json(silent=True) or {}
+    atual = carregar_modelos_msg()
+    novo = {
+        "saudacao": (corpo.get("saudacao") or "").strip() or atual["saudacao"],
+        "saudacao_atraso": (corpo.get("saudacao_atraso") or "").strip() or atual["saudacao_atraso"],
+        "corpo": {},
+        "corpo_parecida": {},
+    }
+    # So aceita situacao que o codigo conhece: chave inventada viraria um modelo
+    # que nunca e escolhido, e o gestor acharia que salvou.
+    for bloco in ("corpo", "corpo_parecida"):
+        enviado = corpo.get(bloco) or {}
+        for chave in MODELOS_PADRAO[bloco]:
+            texto = (enviado.get(chave) or "").strip()
+            if texto:
+                novo[bloco][chave] = texto
+    escrever_json(resolver_pasta_dados() / f"{MODELOS_FILE}.json", novo)
+    return jsonify({"ok": True, "modelos": carregar_modelos_msg()})
 
 
 @app.route("/api/admin/retomada/resumo")
