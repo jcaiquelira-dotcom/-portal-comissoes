@@ -1866,6 +1866,16 @@ def pagina_simulador():
     return send_from_directory(STATIC_DIR, "simulador.html")
 
 
+@app.route("/api/admin/simulador/regras", methods=["GET"])
+def api_admin_simulador_regras_get():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    regras = carregar_regras_simulador()
+    if regras is None:
+        return jsonify({"erro": "As regras de desconto ainda não foram importadas."}), 404
+    return jsonify(regras)
+
+
 @app.route("/api/admin/simulador/regras", methods=["PUT"])
 def api_admin_simulador_regras_put():
     if not exigir_admin():

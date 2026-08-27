@@ -118,6 +118,17 @@
   .metas-linha .nome{font-size:13.5px;font-weight:600;}
   @media (max-width:700px){.grid-2{grid-template-columns:1fr;}}
   .tabela-rolante{overflow-x:auto;}
+
+  /* ---- Configurações / simulador ---- */
+  #simTabelaDesconto th, #simTabelaDesconto td,
+  #simTabelaParcelas th, #simTabelaParcelas td{text-align:center;padding:7px 9px;}
+  #simTabelaDesconto td:first-child, #simTabelaParcelas td:first-child{
+    text-align:left;font-family:'Oswald',sans-serif;font-weight:600;
+  }
+  #simTabelaDesconto input, #simTabelaParcelas input{width:64px;text-align:center;padding:5px;}
+  .sim-status-box{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 13px;}
+  .sim-status-box .rotulo{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+  .sim-status-box .numero{font-family:'Oswald',sans-serif;font-weight:600;font-size:16px;}
 </style>
 </head>
 <body>
@@ -392,6 +403,36 @@
         <div class="vazio" id="emptyLogAcoes" style="display:none;">Nenhuma ação registrada ainda.</div>
       </div>
     </section>
+
+    <!-- ---------- CONFIGURAÇÕES ---------- -->
+    <section id="secConfiguracoes" class="oculto">
+      <div class="card" style="margin-bottom:14px;">
+        <p class="card-titulo">Simulador de desconto — status do catálogo</p>
+        <div class="grid-3" id="simStatusGrid" style="margin-bottom:12px;"></div>
+        <button class="btn btn-neutro btn-pequeno" id="simReimportarBtn">Reimportar planilhas do estoque</button>
+        <span class="status-msg" id="simReimportarStatus"></span>
+        <pre id="simReimportarLog" class="oculto" style="background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:11px;max-height:220px;overflow:auto;white-space:pre-wrap;margin-top:10px;"></pre>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <p class="card-titulo">Desconto máximo (%) por curva × tempo em estoque</p>
+        <p class="fechamento-nota" style="margin-bottom:10px;">Curva A é a mais líquida, C a menos líquida. Vale só pra dinheiro/PIX à vista.</p>
+        <div class="tabela-rolante">
+          <table id="simTabelaDesconto"></table>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <p class="card-titulo">Parcelas máximas por valor × nível de flexibilidade</p>
+        <p class="fechamento-nota" style="margin-bottom:10px;">Nível vem da combinação curva × tempo em estoque (1 = mais rígido, 4 = mais flexível). Cartão de crédito nunca tem desconto, mesmo em 1x.</p>
+        <div class="tabela-rolante">
+          <table id="simTabelaParcelas"></table>
+        </div>
+      </div>
+
+      <button class="btn btn-principal" id="simSalvarRegrasBtn">Salvar regras</button>
+      <span class="status-msg" id="simSalvarStatus"></span>
+    </section>
   </main>
 </div>
 
@@ -467,6 +508,7 @@ function mostrarApp(){
   carregarMetas();
   carregarRetomada();
   carregarModelosMsg();
+  carregarConfiguracoesSimulador();
 }
 
 document.addEventListener('click', ev => {
@@ -1237,6 +1279,115 @@ function montarKpisGestor(){
     + cartao('Ticket médio', 'ticketMedioValue', ICG.etiqueta, 'i-roxo', true);
 }
 
+/* ---------- Configurações: simulador de desconto ---------- */
+let simRegras = null;
+const SIM_CURVAS = ['A', 'B', 'C'];
+
+async function carregarConfiguracoesSimulador(){
+  try{
+    const [regrasRes, statusRes] = await Promise.all([
+      fetch('/api/admin/simulador/regras'),
+      fetch('/api/admin/simulador/status'),
+    ]);
+    if(regrasRes.status === 401 || statusRes.status === 401) return;
+    if(regrasRes.ok){
+      simRegras = await regrasRes.json();
+      renderSimTabelaDesconto();
+      renderSimTabelaParcelas();
+    }
+    if(statusRes.ok){
+      renderSimStatus(await statusRes.json());
+    }
+  }catch(e){ /* seção só é usada pelo gestor, falha silenciosa é ok */ }
+}
+
+function renderSimStatus(status){
+  const grid = document.getElementById('simStatusGrid');
+  const ultima = status.ultima_importacao;
+  const quando = ultima ? new Date(ultima.executado_em).toLocaleString('pt-BR') : 'nunca';
+  grid.innerHTML =
+      '<div class="sim-status-box"><div class="rotulo">Peças no catálogo</div><div class="numero">' + status.total_pecas + '</div></div>'
+    + '<div class="sim-status-box"><div class="rotulo">Disponíveis em estoque</div><div class="numero">' + status.pecas_disponiveis + '</div></div>'
+    + '<div class="sim-status-box"><div class="rotulo">Última importação</div><div class="numero" style="font-size:12.5px;">' + quando + '</div></div>';
+}
+
+function renderSimTabelaDesconto(){
+  const faixas = simRegras.faixas_tempo;
+  let html = '<thead><tr><th>Curva</th>' + faixas.map(f => `<th>${f.label}</th>`).join('') + '</tr></thead><tbody>';
+  for(const curva of SIM_CURVAS){
+    html += `<tr><td>${curva}</td>` + faixas.map(f => `
+      <td><input type="number" min="0" max="100" step="0.5" data-curva="${curva}" data-faixa="${f.id}" class="sim-input-desconto" value="${simRegras.desconto_max_pct[curva][f.id]}">%</td>
+    `).join('') + '</tr>';
+  }
+  document.getElementById('simTabelaDesconto').innerHTML = html + '</tbody>';
+}
+
+function renderSimTabelaParcelas(){
+  const faixasValor = simRegras.faixas_valor;
+  let html = '<thead><tr><th>Faixa de valor</th><th>Nível 1</th><th>Nível 2</th><th>Nível 3</th><th>Nível 4</th></tr></thead><tbody>';
+  for(const fv of faixasValor){
+    html += `<tr><td>${fv.label}</td>` + [1,2,3,4].map(n => `
+      <td><input type="number" min="1" max="60" data-faixa-valor="${fv.id}" data-nivel="${n}" class="sim-input-parcelas" value="${simRegras.parcelas_max[fv.id][String(n)]}">x</td>
+    `).join('') + '</tr>';
+  }
+  document.getElementById('simTabelaParcelas').innerHTML = html + '</tbody>';
+}
+
+document.getElementById('simSalvarRegrasBtn').addEventListener('click', async () => {
+  const status = document.getElementById('simSalvarStatus');
+  status.classList.remove('show', 'err');
+  document.querySelectorAll('.sim-input-desconto').forEach(inp => {
+    simRegras.desconto_max_pct[inp.dataset.curva][inp.dataset.faixa] = parseFloat(inp.value) || 0;
+  });
+  document.querySelectorAll('.sim-input-parcelas').forEach(inp => {
+    simRegras.parcelas_max[inp.dataset.faixaValor][inp.dataset.nivel] = parseInt(inp.value) || 1;
+  });
+  try{
+    const res = await fetch('/api/admin/simulador/regras', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        desconto_max_pct: simRegras.desconto_max_pct,
+        parcelas_max: simRegras.parcelas_max,
+      }),
+    });
+    if(!res.ok) throw new Error('falha ao salvar');
+    status.textContent = 'Regras salvas.';
+    status.classList.add('show');
+  }catch(e){
+    status.textContent = 'Erro ao salvar.';
+    status.classList.add('show', 'err');
+  }
+  setTimeout(() => status.classList.remove('show'), 3000);
+});
+
+document.getElementById('simReimportarBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('simReimportarBtn');
+  const status = document.getElementById('simReimportarStatus');
+  const log = document.getElementById('simReimportarLog');
+  btn.disabled = true;
+  status.classList.remove('show', 'err');
+  status.textContent = 'Reimportando... isso pode levar alguns minutos.';
+  status.classList.add('show');
+  log.classList.add('oculto');
+  try{
+    const res = await fetch('/api/admin/simulador/reimportar', {method: 'POST'});
+    const dados = await res.json();
+    if(!res.ok || !dados.ok) throw new Error(dados.log || 'falha na importação');
+    status.textContent = 'Importação concluída.';
+    log.textContent = dados.log;
+    log.classList.remove('oculto');
+    const statusRes = await fetch('/api/admin/simulador/status');
+    if(statusRes.ok) renderSimStatus(await statusRes.json());
+  }catch(e){
+    status.textContent = 'Erro na importação — veja o log.';
+    status.classList.add('err');
+    log.textContent = e.message;
+    log.classList.remove('oculto');
+  }
+  btn.disabled = false;
+});
+
 /* ---------- troca de seção ---------- */
 const SECOES = {
   painel:     {titulo: 'Painel',            el: 'secPainel'},
@@ -1245,6 +1396,7 @@ const SECOES = {
   metas:      {titulo: 'Metas',             el: 'secMetas'},
   vendedores: {titulo: 'Vendedores',        el: 'secVendedores'},
   registros:  {titulo: 'Registros',         el: 'secRegistros'},
+  configuracoes: {titulo: 'Configurações',  el: 'secConfiguracoes'},
 };
 
 let secaoAtual = (location.hash || '#painel').replace('#','');

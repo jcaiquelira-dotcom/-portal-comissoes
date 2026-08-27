@@ -46,6 +46,7 @@ const PORTAIS = {
       {chave: 'metas',       texto: 'Metas',             href: '#metas',       icone: 'metas'},
       {chave: 'vendedores',  texto: 'Vendedores',        href: '#vendedores',  icone: 'equipe'},
       {chave: 'registros',   texto: 'Registros',         href: '#registros',   icone: 'registros'},
+      {chave: 'configuracoes', texto: 'Configurações',   href: '#configuracoes', icone: 'config'},
     ],
     trocar: {texto: 'Ir para o portal do vendedor', href: '/'},
   },
