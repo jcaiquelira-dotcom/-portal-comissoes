@@ -145,6 +145,23 @@
   }
   .sep{flex:1;}
 
+  .chip-conta{
+    margin-left:6px;font-size:11px;font-weight:700;
+    opacity:.75;font-family:'IBM Plex Mono',monospace;
+  }
+  .chip.vazio{opacity:.5;}
+
+  /* Ficha recem-marcada: fica na tela mesmo fora do filtro, destacada, ate a
+     proxima carga da fila. */
+  .cliente.recem{
+    border-color:var(--info);
+    box-shadow:inset 3px 0 0 var(--info);
+  }
+  .cliente.recem.feito{opacity:1;}
+  .pede-desfecho{
+    flex-shrink:0;font-size:12px;font-weight:600;color:var(--info);
+  }
+
   /* mensagem pronta */
   .btn-msg{
     background:var(--surface-2);border:1px solid var(--line);color:var(--text);
@@ -363,12 +380,19 @@ function placar(r){
   ).join('');
 }
 
+/* Cliente marcado agora fica na tela ate a proxima carga, mesmo que o filtro
+   diga o contrario. Antes, clicar em "Chamar" mudava o status pra "chamei" e a
+   ficha sumia na hora do filtro "A chamar" — e era exatamente ali que o
+   vendedor precisava dizer se vendeu ou nao. A ficha sumia debaixo da mao. */
+const recemMarcados = new Set();
+
 function visiveis(){
   const q = document.getElementById('busca').value.trim().toLowerCase();
   return itens.filter(it => {
-    if (filtro === 'pendentes' && it.status !== 'pendente') return false;
-    if (filtro === 'alta' && !(it.status === 'pendente' && it.prio === 'ALTA')) return false;
-    if (filtro === 'trabalhados' && it.status === 'pendente') return false;
+    const recem = recemMarcados.has(it.sid);
+    if (!recem && filtro === 'pendentes' && it.status !== 'pendente') return false;
+    if (!recem && filtro === 'alta' && !(it.status === 'pendente' && it.prio === 'ALTA')) return false;
+    if (!recem && filtro === 'trabalhados' && it.status === 'pendente') return false;
     if (q && !((it.peca || '') + ' ' + (it.nome || '')).toLowerCase().includes(q)) return false;
     return true;
   });
@@ -400,6 +424,8 @@ function item(it){
   const alta = it.prio === 'ALTA';
   const feito = it.status !== 'pendente';
   const cls = ['cliente']; if (alta) cls.push('alta'); if (feito) cls.push('feito');
+  const recem = recemMarcados.has(it.sid);
+  if (recem) cls.push('recem');
 
   // O contato acontece no Totalk, que e o unico canal que a loja usa — por isso
   // abrir a conversa e a acao principal, e nao um link secundario.
@@ -442,7 +468,9 @@ function item(it){
       + '<div class="acoes">' + chamar + btnMsg + botoes + desmarcar + '</div>'
     + '</div>'
     + '<div class="baixo">'
-      + '<span class="gancho">' + esc(it.gancho) + '</span>'
+      + (recem && it.status === 'chamei'
+          ? '<span class="pede-desfecho">chamou — e aí, respondeu?</span>'
+          : '<span class="gancho">' + esc(it.gancho) + '</span>')
       + '<span class="meta"><b>' + esc(it.nome) + '</b> · ' + esc(it.tipo) + ' · '
       + esc(it.canal) + ' · ' + (it.tinha === 'Sim' ? 'tínhamos' : 'tínhamos parecida') + '</span>'
       + contexto(it)
@@ -451,11 +479,42 @@ function item(it){
   + '</div>';
 }
 
+/* Contagem em cada filtro. Sem ela, clicar em "Ja trabalhei" e nao ver nada
+   nao distingue "o filtro esta quebrado" de "voce ainda nao trabalhou
+   ninguem" — e a primeira leitura e sempre a pior. */
+function atualizarContagens(){
+  const conta = {
+    pendentes: itens.filter(i => i.status === 'pendente').length,
+    alta: itens.filter(i => i.status === 'pendente' && i.prio === 'ALTA').length,
+    trabalhados: itens.filter(i => i.status !== 'pendente').length,
+    todos: itens.length,
+  };
+  document.querySelectorAll('.chip').forEach(c => {
+    const n = conta[c.dataset.f];
+    if (n === undefined) return;
+    let selo = c.querySelector('.chip-conta');
+    if (!selo){
+      selo = document.createElement('span');
+      selo.className = 'chip-conta';
+      c.appendChild(selo);
+    }
+    selo.textContent = n;
+    c.classList.toggle('vazio', n === 0);
+  });
+}
+
 function render(){
+  atualizarContagens();
   const lista = visiveis();
+  const explica = {
+    pendentes: 'Você já chamou todo mundo da fila. 👏',
+    alta: 'Nenhum cliente de prioridade alta esperando.',
+    trabalhados: 'Você ainda não marcou nenhum cliente. Chame alguém e o resultado aparece aqui.',
+    todos: 'Sua fila está vazia.',
+  };
   document.getElementById('lista').innerHTML = lista.length
     ? lista.map(item).join('')
-    : '<div class="vazio">Nada aqui com esse filtro.</div>';
+    : '<div class="vazio">' + (explica[filtro] || 'Nada aqui com esse filtro.') + '</div>';
 }
 
 async function marcar(sid, status){
@@ -466,6 +525,8 @@ async function marcar(sid, status){
   if (!res.ok){ alert(dados.erro || 'Não consegui salvar.'); return; }
   const it = itens.find(x => x.sid === sid);
   if (it) it.status = status;
+  if (status === 'pendente') recemMarcados.delete(sid);
+  else recemMarcados.add(sid);
   placar(dados.resumo);
   // a barra da meta anda na hora, sem precisar recarregar
   if (dados.contatos_hoje !== undefined) renderMetaDia(dados.contatos_hoje, metaContatos);
