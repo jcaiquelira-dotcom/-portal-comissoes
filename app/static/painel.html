@@ -6,26 +6,11 @@
 <title>Ranking de Vendas · Nevada Eco Peças</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/portal.css">
 <style>
-  :root{
-    --bg: #14171C;
-    --surface: #1E2229;
-    --surface-2: #262B33;
-    --line: #333944;
-    --accent: #C15A2A;
-    --accent-2: #E08A57;
-    --text: #EDEFF2;
-    --muted: #7A8290;
-    --good: #4CAF7D;
-    --bad: #E05B5B;
-    --gold: #E8B84B;
-  }
   *{box-sizing:border-box;}
   body{
-    margin:0;
-    background:
-      radial-gradient(1600px 800px at 15% -10%, #1c212a 0%, transparent 60%),
-      var(--bg);
+    background:var(--bg);
     color:var(--text);
     font-family:'Inter',sans-serif;
     padding:26px 40px 50px;
@@ -66,6 +51,8 @@
     cursor:pointer;
   }
   .link-btn:hover{border-color:var(--accent);color:var(--text);}
+  #temaBtn{display:inline-flex;align-items:center;gap:7px;}
+  #temaBtn svg{width:15px;height:15px;}
   .clock-badge{
     display:flex;
     flex-direction:column;
@@ -153,9 +140,9 @@
     font-family:'IBM Plex Mono',monospace;
     font-weight:700;
     font-size:26px;
-    color:#fff;
-    text-shadow:0 1px 4px rgba(0,0,0,.85);
+    color:var(--text);
   }
+  html[data-tema="escuro"] .bar-pct-hero{color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.85);}
 
   .grupo-row-secundaria{
     display:grid;
@@ -211,9 +198,9 @@
     font-family:'IBM Plex Mono',monospace;
     font-weight:700;
     font-size:11px;
-    color:#fff;
-    text-shadow:0 1px 3px rgba(0,0,0,.8);
+    color:var(--text);
   }
+  html[data-tema="escuro"] .bar-pct{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);}
 
   /* ---- Ranking por vendedor ---- */
   .ranking-grid{
@@ -467,6 +454,7 @@
       <h1>Ranking de Vendas</h1>
     </div>
     <div class="clock-wrap">
+      <button class="link-btn" id="temaBtn" title="Alternar tema"></button>
       <a class="link-btn" href="/">Voltar ao portal</a>
       <div class="clock-badge">
         <span class="clock-date" id="clockDate">--</span>
@@ -496,6 +484,7 @@
   <footer>Nevada Eco Peças &middot; Atualiza automaticamente</footer>
 </div>
 
+<script src="/portal-nav.js"></script>
 <script>
 function fmtMoeda(v){
   return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
@@ -513,6 +502,11 @@ function updateClock(){
   document.getElementById('clockTime').textContent = now.toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo'});
   document.getElementById('clockDate').textContent = now.toLocaleDateString('pt-BR', {timeZone:'America/Sao_Paulo', weekday:'long', day:'2-digit', month:'long'});
 }
+document.getElementById('temaBtn').addEventListener('click', () => {
+  aplicarTema(temaAtual() === 'escuro' ? 'claro' : 'escuro');
+});
+aplicarTema(temaAtual());
+
 setInterval(updateClock, 1000);
 updateClock();
 
