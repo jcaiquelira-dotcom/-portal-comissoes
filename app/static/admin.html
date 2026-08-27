@@ -130,6 +130,42 @@
   @media (max-width:700px){.grid-2{grid-template-columns:1fr;}}
   .tabela-rolante{overflow-x:auto;}
 
+  /* ---- Auditoria de comissões ---- */
+  .aud-ficha{
+    padding:12px 13px;border-radius:10px;margin-bottom:9px;
+    background:var(--surface-2);border:1px solid var(--line);
+  }
+  .aud-ficha.marcada{opacity:.72;}
+  .aud-topo{display:flex;align-items:baseline;gap:10px;margin-bottom:5px;}
+  .aud-data{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);flex-shrink:0;}
+  .aud-produto{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .aud-valor{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:13.5px;
+             font-weight:600;white-space:nowrap;}
+  .aud-meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;
+            font-size:11.5px;color:var(--muted);margin-bottom:9px;}
+  .aud-meta .fraco{font-style:italic;}
+  .aud-sinal{
+    font-size:10.5px;color:var(--warn);border:1px solid var(--warn);
+    border-radius:20px;padding:1px 8px;
+  }
+  .aud-acoes{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .aud-btn{
+    background:var(--surface);border:1px solid var(--line);color:var(--muted);
+    font-family:inherit;font-size:11.5px;padding:5px 10px;border-radius:6px;cursor:pointer;
+  }
+  .aud-btn:hover{border-color:var(--accent);color:var(--text);}
+  .aud-btn.on{font-weight:600;}
+  .aud-btn.on.conferida{background:rgba(76,175,125,.18);border-color:var(--good);color:var(--good);}
+  .aud-btn.on.divergente{background:rgba(224,91,91,.15);border-color:var(--bad);color:var(--bad);}
+  .aud-btn.on.nao_achei{background:rgba(212,175,55,.15);border-color:var(--gold);color:var(--gold);}
+  .aud-obs{
+    flex:1;min-width:170px;background:var(--surface);color:var(--text);
+    border:1px solid var(--line);border-radius:6px;padding:5px 9px;
+    font-family:inherit;font-size:12px;
+  }
+  .aud-obs:focus{outline:none;border-color:var(--accent);}
+  .aud-quando{font-size:10.5px;color:var(--muted);margin-top:6px;}
+
   /* ---- Meta Bônus ---- */
   .mb-linha{margin-bottom:15px;}
   .mb-linha:last-of-type{margin-bottom:0;}
@@ -745,6 +781,30 @@
         </div>
       </div>
       <div id="mbCorpo"></div>
+    </section>
+
+    <!-- ---------- COMISSÕES / AUDITORIA ---------- -->
+    <section id="secAuditoria" class="oculto">
+      <div class="filtros">
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="audMes">Mês</label>
+          <input type="month" id="audMes">
+        </div>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="audVendedor">Vendedor</label>
+          <select id="audVendedor"><option value="">Todos os vendedores</option></select>
+        </div>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="audTamanho">Tamanho da amostra</label>
+          <select id="audTamanho">
+            <option value="10">10 vendas</option>
+            <option value="20" selected>20 vendas</option>
+            <option value="40">40 vendas</option>
+            <option value="80">80 vendas</option>
+          </select>
+        </div>
+      </div>
+      <div id="audCorpo"></div>
     </section>
 
     <!-- ---------- CONFIGURAÇÕES ---------- -->
@@ -1742,6 +1802,146 @@ function diaDaSemana(iso){
   return DIAS_SEMANA[new Date(y, m - 1, d).getDay()];
 }
 
+/* ---------- Auditoria de comissões ----------
+   O portal não tem extrato bancário, então não existe "confere/não confere"
+   automático. O que a tela faz é escolher o que vale a pena olhar, guardar o
+   veredito e mostrar quanto do faturamento já passou por conferência. */
+let audCarregado = false;
+let audDados = null;
+
+async function carregarAuditoria(){
+  const corpo = document.getElementById('audCorpo');
+  corpo.innerHTML = '<div class="vazio">Carregando…</div>';
+  const q = new URLSearchParams({
+    mes: document.getElementById('audMes').value || '',
+    tamanho: document.getElementById('audTamanho').value || 20,
+  });
+  const vend = document.getElementById('audVendedor').value;
+  if(vend) q.set('vendedor', vend);
+  const res = await fetch('/api/admin/auditoria?' + q);
+  if(!res.ok){ corpo.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  audDados = await res.json();
+  audCarregado = true;
+  const sel = document.getElementById('audVendedor');
+  if(sel.dataset.pronto !== '1'){
+    sel.innerHTML = '<option value="">Todos os vendedores</option>'
+      + (audDados.vendedores || []).map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
+    sel.dataset.pronto = '1';
+  }
+  renderAuditoria(audDados);
+}
+
+function audFicha(v, d, revisada){
+  const dt = v.data.slice(8) + '/' + v.data.slice(5,7);
+  const sinais = (v.sinais || []).map(s =>
+    `<span class="aud-sinal">${d.sinais[s] || s}</span>`).join('');
+  const botoes = Object.entries(d.rotulos).map(([k, rot]) =>
+    `<button class="aud-btn${v.status === k ? ' on ' + k : ''}" data-aud="${v.id}" data-status="${k}">${rot}</button>`).join('');
+  return `<div class="aud-ficha${v.status ? ' marcada' : ''}" data-ficha="${v.id}">
+    <div class="aud-topo">
+      <span class="aud-data">${dt}</span>
+      <span class="aud-produto">${v.produto || 'Sem descrição'}</span>
+      <span class="aud-valor valor-money">${fmtMoeda(v.valor)}</span>
+    </div>
+    <div class="aud-meta">
+      <span>${d.nomes[v.vendedor_id] || v.vendedor_id}</span>
+      ${v.canal ? `<span>${v.canal}</span>` : '<span class="fraco">sem canal</span>'}
+      ${v.sku ? `<span>SKU ${v.sku}</span>` : ''}
+      ${sinais}
+    </div>
+    <div class="aud-acoes">
+      ${botoes}
+      ${v.status ? `<button class="aud-btn limpar" data-aud="${v.id}" data-status="">↺ desfazer</button>` : ''}
+      <input type="text" class="aud-obs" data-obs="${v.id}" placeholder="observação (opcional)"
+             value="${(v.obs || '').replace(/"/g, '&quot;')}">
+    </div>
+    ${revisada && v.conferida_em ? `<div class="aud-quando">marcada em
+      ${v.conferida_em.slice(8,10)}/${v.conferida_em.slice(5,7)} às ${v.conferida_em.slice(11,16)}</div>` : ''}
+  </div>`;
+}
+
+function renderAuditoria(d){
+  const corpo = document.getElementById('audCorpo');
+  if(d.vazio){
+    corpo.innerHTML = '<div class="vazio">Nenhuma venda neste mês.</div>';
+    return;
+  }
+  const c = d.cobertura, q = d.qualidade || {};
+
+  const kpi = (rot, num, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${num}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+
+  const kpis = [
+    kpi('Vendas no mês', d.total.vendas, fmtMoeda(d.total.valor)),
+    kpi('Já conferidas', c.conferidas, `${c.pct_valor}% do faturamento`,
+        c.conferidas ? 'var(--good)' : null),
+    kpi('Divergências', c.divergentes, c.divergentes ? 'precisam de retorno' : 'nenhuma até agora',
+        c.divergentes ? 'var(--bad)' : 'var(--good)'),
+    kpi('Com sinal de atenção', d.com_sinal, `de ${d.total.vendas} vendas`),
+  ].join('');
+
+  const amostra = d.amostra.length
+    ? d.amostra.map(v => audFicha(v, d, false)).join('')
+    : '<div class="vazio">Tudo desta rodada já foi marcado. Aumente a amostra pra continuar.</div>';
+
+  const revisadas = d.revisadas.length ? `<div class="card" style="margin-top:14px;">
+    <details class="dobra">
+      <summary><span class="card-titulo">Já revisadas</span>
+        <span class="dobra-conta">${d.revisadas.length}</span></summary>
+      ${d.revisadas.map(v => audFicha(v, d, true)).join('')}
+    </details>
+  </div>` : '';
+
+  corpo.innerHTML = `
+    <div class="dp-kpis">${kpis}</div>
+    <div class="card" style="margin-bottom:14px;">
+      <p class="card-titulo">Amostra pra conferir</p>
+      <p class="fechamento-nota" style="margin:0 0 14px;">
+        Confira cada uma no extrato ou no caixa e marque o resultado. A amostra é sorteada de
+        forma fixa: recarregar a tela devolve as mesmas vendas, e o que você marcar sai da lista
+        e dá lugar à próxima.
+      </p>
+      ${amostra}
+    </div>
+    ${revisadas}
+    <div class="card">
+      <p class="card-titulo">Como este painel funciona</p>
+      <div class="dp-destaque"><span class="rot" style="margin:0">
+        O portal <b>não tem extrato bancário</b>. Não existe conferência automática aqui — quem
+        confere é você, olhando o caixa. O painel escolhe o que olhar primeiro, guarda o veredito
+        e mostra quanto do faturamento já foi coberto.</span></div>
+      <div class="dp-destaque"><span class="rot" style="margin:0">
+        Metade da amostra vem das vendas com sinal de atenção e metade de vendas comuns. Só olhar
+        as estranhas não diz nada sobre o conjunto — venda normal também precisa entrar.</span></div>
+      <div class="dp-destaque"><span class="rot" style="margin:0">
+        Qualidade do cadastro no mês: <b>${q.sem_canal || 0}</b> vendas sem canal,
+        <b>${q.sem_sku || 0}</b> sem SKU, <b>${q.sem_criado_em || 0}</b> sem registro de quando
+        foram lançadas. Sem canal não é sinal de nada — é o padrão hoje — mas é o que mais
+        atrapalha a conferência.</span></div>
+    </div>`;
+}
+
+async function audMarcar(id, status){
+  const obs = document.querySelector(`[data-obs="${id}"]`);
+  const res = await fetch('/api/admin/auditoria/' + id, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status, obs: obs ? obs.value : ''}),
+  });
+  if(!res.ok){ alert('Não consegui salvar a marcação.'); return; }
+  carregarAuditoria();
+}
+
+document.addEventListener('click', ev => {
+  const btn = ev.target.closest('[data-aud]');
+  if(btn) audMarcar(btn.dataset.aud, btn.dataset.status);
+});
+
+document.addEventListener('change', ev => {
+  if(['audMes','audTamanho','audVendedor'].includes(ev.target.id)) carregarAuditoria();
+});
+
 /* ---------- Meta Bônus ----------
    Produção do time contra a meta e o bônus de cada um. Os lançamentos são
    feitos no painel-metas; aqui é só leitura, pra o gestor não precisar abrir
@@ -2657,6 +2857,7 @@ const SECOES = {
   marketing:  {titulo: 'Marketing',         el: 'secMarketing'},
   carros:     {titulo: 'Carros pra chegar', el: 'secCarros'},
   metabonus:  {titulo: 'Meta Bônus',        el: 'secMetaBonus'},
+  auditoria:  {titulo: 'Comissões · conferência', el: 'secAuditoria'},
   configuracoes: {titulo: 'Configurações',  el: null},
 };
 
@@ -2721,6 +2922,11 @@ function irParaSecao(chave, sub){
   if(chave === 'desempenho') abrirEscolhaDesempenho();
   if(chave === 'carros' && !carrosCarregado) carregarCarros();
   if(chave === 'metabonus' && !mbCarregado) carregarMetaBonus();
+  if(chave === 'auditoria' && !audCarregado){
+    const m = document.getElementById('audMes');
+    if(!m.value) m.value = new Date().toISOString().slice(0,7);
+    carregarAuditoria();
+  }
   if(chave === 'marketing' && !mktDados){
     const p = mktPeriodoPadrao();
     document.getElementById('mktDe').value = p.de;

@@ -19,6 +19,7 @@ const ICONES = {
   equipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.3a3.2 3.2 0 0 1 0 5.4M18 20a6.5 6.5 0 0 0-3-5.5"/></svg>',
   registros: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v15H5z"/><path d="M9 9h7M9 13h7M9 17h4"/></svg>',
   config: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  lupa: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/><path d="M8 10.5h5M10.5 8v5"/></svg>',
   bonus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.2l5.9-.9z"/></svg>',
   carro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11"/><path d="M3 11h18v5H3z"/><circle cx="7" cy="16.5" r="1.6"/><circle cx="17" cy="16.5" r="1.6"/></svg>',
   marketing: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v3a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19.5 5.5a9 9 0 0 1 0 13"/></svg>',
@@ -100,6 +101,9 @@ const PORTAIS = {
       {chave: 'retomada',  texto: 'Follow-up',              href: '/follow-up', icone: 'retomada'},
       {chave: 'marketing', texto: 'Meus números',           href: '/#marketing', icone: 'marketing'},
     ],
+    // Vendedor nao ve ranking nem expedicao: o painel dele ja mostra a
+    // posicao no time, e expedicao e tela de outro setor.
+    externos: [],
     trocar: {texto: 'Ir para a área do gestor', href: '/admin.html'},
   },
   gestor: {
@@ -112,10 +116,12 @@ const PORTAIS = {
       {chave: 'marketing',   texto: 'Marketing',         href: '#marketing',   icone: 'marketing'},
       {chave: 'carros',      texto: 'Carros pra chegar', href: '#carros',      icone: 'carro'},
       {chave: 'metabonus',   texto: 'Meta Bônus',        href: '#metabonus',   icone: 'bonus'},
+      {chave: 'auditoria',   texto: 'Comissões',         href: '#auditoria',   icone: 'lupa'},
       // Metas, Registros e o simulador viraram topicos dentro de Configuracoes:
       // sao telas de ajuste, nao de acompanhamento do dia.
       {chave: 'configuracoes', texto: 'Configurações',   href: '#configuracoes', icone: 'config'},
     ],
+    externos: ['ranking', 'expedicao'],
     trocar: {texto: 'Ir para o portal do vendedor', href: '/'},
   },
 };
@@ -163,6 +169,8 @@ function montarSidebar(ativo, opcoes){
   const alvo = document.getElementById('sidebar');
   if(!alvo) return;
 
+  const externos = ITENS_EXTERNOS.filter(it => (cfg.externos || []).includes(it.chave));
+
   const linkItem = (it) => {
     const href = it.href || urlExpedicao();
     const externo = it.chave === 'expedicao' || it.chave === 'ranking';
@@ -180,8 +188,9 @@ function montarSidebar(ativo, opcoes){
     + '</div>'
     + '<nav class="nav-lista">'
     + cfg.itens.map(linkItem).join('')
-    + '<div class="nav-sep">Outros painéis</div>'
-    + ITENS_EXTERNOS.map(linkItem).join('')
+    + (externos.length
+        ? '<div class="nav-sep">Outros painéis</div>' + externos.map(linkItem).join('')
+        : '')
     + '</nav>'
     + '<div class="sidebar-rodape">'
     + '<a class="trocar-portal" href="' + cfg.trocar.href + '">' + ICONES.trocar

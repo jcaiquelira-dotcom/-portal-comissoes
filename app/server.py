@@ -1600,6 +1600,198 @@ def _nome_aba_excel(nome: str) -> str:
 
 
 # ============================================================
+# Auditoria de comissões — conferência das vendas contra o caixa
+# ============================================================
+# O que este painel NÃO faz: bater venda com extrato automaticamente. O portal
+# não tem dado bancário nenhum — nem extrato, nem conciliação, e `canal` está
+# vazio em mais da metade das vendas. Fingir um "confere/não confere"
+# automático seria inventar uma certeza que não existe.
+#
+# O que ele faz: escolher o que vale a pena conferir na mão, guardar o
+# veredito e mostrar quanto do faturamento já passou por conferência.
+#
+# A amostra é estável de propósito: sorteio semeado pelo id da venda e pelo mês,
+# então recarregar a tela devolve exatamente as mesmas vendas. Auditoria em que
+# a amostra muda a cada F5 não é auditoria — dá pra ficar re-sorteando até vir
+# um conjunto confortável.
+
+STATUS_AUDITORIA = {
+    "conferida": "Confere com o caixa",
+    "divergente": "Não bate",
+    "nao_achei": "Não encontrei no caixa",
+}
+
+# Peso de cada sinal na hora de decidir o que entra na amostra. Não é
+# probabilidade de fraude — é "isto merece um olhar antes daquilo".
+SINAIS_AUDITORIA = {
+    "duplicata": ("Possível duplicata", 5),
+    "lancada_tarde": ("Lançada dias depois da data", 4),
+    "editada": ("Editada depois de criada", 3),
+    "valor_alto": ("Entre as maiores do mês", 2),
+    "fim_de_semana": ("Lançada em fim de semana", 1),
+}
+# `sem_canal` foi removido da pontuação de propósito: dispara em 56% das vendas.
+# Sinal que acende na maioria dos casos não separa nada — só faria a amostra
+# virar "quase tudo" e o gestor parar de olhar. Vira indicador de qualidade do
+# cadastro, que é o problema real ali.
+
+
+def _chave_sorteio(venda_id: str, mes: str) -> int:
+    """Ordem estável: mesma venda, mesmo mês, mesma posição — sempre."""
+    return int(hashlib.sha256(f"{mes}:{venda_id}".encode()).hexdigest()[:12], 16)
+
+
+def carregar_auditoria() -> dict:
+    return ler_json(resolver_pasta_dados() / "auditoria.json", None) or {}
+
+
+def _sinais_da_venda(v, contagem_dup, corte_alto):
+    sinais = []
+    chave = (v["data"], (v.get("produto") or "").strip().lower(), round(v["valor"], 2))
+    if contagem_dup.get(chave, 0) > 1:
+        sinais.append("duplicata")
+    criado = v.get("criado_em")
+    if criado:
+        try:
+            dias = (parse_dt_tolerante(criado).date() - date.fromisoformat(v["data"])).days
+            if dias > 3:
+                sinais.append("lancada_tarde")
+        except (ValueError, TypeError):
+            pass
+    # Só `editado_em` marca edição. O log de ações não guarda o id da venda,
+    # então não dá pra cruzar de volta — inventar esse vínculo por produto e
+    # valor acertaria umas e erraria outras.
+    if v.get("editado_em"):
+        sinais.append("editada")
+    if corte_alto and v["valor"] >= corte_alto:
+        sinais.append("valor_alto")
+    if date.fromisoformat(v["data"]).weekday() >= 5:
+        sinais.append("fim_de_semana")
+    return sinais
+
+
+@app.route("/api/admin/auditoria")
+def api_admin_auditoria():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+
+    mes = request.args.get("mes") or hoje_br().isoformat()[:7]
+    try:
+        tamanho = max(5, min(100, int(request.args.get("tamanho") or 20)))
+    except ValueError:
+        tamanho = 20
+    filtro_vendedor = request.args.get("vendedor") or ""
+
+    vendedores = carregar_vendedores()
+    todas = carregar_vendas_todos(vendedores)
+    vendas = [{**v, "id": vid} for vid, v in todas.items()
+              if v.get("tipo", "venda") == "venda" and v["data"][:7] == mes
+              and (not filtro_vendedor or v["vendedor_id"] == filtro_vendedor)]
+    if not vendas:
+        return jsonify({"mes": mes, "vazio": True, "amostra": [],
+                        "rotulos": STATUS_AUDITORIA,
+                        "vendedores": [{"id": k, "nome": v["nome"]}
+                                       for k, v in sorted(vendedores.items(),
+                                                          key=lambda kv: kv[1]["nome"])]})
+
+    contagem_dup = {}
+    for v in vendas:
+        chave = (v["data"], (v.get("produto") or "").strip().lower(), round(v["valor"], 2))
+        contagem_dup[chave] = contagem_dup.get(chave, 0) + 1
+
+    ordenados = sorted(vendas, key=lambda v: -v["valor"])
+    corte_alto = ordenados[max(0, len(ordenados) // 10 - 1)]["valor"] if len(ordenados) >= 10 else None
+
+    for v in vendas:
+        v["sinais"] = _sinais_da_venda(v, contagem_dup, corte_alto)
+        v["risco"] = sum(SINAIS_AUDITORIA[s][1] for s in v["sinais"])
+
+    marcas = carregar_auditoria()
+    for v in vendas:
+        m = marcas.get(v["id"]) or {}
+        v["status"] = m.get("status")
+        v["obs"] = m.get("obs")
+        v["conferida_em"] = m.get("em")
+
+    # Quem tem sinal entra antes; dentro do mesmo risco, o sorteio estável
+    # decide. Assim a amostra cobre o que chama atenção sem virar uma lista só
+    # dos casos estranhos — venda normal também precisa ser conferida, senão a
+    # auditoria não diz nada sobre o conjunto.
+    ja_marcadas = [v for v in vendas if v["status"]]
+    candidatas = [v for v in vendas if not v["status"]]
+    candidatas.sort(key=lambda v: (-v["risco"], _chave_sorteio(v["id"], mes)))
+    com_sinal = [v for v in candidatas if v["risco"] > 0]
+    sem_sinal = [v for v in candidatas if v["risco"] == 0]
+
+    metade = max(1, tamanho // 2)
+    amostra = com_sinal[:metade] + sem_sinal[:tamanho - min(metade, len(com_sinal))]
+    amostra.sort(key=lambda v: (-v["risco"], v["data"]))
+
+    conferidas = [v for v in vendas if v["status"] == "conferida"]
+    divergentes = [v for v in vendas if v["status"] in ("divergente", "nao_achei")]
+    total_mes = round(sum(v["valor"] for v in vendas), 2)
+    valor_conferido = round(sum(v["valor"] for v in conferidas), 2)
+
+    def enxuto(v):
+        return {k: v.get(k) for k in ("id", "data", "produto", "valor", "canal", "sku",
+                                      "vendedor_id", "criado_em", "sinais", "risco",
+                                      "status", "obs", "conferida_em")}
+
+    return jsonify({
+        "mes": mes,
+        "rotulos": STATUS_AUDITORIA,
+        "sinais": {k: v[0] for k, v in SINAIS_AUDITORIA.items()},
+        "vendedores": [{"id": k, "nome": v["nome"]}
+                       for k, v in sorted(vendedores.items(), key=lambda kv: kv[1]["nome"])],
+        "nomes": {k: v["nome"] for k, v in vendedores.items()},
+        "filtro": {"vendedor": filtro_vendedor, "tamanho": tamanho},
+        "total": {"vendas": len(vendas), "valor": total_mes},
+        "cobertura": {
+            "conferidas": len(conferidas),
+            "divergentes": len(divergentes),
+            "valor_conferido": valor_conferido,
+            "pct_qtd": round(100 * len(conferidas) / len(vendas), 1),
+            "pct_valor": round(100 * valor_conferido / total_mes, 1) if total_mes else 0,
+        },
+        "com_sinal": len(com_sinal) + sum(1 for v in ja_marcadas if v["risco"] > 0),
+        "qualidade": {
+            "sem_canal": sum(1 for v in vendas if not (v.get("canal") or "").strip()),
+            "sem_sku": sum(1 for v in vendas if not (v.get("sku") or "").strip()),
+            "sem_criado_em": sum(1 for v in vendas if not v.get("criado_em")),
+        },
+        "amostra": [enxuto(v) for v in amostra],
+        "revisadas": [enxuto(v) for v in sorted(ja_marcadas, key=lambda v: v.get("conferida_em") or "",
+                                                reverse=True)[:40]],
+    })
+
+
+@app.route("/api/admin/auditoria/<venda_id>", methods=["POST"])
+def api_admin_auditoria_marcar(venda_id):
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    novo = (corpo.get("status") or "").strip()
+    if novo and novo not in STATUS_AUDITORIA:
+        return jsonify({"erro": "status inválido"}), 400
+
+    # Só aceita venda que existe: id chutado viraria uma marca órfã que conta
+    # como conferida e infla a cobertura.
+    vendedores = carregar_vendedores()
+    if venda_id not in carregar_vendas_todos(vendedores):
+        return jsonify({"erro": "Venda não encontrada."}), 404
+
+    marcas = carregar_auditoria()
+    if not novo:
+        marcas.pop(venda_id, None)
+    else:
+        marcas[venda_id] = {"status": novo,
+                            "obs": (corpo.get("obs") or "").strip()[:400],
+                            "em": agora_br().isoformat(timespec="seconds")}
+    escrever_json(resolver_pasta_dados() / "auditoria.json", marcas)
+    return jsonify({"ok": True})
+
+
+# ============================================================
 # Meta Bônus
 # ============================================================
 # Vem do painel-metas (scripts/sincronizar_metas_bonus.py), onde o time lança a
