@@ -307,15 +307,14 @@ function renderMetaDia(feitos, meta){
   else if(feitos >= meta.minimo){ recado = 'No caminho — faltam ' + (alvo - feitos); classe = 'bom'; }
   else { recado = 'Mínimo do dia: ' + meta.minimo; classe = 'minimo'; }
 
-  const marca = (v, rot) => '<span style="left:' + Math.min(100,(v/alvo)*100) + '%">' + rot + '</span>';
+  const marca = (v) => '<span style="left:' + Math.min(100,(v/alvo)*100) + '%">' + v + '</span>';
   el.innerHTML =
       '<div class="cab"><span class="feitos">' + feitos + '</span>'
     + '<span>de ' + alvo + ' contatos hoje</span>'
     + '<span class="recado ' + classe + '">' + recado + '</span></div>'
     + '<div class="trilha-meta"><div class="preenchido' + (feitos >= alvo ? ' batida' : '')
     + '" style="width:' + pct + '%"></div></div>'
-    + '<div class="marcas">' + marca(meta.minimo, meta.minimo + ' mínimo')
-    + marca(meta.bom, meta.bom + ' bom') + marca(alvo, alvo + ' meta') + '</div>';
+    + '<div class="marcas">' + marca(meta.minimo) + marca(meta.bom) + marca(alvo) + '</div>';
 }
 
 function placar(r){
