@@ -99,8 +99,19 @@
   }
   .card.tem-cliente .card-titulo{color:var(--accent);}
   /* Quem pediu menos animacao no sistema nao recebe nenhuma. */
+  /* A ficha ALTA respira junto, mais fraca que o card: o card diz "tem coisa
+     aqui", a ficha diz "e esta". Deslocada no tempo pra nao pulsar em unissono
+     com o card, o que faria as duas virarem um flash so. */
+  @keyframes respiro-ficha{
+    0%, 100%{box-shadow:0 0 0 0 rgba(224,91,91,0);}
+    50%     {box-shadow:0 0 0 3px rgba(224,91,91,.14);}
+  }
+  .cli-ficha.alta{animation:respiro-ficha 3.2s ease-in-out infinite .8s;}
+  .cli-ficha.alta.chamado{animation:none;}
+
   @media (prefers-reduced-motion: reduce){
-    .card.tem-cliente{animation:none;}
+    .card.tem-cliente,
+    .cli-ficha.alta{animation:none;}
   }
 
   .toast{
@@ -1369,7 +1380,10 @@ function esc(t){
 function renderTopoRetomada(ret){
   const el = document.getElementById('topoRetomada');
   const card = el.closest('.card');
-  if(card) card.classList.toggle('tem-cliente', !!(ret && ret.topo && ret.topo.length));
+  // So prioridade ALTA acende o card. Fila cheia de MEDIA deixaria o brilho
+  // permanente, e brilho permanente para de ser aviso.
+  const temAlta = !!(ret && ret.topo && ret.topo.some(c => c.prio === 'ALTA'));
+  if(card) card.classList.toggle('tem-cliente', temAlta);
   if(!ret || !ret.topo || !ret.topo.length){
     el.innerHTML = ret
       ? '<div class="vazio">Você chamou todo mundo da fila. 👏</div>'
