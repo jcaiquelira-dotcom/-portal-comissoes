@@ -1503,6 +1503,7 @@ def api_admin_resumo():
             por_vendedor[vendedor_id] = []
         por_vendedor[vendedor_id].append({**v, "id": vid_venda})
 
+    metas_todas = carregar_metas()
     resultado = []
     total_geral = 0.0
     comissao_geral = 0.0
@@ -1544,6 +1545,7 @@ def api_admin_resumo():
             "vendas": lista_vendas,
             "bonus": lista_bonus,
             "confirmado_em": confirmado_em,
+            "meta_mensal": float(metas_vendedor(vid, metas_todas).get("mensal", 0) or 0),
         })
 
     resultado.sort(key=lambda r: r["total_vendido"], reverse=True)
@@ -1559,10 +1561,26 @@ def api_admin_resumo():
     ] if mes_unico else []
     ticket_medio = round(total_geral / qtd_vendas_geral, 2) if qtd_vendas_geral else 0.0
 
+    # Ritmo do mes: sem isso um vendedor com 60% da meta no dia 10 parece
+    # atrasado, quando na verdade esta muito a frente.
+    ritmo = None
+    if mes_unico:
+        dias_no_mes = calendar.monthrange(int(mes_unico[:4]), int(mes_unico[5:7]))[1]
+        hoje_data = hoje_br()
+        if mes_unico == hoje_data.isoformat()[:7]:
+            dias_corridos = hoje_data.day
+        else:
+            dias_corridos = dias_no_mes          # mes fechado
+        ritmo = {"dias_no_mes": dias_no_mes,
+                 "dias_corridos": dias_corridos,
+                 "pct_do_mes": round(100 * dias_corridos / dias_no_mes)}
+
     return jsonify({
         "de": de,
         "ate": ate,
         "mes_unico": mes_unico,
+        "meta_grupo": float((metas_todas.get("grupo") or {}).get("mensal", 0) or 0),
+        "ritmo": ritmo,
         "vendedor_id": filtro_vendedor,
         "vendedores": resultado,
         "total_geral": round(total_geral, 2),

@@ -130,6 +130,79 @@
   @media (max-width:700px){.grid-2{grid-template-columns:1fr;}}
   .tabela-rolante{overflow-x:auto;}
 
+  /* ---- Metas do mês ---- */
+  .metas-topo{
+    display:flex;align-items:center;gap:22px;flex-wrap:wrap;
+    padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--line);
+  }
+  .anel-wrap{position:relative;width:132px;height:132px;flex-shrink:0;}
+  .anel-wrap svg{transform:rotate(-90deg);display:block;}
+  .anel-centro{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:1px;
+  }
+  .anel-pct{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:600;line-height:1;}
+  .anel-rot{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  .metas-nums{display:flex;flex-direction:column;gap:9px;min-width:210px;}
+  .metas-nums .grande{
+    font-family:'IBM Plex Mono',monospace;font-size:23px;font-weight:600;line-height:1.1;
+  }
+  .metas-nums .sub{font-size:12.5px;color:var(--muted);}
+  .metas-nums .sub b{color:var(--text);font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .selo-ritmo{
+    display:inline-flex;align-items:center;gap:6px;align-self:flex-start;
+    font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:20px;
+    border:1px solid currentColor;
+  }
+  .selo-ritmo.bom{color:var(--good);}
+  .selo-ritmo.atencao{color:var(--warn);}
+  .selo-ritmo.ruim{color:var(--bad);}
+
+  .mv{margin-bottom:15px;}
+  .mv:last-child{margin-bottom:0;}
+  .mv-cab{display:flex;align-items:baseline;gap:9px;margin-bottom:6px;}
+  .mv-nome{font-size:13.5px;font-weight:600;}
+  .mv-pct{
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;
+  }
+  .mv-val{
+    margin-left:auto;font-size:11.5px;color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;white-space:nowrap;
+  }
+  .mv-trilha{
+    position:relative;height:10px;border-radius:20px;
+    background:var(--surface-2);border:1px solid var(--line);overflow:visible;
+  }
+  .mv-fill{
+    height:100%;border-radius:20px;
+    background:linear-gradient(90deg,#F0A868,var(--accent));
+    transition:width .35s ease;
+  }
+  .mv-fill.bateu{background:linear-gradient(90deg,#7ED6A5,var(--good));}
+  /* A marca do ritmo é o que dá sentido à barra: sem ela, 60% no dia 10 e 60%
+     no dia 28 parecem a mesma coisa. */
+  .mv-marca{
+    position:absolute;top:-4px;width:2px;height:18px;border-radius:2px;
+    background:var(--text);opacity:.55;
+  }
+  .mv-rodape{
+    display:flex;gap:10px;margin-top:5px;font-size:11px;color:var(--muted);
+  }
+  .mv-rodape .proj{margin-left:auto;font-family:'IBM Plex Mono',monospace;}
+  /* No celular nome + % + valores nao cabem na mesma linha. */
+  @media (max-width: 560px){
+    .mv-cab{flex-wrap:wrap;}
+    .mv-val{margin-left:0;width:100%;}
+    .metas-topo{gap:14px;}
+    .metas-nums{min-width:0;}
+  }
+
+  .metas-legenda{
+    margin-top:16px;padding-top:12px;border-top:1px solid var(--line);
+    font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:7px;
+  }
+  .legenda-marca{display:inline-block;width:2px;height:13px;background:var(--text);opacity:.55;}
+
   /* ---- Blocos dobrados ----
      Usado nos logs e nas metas. Tudo nasce fechado: essas telas sao de
      consulta e ajuste pontual, e abertas de uma vez nao cabem na tela. */
@@ -259,6 +332,11 @@
       </div>
 
       <div class="kpi-grid" id="kpiGrid"></div>
+
+      <div class="card" id="cardMetas" style="margin-bottom:14px;">
+        <p class="card-titulo">Metas do mês</p>
+        <div id="metasPainel"></div>
+      </div>
 
       <div class="card" style="margin-bottom:14px;">
         <p class="card-titulo">Ranking por vendedor</p>
@@ -1065,6 +1143,7 @@ async function carregarResumo(){
   document.getElementById('footTotal').textContent = fmtMoeda(resumoAtual.total_geral);
   document.getElementById('footComissao').textContent = fmtMoeda(resumoAtual.comissao_geral);
 
+  renderMetasPainel(resumoAtual);
   renderRanking(resumoAtual.vendedores);
   renderEvolucao();
 
@@ -1475,6 +1554,125 @@ const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 function diaDaSemana(iso){
   const [y, m, d] = iso.split('-').map(Number);
   return DIAS_SEMANA[new Date(y, m - 1, d).getDay()];
+}
+
+/* ---------- Metas do mês ----------
+   Barra sozinha nao diz se o vendedor esta bem: 60% da meta e otimo no dia 10
+   e ruim no dia 28. Por isso toda barra carrega a marca do ritmo — onde ele
+   deveria estar hoje — e a projecao de fechamento no ritmo atual. */
+function renderMetasPainel(d){
+  const card = document.getElementById('cardMetas');
+  const el = document.getElementById('metasPainel');
+  const ritmo = d.ritmo;
+
+  // So faz sentido num mes fechado num periodo unico e com meta definida.
+  const comMeta = (d.vendedores || []).filter(v => v.meta_mensal > 0);
+  if(!ritmo || (!d.meta_grupo && comMeta.length === 0)){
+    card.style.display = d.mes_unico ? '' : 'none';
+    if(d.mes_unico){
+      el.innerHTML = '<div class="vazio">Nenhuma meta definida para o mês. '
+        + 'Defina em <a href="#configuracoes/metas">Configurações · Metas</a>.</div>';
+    }
+    return;
+  }
+  card.style.display = '';
+
+  const pctDoMes = ritmo.pct_do_mes;
+  const projetar = (total) => ritmo.dias_corridos
+    ? total / ritmo.dias_corridos * ritmo.dias_no_mes : 0;
+
+  // ---- anel do grupo ----
+  const metaG = d.meta_grupo || comMeta.reduce((s, v) => s + v.meta_mensal, 0);
+  const pctG = metaG > 0 ? (d.total_geral / metaG) * 100 : 0;
+  const raio = 54, traco = 11;
+  const volta = 2 * Math.PI * raio;
+  const preenchido = Math.min(100, pctG) / 100 * volta;
+  const bateu = pctG >= 100;
+  const corAnel = bateu ? 'var(--good)' : 'var(--accent)';
+
+  const veredito = classificarRitmo(pctG, pctDoMes);
+  const faltaG = Math.max(0, metaG - d.total_geral);
+  const diasQueFaltam = ritmo.dias_no_mes - ritmo.dias_corridos;
+
+  const anel = `
+    <div class="anel-wrap">
+      <svg width="132" height="132" viewBox="0 0 132 132">
+        <circle cx="66" cy="66" r="${raio}" fill="none"
+                stroke="var(--surface-2)" stroke-width="${traco}"/>
+        <circle cx="66" cy="66" r="${raio}" fill="none"
+                stroke="${corAnel}" stroke-width="${traco}" stroke-linecap="round"
+                stroke-dasharray="${preenchido.toFixed(1)} ${volta.toFixed(1)}"/>
+        <!-- risquinho do ritmo, no mesmo circulo -->
+        <circle cx="66" cy="66" r="${raio}" fill="none"
+                stroke="var(--text)" stroke-width="${traco + 5}" opacity=".45"
+                stroke-dasharray="2 ${volta.toFixed(1)}"
+                stroke-dashoffset="${(-pctDoMes / 100 * volta).toFixed(1)}"/>
+      </svg>
+      <div class="anel-centro">
+        <span class="anel-pct">${Math.round(pctG)}%</span>
+        <span class="anel-rot">da meta</span>
+      </div>
+    </div>`;
+
+  const nums = `
+    <div class="metas-nums">
+      <div>
+        <div class="grande valor-money">${fmtMoeda(d.total_geral)}</div>
+        <div class="sub">de <b class="valor-money">${fmtMoeda(metaG)}</b> no mês</div>
+      </div>
+      <span class="selo-ritmo ${veredito.classe}">${veredito.texto}</span>
+      <div class="sub">
+        ${faltaG > 0
+          ? `Faltam <b class="valor-money">${fmtMoeda(faltaG)}</b>`
+            + (diasQueFaltam > 0
+                ? ` · <b class="valor-money">${fmtMoeda(faltaG / diasQueFaltam)}</b>/dia em ${diasQueFaltam} dia${diasQueFaltam > 1 ? 's' : ''}`
+                : ' pro fechamento')
+          : 'Meta do mês batida 🎉'}
+      </div>
+      <div class="sub">Dia ${ritmo.dias_corridos} de ${ritmo.dias_no_mes} · ${pctDoMes}% do mês</div>
+    </div>`;
+
+  // ---- barra por vendedor ----
+  const barras = (d.vendedores || []).map(v => {
+    const meta = v.meta_mensal || 0;
+    if(meta <= 0){
+      return `<div class="mv">
+          <div class="mv-cab"><span class="mv-nome">${v.nome}</span>
+            <span class="mv-val valor-money">${fmtMoeda(v.total_vendido)} · sem meta</span></div>
+        </div>`;
+    }
+    const pct = (v.total_vendido / meta) * 100;
+    const ok = pct >= 100;
+    const ver = classificarRitmo(pct, pctDoMes);
+    const proj = projetar(v.total_vendido);
+    return `
+      <div class="mv">
+        <div class="mv-cab">
+          <span class="mv-nome">${v.nome}</span>
+          <span class="mv-pct" style="color:${ver.cor}">${Math.round(pct)}%</span>
+          <span class="mv-val valor-money">${fmtMoeda(v.total_vendido)} / ${fmtMoeda(meta)}</span>
+        </div>
+        <div class="mv-trilha">
+          <div class="mv-fill${ok ? ' bateu' : ''}" style="width:${Math.min(100, pct)}%"></div>
+          <div class="mv-marca" style="left:calc(${pctDoMes}% - 1px)" title="onde deveria estar hoje"></div>
+        </div>
+        <div class="mv-rodape">
+          <span style="color:${ver.cor}">${ver.texto}</span>
+          <span class="proj valor-money">projeção ${fmtMoeda(proj)}</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="metas-topo">${anel}${nums}</div>${barras}
+    <div class="metas-legenda"><span class="legenda-marca"></span>
+      marca o ponto onde a meta estaria em dia (${pctDoMes}% do mês corrido)</div>`;
+}
+
+function classificarRitmo(pct, pctDoMes){
+  if(pct >= 100) return {texto: 'Meta batida', classe: 'bom', cor: 'var(--good)'};
+  if(pct >= pctDoMes) return {texto: 'No ritmo', classe: 'bom', cor: 'var(--good)'};
+  if(pct >= pctDoMes - 12) return {texto: 'Quase no ritmo', classe: 'atencao', cor: 'var(--warn)'};
+  return {texto: 'Atrasado', classe: 'ruim', cor: 'var(--bad)'};
 }
 
 /* ---------- troca de seção ---------- */
