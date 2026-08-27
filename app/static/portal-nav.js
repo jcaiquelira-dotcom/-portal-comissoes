@@ -31,7 +31,7 @@ const PORTAIS = {
       {chave: 'painel',    texto: 'Painel',                href: '/#painel', icone: 'painel'},
       {chave: 'vendas',    texto: 'Minhas vendas',         href: '/#vendas', icone: 'vendas'},
       {chave: 'simulador', texto: 'Simulador de desconto', href: '/simulador', icone: 'simulador'},
-      {chave: 'retomada',  texto: 'Retomada',              href: '/retomada', icone: 'retomada'},
+      {chave: 'retomada',  texto: 'Follow-up',              href: '/follow-up', icone: 'retomada'},
     ],
     trocar: {texto: 'Ir para a área do gestor', href: '/admin.html'},
   },
@@ -40,7 +40,7 @@ const PORTAIS = {
     itens: [
       {chave: 'painel',      texto: 'Painel',            href: '#painel',      icone: 'painel'},
       {chave: 'fechamento',  texto: 'Fechamento de mês', href: '#fechamento',  icone: 'fechamento'},
-      {chave: 'retomada',    texto: 'Retomada do time',  href: '#retomada',    icone: 'retomada'},
+      {chave: 'retomada',    texto: 'Follow-up do time',  href: '#retomada',    icone: 'retomada'},
       {chave: 'metas',       texto: 'Metas',             href: '#metas',       icone: 'metas'},
       {chave: 'vendedores',  texto: 'Vendedores',        href: '#vendedores',  icone: 'equipe'},
       {chave: 'registros',   texto: 'Registros',         href: '#registros',   icone: 'registros'},

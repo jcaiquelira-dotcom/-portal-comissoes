@@ -1118,7 +1118,7 @@ function renderPainel(){
   const ret = d.retomada;
   const pendentes = ret ? ret.pendente : 0;
   document.getElementById('atalhosPainel').innerHTML =
-      atalho('/retomada', IC.voltar, 'i-verde', 'Retomada',
+      atalho('/follow-up', IC.voltar, 'i-verde', 'Follow-up',
              ret ? pendentes + ' cliente(s) esperando um retorno' : 'Sem fila gerada ainda')
     + atalho('/simulador', IC.etiqueta, 'i-roxo', 'Simulador de desconto',
              'Consultar desconto e parcelamento de uma peça')

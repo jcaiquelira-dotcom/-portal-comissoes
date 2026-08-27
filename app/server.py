@@ -1970,7 +1970,8 @@ def _resumo_retomada(itens: list, status: dict) -> dict:
     return contagem
 
 
-@app.route("/retomada")
+@app.route("/follow-up")
+@app.route("/retomada")   # endereco antigo, mantido pra nao quebrar link salvo
 def pagina_retomada():
     return send_from_directory(STATIC_DIR, "retomada.html")
 
