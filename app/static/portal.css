@@ -152,6 +152,16 @@ a{color:inherit;}
 }
 
 .sidebar-rodape{border-top:1px solid var(--line);padding-top:12px;margin-top:8px;}
+/* Botao de pular entre o portal do vendedor e a area do gestor */
+.trocar-portal{
+  display:flex;align-items:center;gap:9px;
+  padding:9px 12px;margin-bottom:8px;border-radius:10px;
+  background:var(--accent-suave);border:1px solid transparent;
+  color:var(--accent);font-size:12.5px;font-weight:600;
+  text-decoration:none;line-height:1.25;
+}
+.trocar-portal:hover{border-color:var(--accent);}
+.trocar-portal svg{width:16px;height:16px;flex-shrink:0;stroke-width:2;}
 .tema-btn{
   display:flex;align-items:center;gap:10px;
   width:100%;padding:10px 12px;border-radius:10px;

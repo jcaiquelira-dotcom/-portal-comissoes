@@ -3,541 +3,190 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Área do Gestor · Portal de Comissões</title>
+<title>Área do Gestor · Nevada Eco Peças</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/portal.css">
 <style>
-  :root{
-    --bg: #14171C;
-    --surface: #1E2229;
-    --surface-2: #262B33;
-    --line: #333944;
-    --accent: #C15A2A;
-    --accent-2: #E08A57;
-    --text: #EDEFF2;
-    --muted: #7A8290;
-    --good: #4CAF7D;
-    --bad: #E05B5B;
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    background:
-      radial-gradient(1200px 600px at 15% -10%, #1c212a 0%, transparent 60%),
-      var(--bg);
-    color:var(--text);
-    font-family:'Inter',sans-serif;
-    padding:18px 26px;
-  }
-  .wrap{max-width:1080px;margin:0 auto;}
+  /* ---- Login ---- */
+  .tela-login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .login-caixa{width:100%;max-width:390px;}
+  .login-marca{display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:22px;}
+  .login-marca img{height:58px;}
+  .login-marca .txt{font-family:'Oswald',sans-serif;font-weight:700;text-transform:uppercase;font-size:19px;line-height:1.15;}
+  .login-marca .txt span{color:var(--accent);}
+  .error-msg{color:var(--bad);font-size:12.5px;margin-top:10px;min-height:15px;}
 
-  header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    flex-wrap:wrap;
-    gap:18px;
-    border-bottom:2px solid var(--line);
-    padding-bottom:9px;
-    margin-bottom:18px;
+  .olho-btn{
+    display:flex;align-items:center;justify-content:center;
+    width:38px;height:38px;border-radius:10px;flex-shrink:0;
+    background:var(--surface);border:1px solid var(--line);color:var(--muted);cursor:pointer;
   }
-  .brand-row{display:flex;align-items:center;gap:26px;}
-  .logo-badge{display:flex;align-items:center;line-height:0;}
-  .logo-badge img{height:76px;width:auto;display:block;}
-  h1{
-    font-family:'Oswald',sans-serif;
-    font-weight:700;
-    text-transform:uppercase;
-    letter-spacing:.03em;
-    font-size:30px;
-    margin:0;
-  }
-  .link-btn{
-    background:none;
-    border:none;
-    color:var(--muted);
-    font-family:'IBM Plex Mono',monospace;
-    font-size:12px;
-    text-decoration:underline;
-    cursor:pointer;
-    padding:0;
-  }
-  .link-btn:hover{color:var(--text);}
-  a.link-btn{text-decoration:underline;}
+  .olho-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .olho-btn svg{width:18px;height:18px;}
 
-  .section-title{
-    font-family:'Oswald',sans-serif;
-    text-transform:uppercase;
-    letter-spacing:.06em;
-    font-size:14px;
-    color:var(--muted);
-    margin:26px 0 9px;
-    display:flex;
-    align-items:center;
-    gap:8px;
+  /* ---- Filtros ---- */
+  .filtros{
+    display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--raio);
+    box-shadow:var(--sombra);padding:14px 16px;margin-bottom:14px;
   }
-  .section-title:first-of-type{margin-top:0;}
-  .section-title::after{content:'';flex:1;height:1px;background:var(--line);}
-
-  .log-collapse{margin:26px 0;}
-  .log-collapse summary{
-    font-family:'Oswald',sans-serif;
-    text-transform:uppercase;
-    letter-spacing:.06em;
-    font-size:14px;
-    color:var(--muted);
-    cursor:pointer;
-    list-style:none;
-    display:flex;
-    align-items:center;
-    gap:8px;
-    user-select:none;
-  }
-  .log-collapse summary::-webkit-details-marker{display:none;}
-  .log-collapse summary::before{content:'▸';font-size:11px;transition:transform .15s;}
-  .log-collapse[open] summary::before{transform:rotate(90deg);}
-  .log-collapse summary::after{content:'';flex:1;height:1px;background:var(--line);}
-  .log-collapse .log-body{margin-top:10px;}
-
-  .card{
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:8px;
-    padding:20px 22px;
-  }
-
-  #loginCard{max-width:360px;margin:40px auto 0;}
-  .field{margin-bottom:14px;}
-  .field label{
-    display:block;
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    letter-spacing:.08em;
-    text-transform:uppercase;
-    color:var(--muted);
-    margin-bottom:6px;
-  }
-  select, input[type="text"], input[type="password"], input[type="number"], input[type="month"], input[type="date"]{
-    width:100%;
-    background:#0F1216;
-    border:1px solid var(--line);
-    border-radius:6px;
-    color:var(--text);
-    font-family:'Inter',sans-serif;
-    font-size:14px;
-    padding:9px 10px;
-  }
-  input[type="date"]::-webkit-calendar-picker-indicator,
-  input[type="month"]::-webkit-calendar-picker-indicator{
-    filter:invert(46%) sepia(60%) saturate(1200%) hue-rotate(346deg) brightness(95%) contrast(92%);
-    cursor:pointer;
-  }
-
-  .eye-toggle-btn{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    width:36px;
-    height:36px;
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:6px;
-    color:var(--muted);
-    cursor:pointer;
-    flex-shrink:0;
-  }
-  .eye-toggle-btn:hover{border-color:var(--accent);color:var(--accent-2);}
-  .eye-toggle-btn svg{width:18px;height:18px;}
-  body.ocultar-valores .valor-money{
-    filter:blur(6px);
-    user-select:none;
-  }
-  .primary-btn{
-    width:100%;
-    background:var(--accent);
-    color:#151719;
-    border:none;
-    font-family:'Oswald',sans-serif;
-    text-transform:uppercase;
-    letter-spacing:.05em;
-    font-weight:600;
-    font-size:13px;
-    padding:11px 20px;
-    border-radius:6px;
-    cursor:pointer;
-    margin-top:4px;
-  }
-  .primary-btn:hover{background:#ff7f52;}
-  .error-msg{
-    color:var(--bad);
-    font-size:12px;
-    font-family:'IBM Plex Mono',monospace;
-    margin-top:10px;
-    min-height:14px;
-  }
-
-  #appSection{display:none;}
-
-  .top-row{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:6px;}
-  .filters-row{display:flex;align-items:flex-end;flex-wrap:wrap;gap:14px;}
-  .filter-field{display:flex;flex-direction:column;gap:6px;}
-  .filter-field label{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    color:var(--muted);
-    text-transform:uppercase;
-    letter-spacing:.08em;
-  }
-  .filter-field input, .filter-field select{width:auto;min-width:150px;}
-  .preset-row{display:flex;gap:6px;}
+  .filtro-campo{min-width:130px;}
+  .filtro-campo input,.filtro-campo select{padding:7px 10px;font-size:13px;}
+  .preset-row{display:flex;gap:6px;flex-wrap:wrap;}
   .preset-btn{
-    background:var(--surface-2);
-    border:1px solid var(--line);
-    color:var(--muted);
-    font-family:'IBM Plex Mono',monospace;
-    font-size:10px;
-    padding:5px 9px;
-    border-radius:5px;
-    cursor:pointer;
+    background:var(--surface-2);border:1px solid var(--line);color:var(--muted);
+    border-radius:8px;padding:7px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;
   }
-  .preset-btn:hover{border-color:var(--accent);color:var(--text);}
-  .preset-btn.active{border-color:var(--accent);color:var(--accent-2);}
+  .preset-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .preset-btn.ativo{background:var(--accent-suave);border-color:var(--accent);color:var(--accent);font-weight:600;}
 
-  .kpi-row{
-    display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:14px;
-    margin:16px 0 4px;
-  }
-  .stat-card{
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-left:3px solid var(--accent);
-    border-radius:8px;
-    padding:22px 20px;
-  }
-  .stat-card .label{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    letter-spacing:.08em;
-    text-transform:uppercase;
-    color:var(--muted);
-    margin-bottom:10px;
-  }
-  .stat-card .value{
-    font-family:'IBM Plex Mono',monospace;
-    font-weight:700;
-    font-size:26px;
-    color:var(--accent-2);
-  }
-  @media (max-width:900px){
-    .kpi-row{grid-template-columns:repeat(2,1fr);}
-  }
-
-  .ranking-wrap, .evolucao-wrap{margin-bottom:6px;}
-  .rank-row{
-    display:grid;
-    grid-template-columns:150px 1fr 110px;
-    align-items:center;
-    gap:16px;
-    margin-bottom:16px;
-    font-size:13px;
-  }
-  .rank-row .rname{color:var(--text);font-size:15px;font-weight:600;}
+  /* ---- Ranking ---- */
+  .rank-row{display:grid;grid-template-columns:150px 1fr 118px;gap:14px;align-items:center;margin-bottom:13px;}
+  .rank-row .rname{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* o markup usa <span>, entao precisa de display:block pra altura valer */
   .rank-track{
-    position:relative;
-    height:20px;
-    background:var(--surface-2);
-    border-radius:5px;
-    overflow:hidden;
-    border:1px solid var(--line);
+    display:block;position:relative;height:19px;
+    background:var(--surface-2);border:1px solid var(--line);
+    border-radius:20px;overflow:hidden;
   }
   .rank-fill{
-    display:block;
-    height:100%;
-    background:linear-gradient(90deg, var(--accent), var(--accent-2));
-    border-radius:5px;
-    transition:width .3s ease;
+    display:block;height:100%;border-radius:20px;
+    background:linear-gradient(90deg,var(--accent),#F0A868);
+    transition:width .35s ease;
   }
-  .rank-row .rval{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:12px;
-    font-weight:600;
-    text-align:right;
-    color:var(--text);
-  }
-  .empty-mini{color:var(--muted);font-size:12px;padding:8px 0;}
+  .rank-row .rval{font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;text-align:right;}
+  .empty-mini{color:var(--muted);font-size:12.5px;padding:8px 0;}
 
-  .evolucao-bars{
-    display:flex;
-    align-items:flex-end;
-    gap:8px;
-    height:120px;
-    padding:0 2px;
-  }
-  .evo-col{
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:flex-end;
-    flex:1;
-    height:100%;
-    gap:6px;
-  }
-  .evo-bar{
-    width:100%;
-    max-width:36px;
-    background:linear-gradient(180deg, var(--accent-2), var(--accent));
-    border-radius:4px 4px 0 0;
-    min-height:2px;
-  }
-  .evo-label{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:9px;
-    color:var(--muted);
-    text-align:center;
-  }
-  .evo-val{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:9px;
-    color:var(--accent-2);
-    text-align:center;
-  }
+  /* ---- Evolução ---- */
+  .evolucao-wrap{overflow-x:auto;}
+  .evolucao-bars{display:flex;align-items:flex-end;gap:8px;height:140px;padding:4px 2px 0;min-width:100%;}
+  .evo-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;flex:1;height:100%;gap:5px;min-width:34px;}
+  .evo-bar{width:100%;max-width:40px;border-radius:5px 5px 0 0;background:linear-gradient(180deg,#F0A868,var(--accent));min-height:3px;}
+  .evo-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--muted);text-align:center;}
+  .evo-val{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--accent);text-align:center;}
 
-  table{width:100%;border-collapse:collapse;font-size:13px;}
-  th{
-    text-align:left;
-    font-family:'IBM Plex Mono',monospace;
-    font-size:10px;
-    letter-spacing:.1em;
-    text-transform:uppercase;
-    color:var(--muted);
-    border-bottom:1px solid var(--line);
-    padding:6px 10px;
+  /* ---- Tabela resumo ---- */
+  .detalhe-row td{background:var(--surface-2);}
+  .detalhe-wrap{padding:6px 2px 10px;}
+  .expandir-btn{
+    background:none;border:1px solid var(--line);color:var(--muted);
+    border-radius:6px;padding:2px 8px;font-size:11px;cursor:pointer;font-family:inherit;
   }
-  td{
-    padding:8px 10px;
-    border-bottom:1px solid var(--line);
-    font-family:'IBM Plex Mono',monospace;
-  }
-  td.nome-col{font-family:'Inter',sans-serif;font-weight:600;}
-  tr.vendedor-row{cursor:pointer;}
-  tr.vendedor-row:hover{background:var(--surface-2);}
-  tr.detalhe-row{display:none;background:#0F1216;}
-  tr.detalhe-row.show{display:table-row;}
-  tr.detalhe-row td{border-bottom:1px solid var(--line);padding:0;}
-  .detalhe-wrap{padding:10px 14px;}
-  .detalhe-wrap table{font-size:12px;}
-  .detalhe-wrap th, .detalhe-wrap td{padding:4px 8px;}
-  .empty-hist{color:var(--muted);font-size:12px;padding:14px 0;}
-  tfoot td{
-    font-weight:700;
-    border-bottom:none;
-    border-top:2px solid var(--line);
-    color:var(--accent-2);
-  }
-
-  .actions-row{display:flex;gap:10px;margin:14px 0 4px;}
-  .small-btn{
-    background:var(--surface-2);
-    border:1px solid var(--line);
-    color:var(--text);
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    padding:7px 12px;
-    border-radius:6px;
-    cursor:pointer;
-  }
-  .small-btn:hover{border-color:var(--accent);}
-
-  .vendedores-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
-  .vendedor-form .field{margin-bottom:12px;}
-  .add-btn{
-    background:var(--accent);
-    color:#151719;
-    border:none;
-    font-family:'Oswald',sans-serif;
-    text-transform:uppercase;
-    letter-spacing:.05em;
-    font-weight:600;
-    font-size:12px;
-    padding:9px 18px;
-    border-radius:6px;
-    cursor:pointer;
-  }
-  .add-btn:hover{background:#ff7f52;}
-  .vendedor-item{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    background:#0F1216;
-    border:1px solid var(--line);
-    border-radius:6px;
-    padding:9px 12px;
-    margin-bottom:8px;
-  }
-  .vendedor-item .info{font-size:13px;}
-  .vendedor-item .info .pct{color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;}
-  .vendedor-item .item-actions{display:flex;gap:8px;}
-  .overrides-editor{
-    background:#0F1216;
-    border:1px solid var(--line);
-    border-radius:6px;
-    padding:10px 12px;
-    margin-bottom:12px;
-  }
-  .override-row{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    padding:4px 0;
-  }
-  .override-row span{font-size:12px;color:var(--muted);}
-  .override-row input{width:70px;padding:5px 6px;font-size:12px;}
-  .override-empty{color:var(--muted);font-size:11px;}
-  .bonus-note{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:10px;
-    color:var(--muted);
-  }
-  .override-breakdown{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    color:var(--muted);
-    padding:6px 14px 0;
-  }
-  .override-breakdown div{padding:2px 0;}
-  .confirm-ok{color:var(--good);font-family:'IBM Plex Mono',monospace;font-size:11px;}
-  .confirm-pendente{color:var(--bad);font-family:'IBM Plex Mono',monospace;font-size:11px;}
-  .confirm-na{color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:11px;}
-  .fechamento-status{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:13px;
-    font-weight:600;
-    letter-spacing:.04em;
-    text-transform:uppercase;
-  }
-  .fechamento-nota{font-size:11px;color:var(--muted);margin:10px 0 0;line-height:1.5;}
-  tr.venda-suspeita td{background:rgba(224,91,91,.08);}
+  .expandir-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .confirm-ok{color:var(--good);font-size:11.5px;}
+  .confirm-pendente{color:var(--warn);font-size:11.5px;}
+  .confirm-na{color:var(--muted);}
   .suspeita-marca{
-    color:var(--bad);
-    font-family:'IBM Plex Mono',monospace;
-    font-size:10px;
-    margin-left:6px;
+    display:inline-block;font-size:9px;text-transform:uppercase;letter-spacing:.04em;
+    color:var(--warn);border:1px solid var(--warn);border-radius:4px;padding:1px 5px;margin-left:7px;
   }
-  .status{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    color:var(--good);
-    opacity:0;
-    transition:opacity .3s;
-    display:block;
-    margin-top:8px;
-  }
-  .status.show{opacity:1;}
-  .status.err{color:var(--bad);}
+  .venda-suspeita td{background:var(--warn-suave);}
 
-  @media (max-width:800px){
-    .vendedores-grid{grid-template-columns:1fr;}
+  /* ---- Vendedores / metas ---- */
+  .vendedor-item{
+    display:flex;align-items:center;gap:12px;justify-content:space-between;
+    padding:11px 13px;border:1px solid var(--line);border-radius:10px;
+    background:var(--surface-2);margin-bottom:8px;flex-wrap:wrap;
   }
-
-  .metas-subtitulo{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    color:var(--muted);
-    text-transform:uppercase;
-    letter-spacing:.08em;
-    margin:14px 0 8px;
-  }
-  .metas-subtitulo:first-child{margin-top:0;}
-  .metas-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:6px;}
-  .metas-vendedor-row{
-    display:grid;
-    grid-template-columns:110px repeat(3,1fr);
-    gap:8px;
-    align-items:center;
-    margin-bottom:8px;
-  }
-  .metas-vendedor-row .nome{font-size:12px;color:var(--text);}
-  .metas-vendedor-row input{padding:6px 8px;font-size:12px;}
-  .vendedor-item .foto-thumb{
-    width:32px;
-    height:32px;
-    border-radius:50%;
-    object-fit:cover;
-    margin-right:8px;
-    border:1px solid var(--line);
-    vertical-align:middle;
+  .vendedor-item .info{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:600;}
+  .vendedor-item .pct{color:var(--muted);font-weight:400;font-size:12px;}
+  .foto-thumb{width:32px;height:32px;border-radius:50%;object-fit:cover;}
+  .item-actions{display:flex;gap:6px;flex-wrap:wrap;}
+  .item-actions .btn{padding:5px 10px;font-size:12px;}
+  .override-line{display:flex;align-items:center;gap:10px;margin-bottom:7px;}
+  .override-line span{flex:1;font-size:13px;}
+  .override-pct{width:88px;}
+  .devolucao-badge{
+    display:inline-block;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--good);border:1px solid var(--good);border-radius:4px;padding:1px 6px;margin-left:6px;
   }
 
-  footer{
-    margin-top:24px;
-    color:var(--muted);
-    font-size:10px;
-    font-family:'IBM Plex Mono',monospace;
-    text-align:center;
-  }
+  .fechamento-status{font-size:12.5px;}
+  .fechamento-status.aberto{color:var(--good);}
+  .fechamento-status.fechado{color:var(--bad);}
+  .fechamento-nota{font-size:11.5px;color:var(--muted);margin:12px 0 0;}
+
+  .status-msg{font-size:12.5px;margin-top:10px;min-height:16px;color:var(--good);display:none;}
+  .status-msg.show{display:block;}
+  .status-msg.err{color:var(--bad);}
+
+  .campo{margin-bottom:13px;}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
+  .metas-linha{display:grid;grid-template-columns:1fr repeat(3,minmax(110px,1fr));gap:10px;align-items:end;margin-bottom:10px;}
+  .metas-linha .nome{font-size:13.5px;font-weight:600;}
+  @media (max-width:700px){.grid-2{grid-template-columns:1fr;}}
+  .tabela-rolante{overflow-x:auto;}
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <header>
-    <div class="brand-row">
-      <div class="logo-badge"><img src="logo.png" alt="Nevada Eco Peças"></div>
-      <h1>Área do Gestor</h1>
+<!-- ================= LOGIN ================= -->
+<div class="tela-login" id="telaLogin">
+  <div class="login-caixa">
+    <div class="login-marca">
+      <img src="/logo.png" alt="Nevada Eco Peças" onerror="this.style.display='none'">
+      <div class="txt">Área do<br><span>Gestor</span></div>
     </div>
-    <div style="display:flex;align-items:center;gap:14px;">
-      <button class="eye-toggle-btn" id="toggleValoresBtn" title="Mostrar/ocultar valores" aria-label="Mostrar/ocultar valores"></button>
-      <div id="topActions">
-        <a class="link-btn" href="/painel.html" target="_blank">Painel de ranking</a>
-        <a class="link-btn" id="expedicaoLink" href="#" target="_blank" style="margin-left:14px;">Painel de expedição</a>
-        <a class="link-btn" href="/" style="margin-left:14px;">Voltar ao portal</a>
+
+    <div class="card" id="loginCard">
+      <p class="card-titulo">Entrar como gestor</p>
+      <div class="campo">
+        <label class="campo-rotulo" for="senhaInput">Senha</label>
+        <input type="password" id="senhaInput" autocomplete="current-password">
+      </div>
+      <button class="btn btn-principal" id="loginBtn" style="width:100%;">Entrar</button>
+      <div class="error-msg" id="loginError"></div>
+      <button class="perfil-sair" id="esqueciSenhaBtn" style="margin-top:2px;">Esqueci a senha</button>
+    </div>
+
+    <div class="card" id="recuperarCard" style="display:none;margin-top:12px;">
+      <p class="card-titulo">Redefinir senha do gestor</p>
+      <div class="campo">
+        <label class="campo-rotulo" for="recuperarCodigoInput">Código de recuperação</label>
+        <input type="text" id="recuperarCodigoInput" placeholder="Ex: 02140214">
+      </div>
+      <div class="campo">
+        <label class="campo-rotulo" for="recuperarNovaSenhaInput">Nova senha</label>
+        <input type="password" id="recuperarNovaSenhaInput" autocomplete="new-password">
+      </div>
+      <div style="display:flex;gap:9px;">
+        <button class="btn btn-principal" id="recuperarBtn" style="flex:1;">Redefinir senha</button>
+        <button class="btn btn-neutro" id="cancelarRecuperarBtn">Voltar</button>
+      </div>
+      <div class="error-msg" id="recuperarError"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= APLICAÇÃO ================= -->
+<div class="app-shell oculto" id="appShell">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="conteudo">
+    <div class="topo">
+      <button class="menu-abrir" id="menuAbrirBtn" title="Menu"></button>
+      <h1 id="tituloSecao">Painel</h1>
+      <div class="topo-acoes">
+        <button class="btn btn-neutro btn-pequeno" id="exportBtn">Exportar CSV</button>
+        <button class="olho-btn" id="toggleValoresBtn" title="Mostrar/ocultar valores"></button>
       </div>
     </div>
-  </header>
 
-  <div id="loginCard" class="card">
-    <p class="section-title">Entrar como gestor</p>
-    <div class="field">
-      <label for="senhaInput">Senha</label>
-      <input type="password" id="senhaInput" autocomplete="current-password">
-    </div>
-    <button class="primary-btn" id="loginBtn">Entrar</button>
-    <div class="error-msg" id="loginError"></div>
-    <button class="link-btn" id="esqueciSenhaBtn" style="margin-top:12px;">Esqueci a senha</button>
-  </div>
-
-  <div id="recuperarCard" class="card" style="display:none;">
-    <p class="section-title">Redefinir senha do gestor</p>
-    <div class="field">
-      <label for="recuperarCodigoInput">Código de recuperação</label>
-      <input type="text" id="recuperarCodigoInput" placeholder="Ex: 02140214">
-    </div>
-    <div class="field">
-      <label for="recuperarNovaSenhaInput">Nova senha</label>
-      <input type="password" id="recuperarNovaSenhaInput" autocomplete="new-password">
-    </div>
-    <button class="primary-btn" id="recuperarBtn">Redefinir senha</button>
-    <div class="error-msg" id="recuperarError"></div>
-    <button class="link-btn" id="cancelarRecuperarBtn" style="margin-top:12px;">Voltar pro login</button>
-  </div>
-
-  <div id="appSection">
-
-    <div class="top-row">
-      <div class="filters-row">
-        <div class="filter-field">
-          <label for="vendedorFiltro">Vendedor</label>
+    <!-- ---------- PAINEL ---------- -->
+    <section id="secPainel">
+      <div class="filtros">
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="vendedorFiltro">Vendedor</label>
           <select id="vendedorFiltro"><option value="">Todos</option></select>
         </div>
-        <div class="filter-field">
-          <label for="deInput">De</label>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="deInput">De</label>
           <input type="date" id="deInput">
         </div>
-        <div class="filter-field">
-          <label for="ateInput">Até</label>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="ateInput">Até</label>
           <input type="date" id="ateInput">
         </div>
         <div class="preset-row">
@@ -547,187 +196,160 @@
         </div>
         <div class="preset-row" id="presetMesesAnterioresRow"></div>
       </div>
-      <div class="actions-row" style="margin:0;">
-        <button class="small-btn" id="exportBtn">Exportar CSV</button>
-        <button class="link-btn" id="logoutBtn">Sair</button>
-      </div>
-    </div>
 
-    <div class="kpi-row">
-      <div class="stat-card">
-        <div class="label">Total vendido</div>
-        <div class="value valor-money" id="totalGeralValue">R$ 0,00</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Comissões a receber</div>
-        <div class="value valor-money" id="comissaoGeralValue">R$ 0,00</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Qtd. vendas</div>
-        <div class="value" id="qtdVendasValue">0</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Ticket médio</div>
-        <div class="value valor-money" id="ticketMedioValue">R$ 0,00</div>
-      </div>
-    </div>
+      <div class="kpi-grid" id="kpiGrid"></div>
 
-    <p class="section-title">Ranking por vendedor</p>
-    <div class="ranking-wrap" id="rankingWrap"></div>
-
-    <p class="section-title">Evolução de vendas no período</p>
-    <div class="evolucao-wrap" id="evolucaoWrap"></div>
-
-    <p class="section-title">Resumo por vendedor</p>
-    <table>
-      <thead>
-        <tr><th>Vendedor</th><th>Vendas</th><th>Total vendido</th><th>%</th><th>Comissão</th><th>Bônus</th><th>Confirmação</th></tr>
-      </thead>
-      <tbody id="resumoBody"></tbody>
-      <tfoot>
-        <tr><td colspan="2"></td><td id="footTotal" class="valor-money">R$ 0,00</td><td></td><td id="footComissao" class="valor-money">R$ 0,00</td><td></td><td></td></tr>
-      </tfoot>
-    </table>
-    <div class="empty-hist" id="emptyResumo" style="display:none;">Nenhum vendedor cadastrado ainda.</div>
-
-    <p class="section-title">Fechamento de mês</p>
-    <div class="card" style="max-width:420px;margin-bottom:26px;">
-      <div class="field">
-        <label for="fechamentoMesInput">Mês</label>
-        <input type="month" id="fechamentoMesInput">
+      <div class="card" style="margin-bottom:14px;">
+        <p class="card-titulo">Ranking por vendedor</p>
+        <div id="rankingWrap"></div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-        <span id="fechamentoStatus" class="fechamento-status"></span>
-        <button class="small-btn" id="fechamentoToggleBtn">...</button>
-        <button class="small-btn" id="fechamentoExportBtn">Exportar CSV</button>
-      </div>
-      <p class="fechamento-nota">Depois de fechado, nenhum vendedor consegue lançar, editar ou excluir vendas desse mês. Só você pode reabrir.</p>
-    </div>
 
-    <details class="log-collapse">
-      <summary>Log de acessos</summary>
-      <div class="log-body">
-        <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;">
+      <div class="card" style="margin-bottom:14px;">
+        <p class="card-titulo">Evolução de vendas no período</p>
+        <div class="evolucao-wrap" id="evolucaoWrap"></div>
+      </div>
+
+      <div class="card">
+        <p class="card-titulo">Resumo por vendedor</p>
+        <div class="tabela-rolante">
           <table>
             <thead>
-              <tr><th>Quando</th><th>Quem</th><th>Resultado</th><th>IP</th></tr>
+              <tr><th>Vendedor</th><th>Vendas</th><th>Total vendido</th><th>%</th><th>Comissão</th><th>Bônus</th><th>Confirmação</th></tr>
             </thead>
-            <tbody id="logAcessosBody"></tbody>
+            <tbody id="resumoBody"></tbody>
+            <tfoot>
+              <tr><td colspan="2"></td><td id="footTotal" class="valor-money">R$ 0,00</td><td></td><td id="footComissao" class="valor-money">R$ 0,00</td><td></td><td></td></tr>
+            </tfoot>
           </table>
         </div>
-        <div class="empty-hist" id="emptyLog" style="display:none;">Nenhum acesso registrado ainda.</div>
+        <div class="vazio" id="emptyResumo" style="display:none;">Nenhum vendedor cadastrado ainda.</div>
       </div>
-    </details>
+    </section>
 
-    <details class="log-collapse">
-      <summary>Log de ações (edições, exclusões e devoluções)</summary>
-      <div class="log-body">
-        <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;">
-          <table>
-            <thead>
-              <tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Produto</th><th>Valor</th><th>Detalhe</th></tr>
-            </thead>
-            <tbody id="logAcoesBody"></tbody>
-          </table>
+    <!-- ---------- FECHAMENTO ---------- -->
+    <section id="secFechamento" class="oculto">
+      <div class="card" style="max-width:460px;">
+        <p class="card-titulo">Fechamento de mês</p>
+        <div class="campo">
+          <label class="campo-rotulo" for="fechamentoMesInput">Mês</label>
+          <input type="month" id="fechamentoMesInput">
         </div>
-        <div class="empty-hist" id="emptyLogAcoes" style="display:none;">Nenhuma ação registrada ainda.</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span id="fechamentoStatus" class="fechamento-status"></span>
+          <button class="btn btn-neutro btn-pequeno" id="fechamentoToggleBtn">...</button>
+          <button class="btn btn-neutro btn-pequeno" id="fechamentoExportBtn">Exportar CSV</button>
+        </div>
+        <p class="fechamento-nota">Depois de fechado, nenhum vendedor consegue lançar, editar ou excluir vendas desse mês. Só você pode reabrir.</p>
       </div>
-    </details>
+    </section>
 
-    <details class="log-collapse">
-      <summary>Retomada — como o time está trabalhando a fila</summary>
-      <div class="log-body">
-        <p class="fechamento-nota" id="retomadaPeriodo" style="margin-top:0;"></p>
-        <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;">
+    <!-- ---------- RETOMADA ---------- -->
+    <section id="secRetomada" class="oculto">
+      <div class="card">
+        <p class="card-titulo">Retomada — como o time está trabalhando a fila</p>
+        <p class="fechamento-nota" id="retomadaPeriodo" style="margin:0 0 12px;"></p>
+        <div class="tabela-rolante">
           <table>
             <thead>
-              <tr>
-                <th>Vendedor</th><th>Fila</th><th>A chamar</th><th>Chamou</th>
-                <th>Responderam</th><th>Fecharam</th><th>Descartou</th>
-                <th>% da fila</th><th>% resposta</th>
-              </tr>
+              <tr><th>Vendedor</th><th>Total</th><th>A chamar</th><th>Chamei</th><th>Responderam</th><th>Fecharam</th><th>Não rolou</th></tr>
             </thead>
             <tbody id="retomadaBody"></tbody>
           </table>
         </div>
-        <div class="empty-hist" id="emptyRetomada" style="display:none;">Nenhuma fila de retomada foi sincronizada ainda.</div>
-        <p class="fechamento-nota">
-          <strong>% da fila</strong> é quanto da lista ele já percorreu.
-          <strong>% resposta</strong> é, entre os que ele chamou, quantos deram sinal de vida
-          (responderam ou fecharam) — essa é a que mede a abordagem; a outra mede só o ritmo.
-        </p>
+        <div class="vazio" id="emptyRetomada" style="display:none;">Nenhuma fila de retomada foi sincronizada ainda.</div>
       </div>
-    </details>
+    </section>
 
-    <details class="log-collapse">
-      <summary>Metas de vendas</summary>
-      <div class="log-body">
-        <div class="card" style="margin-bottom:26px;">
-          <p class="metas-subtitulo">Grupo</p>
-          <div class="metas-grid-3">
-            <div class="field"><label for="metaGrupoDiaria">Diária (R$)</label><input type="number" id="metaGrupoDiaria" min="0" step="0.01"></div>
-            <div class="field"><label for="metaGrupoSemanal">Semanal (R$)</label><input type="number" id="metaGrupoSemanal" min="0" step="0.01"></div>
-            <div class="field"><label for="metaGrupoMensal">Mensal (R$)</label><input type="number" id="metaGrupoMensal" min="0" step="0.01"></div>
-          </div>
-          <p class="metas-subtitulo">Por vendedor</p>
-          <div id="metasVendedoresList"></div>
-          <button class="add-btn" id="salvarMetasBtn">Salvar metas</button>
-          <div class="status" id="metasStatus"></div>
+    <!-- ---------- METAS ---------- -->
+    <section id="secMetas" class="oculto">
+      <div class="card">
+        <p class="card-titulo">Meta do grupo</p>
+        <div class="grid-3">
+          <div class="campo"><label class="campo-rotulo" for="metaGrupoDiaria">Diária (R$)</label><input type="number" id="metaGrupoDiaria" min="0" step="0.01"></div>
+          <div class="campo"><label class="campo-rotulo" for="metaGrupoSemanal">Semanal (R$)</label><input type="number" id="metaGrupoSemanal" min="0" step="0.01"></div>
+          <div class="campo"><label class="campo-rotulo" for="metaGrupoMensal">Mensal (R$)</label><input type="number" id="metaGrupoMensal" min="0" step="0.01"></div>
+        </div>
+        <p class="card-titulo" style="margin:8px 0 12px;">Por vendedor</p>
+        <div id="metasVendedoresList"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap;">
+          <button class="btn btn-principal btn-pequeno" id="salvarMetasBtn">Salvar metas</button>
+          <span class="status-msg" id="metasStatus"></span>
         </div>
       </div>
-    </details>
+    </section>
 
-    <details class="log-collapse">
-      <summary>Vendedores</summary>
-      <div class="log-body">
-        <div class="vendedores-grid">
-          <div>
-            <div class="card vendedor-form">
-              <div class="field">
-                <label for="vIdInput">Identificador (login)</label>
-                <input type="text" id="vIdInput" placeholder="ex: joao">
-              </div>
-              <div class="field">
-                <label for="vNomeInput">Nome</label>
-                <input type="text" id="vNomeInput" placeholder="ex: João Silva">
-              </div>
-              <div class="field">
-                <label for="vSenhaInput">Senha (deixe em branco para manter a atual)</label>
-                <input type="password" id="vSenhaInput">
-              </div>
-              <div class="field">
-                <label for="vCodigoRecuperacaoInput">Código de recuperação (opcional, pelo menos 6 caracteres — deixe em branco pra manter o atual)</label>
-                <input type="text" id="vCodigoRecuperacaoInput" placeholder="Ex: 02140214">
-              </div>
-              <div class="field">
-                <label for="vFotoInput">Foto (opcional, JPG/PNG/WEBP)</label>
-                <input type="file" id="vFotoInput" accept="image/png,image/jpeg,image/webp">
-              </div>
-              <div class="field">
-                <label for="vPercentualInput">Percentual de comissão sobre vendas próprias (%)</label>
-                <input type="number" id="vPercentualInput" min="0" max="100" step="0.1" placeholder="ex: 3">
-              </div>
-              <div class="field">
-                <label>Comissão sobre vendas de outros vendedores (opcional)</label>
-                <div class="overrides-editor" id="overridesEditor">
-                  <div class="override-empty">Cadastre outros vendedores primeiro.</div>
-                </div>
-              </div>
-              <button class="add-btn" id="salvarVendedorBtn">Salvar vendedor</button>
-              <div class="status" id="vendedorStatus"></div>
-            </div>
+    <!-- ---------- VENDEDORES ---------- -->
+    <section id="secVendedores" class="oculto">
+      <div class="card" style="margin-bottom:14px;">
+        <p class="card-titulo">Cadastrar / editar vendedor</p>
+        <div class="grid-2">
+          <div class="campo">
+            <label class="campo-rotulo" for="vIdInput">Usuário (sem espaços)</label>
+            <input type="text" id="vIdInput" placeholder="ex: joao">
           </div>
-          <div>
-            <div id="vendedoresList"></div>
+          <div class="campo">
+            <label class="campo-rotulo" for="vNomeInput">Nome</label>
+            <input type="text" id="vNomeInput" placeholder="ex: João Silva">
+          </div>
+          <div class="campo">
+            <label class="campo-rotulo" for="vSenhaInput">Senha (deixe vazio pra manter)</label>
+            <input type="password" id="vSenhaInput">
+          </div>
+          <div class="campo">
+            <label class="campo-rotulo" for="vCodigoRecuperacaoInput">Código de recuperação (opcional)</label>
+            <input type="text" id="vCodigoRecuperacaoInput" placeholder="mín. 6 caracteres">
+          </div>
+          <div class="campo">
+            <label class="campo-rotulo" for="vPercentualInput">Percentual próprio (%)</label>
+            <input type="number" id="vPercentualInput" min="0" max="100" step="0.01" value="1">
+          </div>
+          <div class="campo">
+            <label class="campo-rotulo" for="vFotoInput">Foto</label>
+            <input type="file" id="vFotoInput" accept="image/*">
           </div>
         </div>
+        <p class="card-titulo" style="margin:6px 0 10px;">Comissão sobre outros vendedores</p>
+        <div id="overridesEditor"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;">
+          <button class="btn btn-principal btn-pequeno" id="salvarVendedorBtn">Salvar vendedor</button>
+          <span class="status-msg" id="vendedorStatus"></span>
+        </div>
       </div>
-    </details>
-  </div>
 
-  <footer>Nevada Eco Peças &middot; Os dados ficam salvos neste computador.</footer>
+      <div class="card">
+        <p class="card-titulo">Vendedores cadastrados</p>
+        <div id="vendedoresList"></div>
+      </div>
+    </section>
+
+    <!-- ---------- REGISTROS ---------- -->
+    <section id="secRegistros" class="oculto">
+      <div class="card" style="margin-bottom:14px;">
+        <p class="card-titulo">Log de acessos</p>
+        <div class="tabela-rolante">
+          <table>
+            <thead><tr><th>Quando</th><th>Quem</th><th>Resultado</th><th>IP</th></tr></thead>
+            <tbody id="logAcessosBody"></tbody>
+          </table>
+        </div>
+        <div class="vazio" id="emptyLog" style="display:none;">Nenhum acesso registrado ainda.</div>
+      </div>
+
+      <div class="card">
+        <p class="card-titulo">Log de ações (edições, exclusões e devoluções)</p>
+        <div class="tabela-rolante">
+          <table>
+            <thead><tr><th>Quando</th><th>Vendedor</th><th>Ação</th><th>Produto</th><th>Valor</th><th>Detalhe</th></tr></thead>
+            <tbody id="logAcoesBody"></tbody>
+          </table>
+        </div>
+        <div class="vazio" id="emptyLogAcoes" style="display:none;">Nenhuma ação registrada ainda.</div>
+      </div>
+    </section>
+  </main>
 </div>
 
+<script src="/portal-nav.js"></script>
 <script>
 function fmtMoeda(v){
   return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
@@ -767,6 +389,7 @@ async function tentarSessao(){
       mostrarApp();
     }
   }catch(e){ /* segue deslogado */ }
+  if(!document.getElementById('appShell') || document.getElementById('appShell').classList.contains('oculto')) mostrarLogin();
 }
 
 function primeiroDiaMes(){
@@ -774,9 +397,18 @@ function primeiroDiaMes(){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
 }
 
+function mostrarLogin(){
+  document.getElementById('telaLogin').classList.remove('oculto');
+  document.getElementById('appShell').classList.add('oculto');
+}
+
 function mostrarApp(){
-  document.getElementById('loginCard').style.display = 'none';
-  document.getElementById('appSection').style.display = 'block';
+  document.getElementById('telaLogin').classList.add('oculto');
+  document.getElementById('appShell').classList.remove('oculto');
+  montarSidebar(secaoAtual, {aoSair: sairDoGestor, portal: 'gestor'});
+  preencherPerfil('Gestor', null);
+  montarKpisGestor();
+  irParaSecao(secaoAtual);
   document.getElementById('deInput').value = primeiroDiaMes();
   document.getElementById('ateInput').value = todayStr();
   document.getElementById('fechamentoMesInput').value = todayStr().slice(0,7);
@@ -1109,12 +741,11 @@ document.getElementById('recuperarBtn').addEventListener('click', async () => {
   }
 });
 
-document.getElementById('logoutBtn').addEventListener('click', async () => {
+async function sairDoGestor(){
   await fetch('/api/admin/logout', {method:'POST'});
-  document.getElementById('appSection').style.display = 'none';
-  document.getElementById('loginCard').style.display = 'block';
   document.getElementById('senhaInput').value = '';
-});
+  mostrarLogin();
+}
 
 function renderConfirmacaoCelula(confirmadoEm){
   if(!resumoAtual.mes_unico) return '<span class="confirm-na">—</span>';
@@ -1141,23 +772,34 @@ function renderRanking(vendedores){
   `).join('');
 }
 
-function renderEvolucao(serie){
+const NOMES_MES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+// Num periodo dentro de um mes so, mostra o dia a dia; em periodos maiores,
+// agrupa por mes (senao viraria uma barra unica, que nao diz nada).
+function renderEvolucao(){
   const wrap = document.getElementById('evolucaoWrap');
-  if(!serie || serie.length === 0){
+  const diaria = resumoAtual.serie_diaria || [];
+  const serie = diaria.length ? diaria : (resumoAtual.serie_mensal || []);
+  const porDia = diaria.length > 0;
+
+  if(serie.length === 0){
     wrap.innerHTML = '<div class="empty-mini">Sem dados no período.</div>';
     return;
   }
   const max = Math.max(...serie.map(s => s.total_vendido), 1);
-  const nomesMes = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   wrap.innerHTML = `<div class="evolucao-bars">${serie.map(s => {
-    const [y,m] = s.mes.split('-');
-    const alt = s.total_vendido >= 1000 ? fmtMoeda(s.total_vendido/1000).replace(/ /,'') + 'k' : fmtMoeda(s.total_vendido);
-    const pct = Math.max(2, (s.total_vendido/max*100));
+    const pct = Math.max(2, (s.total_vendido / max * 100));
+    const rotulo = porDia
+      ? s.data.slice(8,10) + '/' + s.data.slice(5,7)
+      : NOMES_MES[parseInt(s.mes.split('-')[1],10)] + '/' + s.mes.split('-')[0].slice(2);
+    const valor = s.total_vendido >= 1000
+      ? (s.total_vendido/1000).toFixed(1) + 'k'
+      : Math.round(s.total_vendido);
     return `
-      <div class="evo-col">
-        <span class="evo-val valor-money">${(s.total_vendido/1000).toFixed(1)}k</span>
+      <div class="evo-col" title="${rotulo} — ${fmtMoeda(s.total_vendido)}">
+        <span class="evo-val valor-money">${valor}</span>
         <div class="evo-bar" style="height:${pct}%"></div>
-        <span class="evo-label">${nomesMes[parseInt(m,10)]}/${y.slice(2)}</span>
+        <span class="evo-label">${rotulo}</span>
       </div>
     `;
   }).join('')}</div>`;
@@ -1170,7 +812,7 @@ async function carregarResumo(){
   const params = new URLSearchParams({de, ate});
   if(vendedorId) params.set('vendedor_id', vendedorId);
   const res = await fetch('/api/admin/resumo?' + params.toString());
-  if(res.status === 401){ document.getElementById('logoutBtn').click(); return; }
+  if(res.status === 401){ sairDoGestor(); return; }
   resumoAtual = await res.json();
 
   document.getElementById('totalGeralValue').textContent = fmtMoeda(resumoAtual.total_geral);
@@ -1181,7 +823,7 @@ async function carregarResumo(){
   document.getElementById('footComissao').textContent = fmtMoeda(resumoAtual.comissao_geral);
 
   renderRanking(resumoAtual.vendedores);
-  renderEvolucao(resumoAtual.serie_mensal);
+  renderEvolucao();
 
   const body = document.getElementById('resumoBody');
   const empty = document.getElementById('emptyResumo');
@@ -1439,9 +1081,68 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
   }
 });
 
-document.getElementById('expedicaoLink').href = location.hostname.endsWith('.onrender.com')
-  ? 'https://nevada-expedicao.onrender.com'
-  : `http://${location.hostname}:8000`;
+
+/* ---------- indicadores do topo ---------- */
+const ICG = {
+  dinheiro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  comissao: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 8h6v6"/></svg>',
+  carrinho: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 12.4a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 2-1.6L21 7H6"/></svg>',
+  etiqueta: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11V4h7l10 10-7 7z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg>',
+};
+
+// O resumo antigo escrevia direto em ids fixos; agora os cartoes sao montados
+// aqui, entao mantemos os mesmos ids pra nao mexer no resto do script.
+function montarKpisGestor(){
+  const grid = document.getElementById('kpiGrid');
+  if(grid.children.length) return;
+  const cartao = (rotulo, id, icone, cor, money) =>
+    '<div class="kpi"><div class="icone ' + cor + '">' + icone + '</div>'
+    + '<div class="rotulo">' + rotulo + '</div>'
+    + '<div class="numero' + (money ? ' valor-money' : '') + '" id="' + id + '">'
+    + (money ? 'R$ 0,00' : '0') + '</div></div>';
+  grid.innerHTML =
+      cartao('Total vendido', 'totalGeralValue', ICG.dinheiro, 'i-laranja', true)
+    + cartao('Comissões a receber', 'comissaoGeralValue', ICG.comissao, 'i-verde', true)
+    + cartao('Qtd. vendas', 'qtdVendasValue', ICG.carrinho, 'i-azul', false)
+    + cartao('Ticket médio', 'ticketMedioValue', ICG.etiqueta, 'i-roxo', true);
+}
+
+/* ---------- troca de seção ---------- */
+const SECOES = {
+  painel:     {titulo: 'Painel',            el: 'secPainel'},
+  fechamento: {titulo: 'Fechamento de mês', el: 'secFechamento'},
+  retomada:   {titulo: 'Retomada do time',  el: 'secRetomada'},
+  metas:      {titulo: 'Metas',             el: 'secMetas'},
+  vendedores: {titulo: 'Vendedores',        el: 'secVendedores'},
+  registros:  {titulo: 'Registros',         el: 'secRegistros'},
+};
+
+let secaoAtual = (location.hash || '#painel').replace('#','');
+if(!SECOES[secaoAtual]) secaoAtual = 'painel';
+
+function irParaSecao(chave){
+  if(!SECOES[chave]) chave = 'painel';
+  secaoAtual = chave;
+  Object.entries(SECOES).forEach(([k, cfg]) => {
+    document.getElementById(cfg.el).classList.toggle('oculto', k !== chave);
+  });
+  document.getElementById('tituloSecao').textContent = SECOES[chave].titulo;
+  document.querySelectorAll('.nav-item[data-nav]').forEach(a => {
+    a.classList.toggle('ativo', a.dataset.nav === chave);
+  });
+  // Exportar CSV e o olho só fazem sentido no painel
+  document.getElementById('exportBtn').style.display = chave === 'painel' ? '' : 'none';
+  if(location.hash !== '#' + chave) history.replaceState({}, '', '#' + chave);
+  fecharMenu();
+}
+
+window.addEventListener('hashchange', () => {
+  irParaSecao((location.hash || '#painel').replace('#',''));
+});
+
+document.getElementById('menuAbrirBtn').innerHTML = ICONES.menu;
+document.getElementById('menuAbrirBtn').addEventListener('click', abrirMenu);
+
 tentarSessao();
 </script>
 </body>

@@ -1459,6 +1459,7 @@ def api_admin_resumo():
     comissao_geral = 0.0
     qtd_vendas_geral = 0
     serie_por_mes = {}
+    serie_por_dia = {}
 
     for vid in sorted(ids_alvo, key=lambda x: vendedores[x]["nome"]):
         info = vendedores[vid]
@@ -1470,6 +1471,7 @@ def api_admin_resumo():
         for v in lista_vendas:
             chave = v["data"][:7]
             serie_por_mes[chave] = serie_por_mes.get(chave, 0.0) + valor_liquido(v)
+            serie_por_dia[v["data"]] = serie_por_dia.get(v["data"], 0.0) + valor_liquido(v)
 
         calc = calcular_comissao(vid, de, ate, vendedores, vendas)
         total_geral += calc["total_vendido"]
@@ -1500,6 +1502,12 @@ def api_admin_resumo():
         {"mes": mes, "total_vendido": round(valor, 2)}
         for mes, valor in sorted(serie_por_mes.items())
     ]
+    # Num periodo dentro de um mes so, o grafico por mes vira uma barra unica e
+    # nao diz nada — nesse caso mandamos o dia a dia.
+    serie_diaria = [
+        {"data": dia, "total_vendido": round(valor, 2)}
+        for dia, valor in sorted(serie_por_dia.items())
+    ] if mes_unico else []
     ticket_medio = round(total_geral / qtd_vendas_geral, 2) if qtd_vendas_geral else 0.0
 
     return jsonify({
@@ -1513,6 +1521,7 @@ def api_admin_resumo():
         "qtd_vendas_geral": qtd_vendas_geral,
         "ticket_medio": ticket_medio,
         "serie_mensal": serie_mensal,
+        "serie_diaria": serie_diaria,
     })
 
 

@@ -1,10 +1,10 @@
 /* ============================================================
-   Menu lateral do Portal do Vendedor.
-   Incluido por index.html, simulador.html e retomada.html — as tres telas
-   montam o mesmo menu a partir daqui, entao mexer numa so muda em todas.
+   Menu lateral compartilhado.
+   Usado pelas telas do vendedor (index, simulador, retomada) e pela do
+   gestor (admin) — mexer aqui muda em todas.
 
-   Uso: <div id="sidebar"></div> + montarSidebar('painel')
-   onde o argumento e a chave do item que deve ficar destacado.
+   Uso: <aside id="sidebar"></aside> + montarSidebar('painel')
+   e, na area do gestor, montarSidebar('painel', {portal:'gestor'}).
    ============================================================ */
 
 const ICONES = {
@@ -14,20 +14,43 @@ const ICONES = {
   retomada: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 20.5l1.5-4.4A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/></svg>',
   ranking: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>',
   expedicao: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h11v9H2z"/><path d="M13 11h4l3 3v3h-7z"/><circle cx="6" cy="18.5" r="1.7"/><circle cx="17" cy="18.5" r="1.7"/></svg>',
+  fechamento: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>',
+  metas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/></svg>',
+  equipe: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.3a3.2 3.2 0 0 1 0 5.4M18 20a6.5 6.5 0 0 0-3-5.5"/></svg>',
+  registros: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v15H5z"/><path d="M9 9h7M9 13h7M9 17h4"/></svg>',
+  trocar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 0 8h-1"/><path d="M17 20l4-4-4-4"/></svg>',
   sol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
   lua: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
   menu: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
 };
 
-const ITENS_MENU = [
-  {chave: 'painel',    texto: 'Painel',              href: '/#painel',     icone: 'painel'},
-  {chave: 'vendas',    texto: 'Minhas vendas',       href: '/#vendas',     icone: 'vendas'},
-  {chave: 'simulador', texto: 'Simulador de desconto', href: '/simulador', icone: 'simulador'},
-  {chave: 'retomada',  texto: 'Retomada',            href: '/retomada',    icone: 'retomada'},
-];
+const PORTAIS = {
+  vendedor: {
+    titulo: 'Portal do<br><span>Vendedor</span>',
+    itens: [
+      {chave: 'painel',    texto: 'Painel',                href: '/#painel', icone: 'painel'},
+      {chave: 'vendas',    texto: 'Minhas vendas',         href: '/#vendas', icone: 'vendas'},
+      {chave: 'simulador', texto: 'Simulador de desconto', href: '/simulador', icone: 'simulador'},
+      {chave: 'retomada',  texto: 'Retomada',              href: '/retomada', icone: 'retomada'},
+    ],
+    trocar: {texto: 'Ir para a área do gestor', href: '/admin.html'},
+  },
+  gestor: {
+    titulo: 'Área do<br><span>Gestor</span>',
+    itens: [
+      {chave: 'painel',      texto: 'Painel',            href: '#painel',      icone: 'painel'},
+      {chave: 'fechamento',  texto: 'Fechamento de mês', href: '#fechamento',  icone: 'fechamento'},
+      {chave: 'retomada',    texto: 'Retomada do time',  href: '#retomada',    icone: 'retomada'},
+      {chave: 'metas',       texto: 'Metas',             href: '#metas',       icone: 'metas'},
+      {chave: 'vendedores',  texto: 'Vendedores',        href: '#vendedores',  icone: 'equipe'},
+      {chave: 'registros',   texto: 'Registros',         href: '#registros',   icone: 'registros'},
+    ],
+    trocar: {texto: 'Ir para o portal do vendedor', href: '/'},
+  },
+};
 
 const ITENS_EXTERNOS = [
-  {chave: 'ranking',   texto: 'Painel de ranking',   href: '/painel.html', icone: 'ranking'},
+  {chave: 'ranking',   texto: 'Ranking de vendas',   href: '/painel.html', icone: 'ranking'},
   {chave: 'expedicao', texto: 'Painel de expedição', href: null,           icone: 'expedicao'},
 ];
 
@@ -55,6 +78,8 @@ aplicarTema(temaAtual());
 
 function montarSidebar(ativo, opcoes){
   opcoes = opcoes || {};
+  const portal = PORTAIS[opcoes.portal] ? opcoes.portal : 'vendedor';
+  const cfg = PORTAIS[portal];
   const alvo = document.getElementById('sidebar');
   if(!alvo) return;
 
@@ -70,14 +95,16 @@ function montarSidebar(ativo, opcoes){
   alvo.innerHTML =
     '<div class="sidebar-marca">'
     + '<img src="/logo-mark.png" alt="" onerror="this.style.display=\'none\'">'
-    + '<div class="nome">Portal do<br><span>Vendedor</span></div>'
+    + '<div class="nome">' + cfg.titulo + '</div>'
     + '</div>'
     + '<nav class="nav-lista">'
-    + ITENS_MENU.map(linkItem).join('')
+    + cfg.itens.map(linkItem).join('')
     + '<div class="nav-sep">Outros painéis</div>'
     + ITENS_EXTERNOS.map(linkItem).join('')
     + '</nav>'
     + '<div class="sidebar-rodape">'
+    + '<a class="trocar-portal" href="' + cfg.trocar.href + '">' + ICONES.trocar
+    + '<span>' + cfg.trocar.texto + '</span></a>'
     + '<button class="tema-btn" id="temaBtn"></button>'
     + '<div class="perfil">'
     + '<div class="perfil-foto" id="perfilFoto">--</div>'
@@ -111,7 +138,8 @@ function abrirMenu(){
 }
 function fecharMenu(){
   document.getElementById('sidebar').classList.remove('aberto');
-  document.getElementById('sidebarFundo').classList.remove('ativo');
+  const f = document.getElementById('sidebarFundo');
+  if(f) f.classList.remove('ativo');
 }
 
 function preencherPerfil(nome, foto){
