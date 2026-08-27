@@ -6,32 +6,10 @@
 <title>Simulador de Desconto · Nevada Eco Peças</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/portal.css">
 <style>
-  :root{
-    --bg: #14171C;
-    --surface: #1E2229;
-    --surface-2: #262B33;
-    --line: #333944;
-    --accent: #C15A2A;
-    --accent-2: #E08A57;
-    --text: #EDEFF2;
-    --muted: #7A8290;
-    --good: #4CAF7D;
-    --bad: #E05B5B;
-    --info: #4C8AAF;
-    --gold: #D4AF37;
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    background:
-      radial-gradient(1200px 600px at 15% -10%, #1c212a 0%, transparent 60%),
-      var(--bg);
-    color:var(--text);
-    font-family:'Inter',sans-serif;
-    padding:18px 26px 60px;
-  }
-  .wrap{max-width:900px;margin:0 auto;}
+    *{box-sizing:border-box;}
+  .wrap{max-width:1000px;margin:0 auto;}
   .hidden{display:none !important;}
 
   header{
@@ -82,11 +60,11 @@
     letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;
   }
   select, input[type="text"], input[type="number"]{
-    width:100%;background:#0F1216;border:1px solid var(--line);border-radius:6px;
+    width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;
     color:var(--text);font-family:'Inter',sans-serif;font-size:14px;padding:9px 10px;
   }
   .primary-btn{
-    background:var(--accent);color:#151719;border:none;font-family:'Oswald',sans-serif;
+    background:var(--accent);color:#fff;border:none;font-family:'Oswald',sans-serif;
     text-transform:uppercase;letter-spacing:.05em;font-weight:600;font-size:13px;
     padding:11px 20px;border-radius:6px;cursor:pointer;
   }
@@ -164,7 +142,9 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="app-shell">
+<aside class="sidebar" id="sidebar"></aside>
+<main class="conteudo"><div class="wrap">
   <div id="appArea" class="hidden">
     <header>
       <h1>Simulador de Desconto</h1>
@@ -221,6 +201,7 @@
   </div>
 </div>
 
+<script src="/portal-nav.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 let pecaAtual = null;
@@ -247,6 +228,7 @@ async function iniciar() {
     return;
   }
   $('nomeVendedor').textContent = 'Olá, ' + eu.nome;
+  preencherPerfil(eu.nome, eu.foto);
   $('appArea').classList.remove('hidden');
   try {
     await popularFaixasRapido();
@@ -431,6 +413,8 @@ function renderRapido(sim, descontoAtual) {
 $('btnSimularRapido').addEventListener('click', () => simularRapido());
 
 iniciar();
+montarSidebar('simulador');
 </script>
+</main></div>
 </body>
 </html>

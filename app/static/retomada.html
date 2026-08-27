@@ -6,19 +6,9 @@
 <title>Retomada · Nevada Eco Peças</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/portal.css">
 <style>
-  :root{
-    --bg:#14171C; --surface:#1E2229; --surface-2:#262B33; --line:#333944;
-    --accent:#C15A2A; --accent-2:#E08A57; --text:#EDEFF2; --muted:#7A8290;
-    --good:#4CAF7D; --bad:#E05B5B; --info:#4C8AAF; --gold:#D4AF37;
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    background:radial-gradient(1200px 600px at 15% -10%, #1c212a 0%, transparent 60%), var(--bg);
-    color:var(--text); font-family:'Inter',sans-serif;
-    padding:12px 12px 50px;
-  }
+    *{box-sizing:border-box;}
   .wrap{max-width:820px;margin:0 auto;}
   .hidden{display:none !important;}
   .mono{font-family:'IBM Plex Mono',monospace;}
@@ -72,7 +62,7 @@
   }
   .chip.active{background:var(--accent);border-color:var(--accent);color:#151719;font-weight:600;}
   #busca{
-    width:100%;background:#0F1216;border:1px solid var(--line);border-radius:5px;
+    width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;
     color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;padding:7px 9px;
   }
 
@@ -120,7 +110,7 @@
   details.ctx summary.vazio-fala:after{content:' ▾';}
 
   .corpo{
-    background:#0F1216;border:1px solid var(--line);border-radius:5px;
+    background:var(--surface-2);border:1px solid var(--line);border-radius:5px;
     padding:5px 8px;margin-top:5px;
   }
   .corpo .cab{
@@ -138,7 +128,7 @@
 
   .acoes{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
   .btn-chamar{
-    background:var(--accent);color:#151719;border:none;
+    background:var(--accent);color:#fff;border:none;
     font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.04em;
     font-weight:600;font-size:12px;padding:7px 14px;border-radius:5px;
     cursor:pointer;text-decoration:none;white-space:nowrap;
@@ -180,7 +170,9 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="app-shell">
+<aside class="sidebar" id="sidebar"></aside>
+<main class="conteudo"><div class="wrap">
 
   <div id="app" class="hidden">
     <header>
@@ -230,6 +222,7 @@
 
 </div>
 
+<script src="/portal-nav.js"></script>
 <script>
 // Rotulo curto na tela; o do servidor vai no title, pra caber a lista inteira
 // numa linha sem cortar o botao de acao.
@@ -373,6 +366,7 @@ document.getElementById('busca').addEventListener('input', render);
   if (!me.ok){ location.href = '/'; return; }
   eu = await me.json();
   document.getElementById('nomeVendedor').textContent = eu.nome;
+  preencherPerfil(eu.nome, eu.foto);
 
   const res = await api('/api/retomada/fila');
   if (!res) return;
@@ -390,6 +384,8 @@ document.getElementById('busca').addEventListener('input', render);
   render();
   document.getElementById('app').classList.remove('hidden');
 })();
+montarSidebar('retomada');
 </script>
+</main></div>
 </body>
 </html>

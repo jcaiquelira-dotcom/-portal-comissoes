@@ -1,3 +1,4 @@
+import calendar
 import hashlib
 import io
 import json
@@ -787,6 +788,93 @@ def exigir_vendedor():
     if vendedor_id not in vendedores:
         return None
     return vendedor_id
+
+
+@app.route("/api/meu-painel")
+def api_meu_painel():
+    """Tudo que o painel do vendedor mostra, numa chamada só — evita a tela
+    disparar cinco requisições e ficar montando aos pedaços."""
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+
+    mes = request.args.get("mes", hoje_br().isoformat()[:7])
+    de, ate = mes_para_intervalo(mes)
+    vendedores = carregar_vendedores()
+    vendas_comissao = carregar_vendas_para_comissao(vendedor_id, vendedores)
+    comissao = calcular_comissao(vendedor_id, de, ate, vendedores, vendas_comissao)
+
+    minhas = [
+        v for v in vendas_comissao.values()
+        if v["vendedor_id"] == vendedor_id and de <= v["data"] <= ate
+        and v.get("tipo", "venda") == "venda"
+    ]
+
+    hoje = hoje_br()
+    inicio_semana = hoje - timedelta(days=hoje.weekday())
+    metas = metas_vendedor(vendedor_id, carregar_metas())
+
+    def soma(itens):
+        return round(sum(valor_liquido(v) for v in itens), 2)
+
+    # Só conta o dia/semana se o mês em tela for o corrente — senão "vendi hoje"
+    # apareceria zerado enquanto o vendedor revisa um mês passado.
+    mes_corrente = mes == hoje.isoformat()[:7]
+    total_hoje = soma([v for v in minhas if v["data"] == hoje.isoformat()]) if mes_corrente else None
+    total_semana = soma([v for v in minhas if v["data"] >= inicio_semana.isoformat()]) if mes_corrente else None
+
+    total_mes = comissao["total_vendido"]
+    qtd = len(minhas)
+    devolvidas = [v for v in minhas if v.get("devolucao")]
+
+    # Evolução dia a dia, pro gráfico de linha
+    por_dia = {}
+    for v in minhas:
+        por_dia[v["data"]] = round(por_dia.get(v["data"], 0) + valor_liquido(v), 2)
+
+    def ranking(campo, rotulo_vazio):
+        acumulado = {}
+        for v in minhas:
+            chave = (v.get(campo) or "").strip() or rotulo_vazio
+            acumulado[chave] = round(acumulado.get(chave, 0) + valor_liquido(v), 2)
+        top = sorted(acumulado.items(), key=lambda kv: kv[1], reverse=True)[:8]
+        return [{"nome": k, "valor": val} for k, val in top]
+
+    dias_no_mes = calendar.monthrange(int(mes[:4]), int(mes[5:7]))[1]
+    dias_restantes = max(1, dias_no_mes - hoje.day + 1) if mes_corrente else 1
+    meta_mensal = float(metas.get("mensal", 0))
+    falta = max(0.0, meta_mensal - total_mes)
+
+    fila = carregar_fila_retomada(vendedor_id)
+    status_retomada = carregar_status_retomada(vendedor_id)
+    resumo_retomada = _resumo_retomada(fila.get("itens", []), status_retomada) if fila else None
+
+    return jsonify({
+        "mes": mes,
+        "mes_corrente": mes_corrente,
+        "total_mes": total_mes,
+        "total_hoje": total_hoje,
+        "total_semana": total_semana,
+        "qtd_vendas": qtd,
+        "ticket_medio": round(total_mes / qtd, 2) if qtd else 0,
+        "comissao": comissao,
+        "devolucoes": {
+            "quantidade": len(devolvidas),
+            "valor": round(sum(v["valor"] - valor_liquido(v) for v in devolvidas), 2),
+        },
+        "metas": {
+            "diaria": float(metas.get("diaria", 0)),
+            "semanal": float(metas.get("semanal", 0)),
+            "mensal": meta_mensal,
+            "falta_no_mes": round(falta, 2),
+            "necessario_por_dia": round(falta / dias_restantes, 2) if falta else 0,
+            "dias_restantes": dias_restantes if mes_corrente else 0,
+        },
+        "evolucao": [{"data": d, "valor": por_dia[d]} for d in sorted(por_dia)],
+        "top_produtos": ranking("produto", "Sem descrição"),
+        "top_canais": ranking("canal", "Sem canal"),
+        "retomada": resumo_retomada,
+    })
 
 
 # ---------- Vendas do vendedor logado ----------

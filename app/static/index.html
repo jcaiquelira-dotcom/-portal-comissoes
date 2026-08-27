@@ -3,694 +3,370 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Portal de Comissões · Nevada Eco Peças</title>
+<title>Portal do Vendedor · Nevada Eco Peças</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/portal.css">
 <style>
-  :root{
-    --bg: #14171C;
-    --surface: #1E2229;
-    --surface-2: #262B33;
-    --line: #333944;
-    --accent: #C15A2A;
-    --accent-2: #E08A57;
-    --text: #EDEFF2;
-    --muted: #7A8290;
-    --good: #4CAF7D;
-    --bad: #E05B5B;
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    background:
-      radial-gradient(1200px 600px at 15% -10%, #1c212a 0%, transparent 60%),
-      var(--bg);
-    color:var(--text);
-    font-family:'Inter',sans-serif;
-    padding:18px 26px;
-  }
-  .wrap{max-width:820px;margin:0 auto;}
-
-  header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    flex-wrap:wrap;
-    gap:18px;
-    border-bottom:2px solid var(--line);
-    padding-bottom:9px;
-    margin-bottom:18px;
-  }
-  .brand-row{display:flex;align-items:center;gap:26px;}
-  .logo-badge{display:flex;align-items:center;line-height:0;}
-  .logo-badge img{height:76px;width:auto;display:block;}
-  h1{
-    font-family:'Oswald',sans-serif;
-    font-weight:700;
-    text-transform:uppercase;
-    letter-spacing:.03em;
-    font-size:30px;
-    margin:0;
-  }
-  .top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-  .vendedor-tag{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:13px;
-    color:var(--muted);
-  }
-  .vendedor-tag strong{color:var(--text);}
-  .usuario-grupo{display:inline-flex;align-items:center;gap:12px;margin-left:6px;}
-  /* Atalhos do topo em forma de card, com fonte normal (sem monoespaçada nem
-     sublinhado) — ficam mais discretos e mais faceis de acertar no toque. */
-  .nav-card{
-    display:inline-flex;
-    align-items:center;
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:6px;
-    color:var(--muted);
-    font-family:'Inter',sans-serif;
-    font-size:13px;
-    font-weight:500;
-    text-decoration:none;
-    padding:7px 12px;
-    cursor:pointer;
-    white-space:nowrap;
-    line-height:1;
-  }
-  .nav-card:hover{border-color:var(--accent);color:var(--text);}
-  .link-btn{
-    background:none;
-    border:none;
-    color:var(--muted);
-    font-family:'IBM Plex Mono',monospace;
-    font-size:12px;
-    text-decoration:underline;
-    cursor:pointer;
-    padding:0;
-  }
-  .link-btn:hover{color:var(--text);}
-
-  .section-title{
-    font-family:'Oswald',sans-serif;
-    text-transform:uppercase;
-    letter-spacing:.06em;
-    font-size:14px;
-    color:var(--muted);
-    margin:0 0 9px;
-    display:flex;
-    align-items:center;
-    gap:8px;
-  }
-  .section-title::after{content:'';flex:1;height:1px;background:var(--line);}
-  /* A lista de vendas e o que o vendedor mais usa, entao o titulo dela vem
-     maior e em destaque, ao contrario do resumo de valores la em cima. */
-  .section-title.destaque{
-    font-size:17px;
-    color:var(--text);
-  }
-
-  .card{
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:8px;
-    padding:20px 22px;
-  }
-
   /* ---- Login ---- */
-  #loginCard{max-width:380px;margin:40px auto 0;}
-  .field{margin-bottom:14px;}
-  .field label{
-    display:block;
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    letter-spacing:.08em;
-    text-transform:uppercase;
-    color:var(--muted);
-    margin-bottom:6px;
+  .tela-login{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
   }
-  select, input[type="text"], input[type="password"], input[type="number"], input[type="date"], input[type="month"]{
-    width:100%;
-    background:#0F1216;
-    border:1px solid var(--line);
-    border-radius:6px;
-    color:var(--text);
-    font-family:'Inter',sans-serif;
-    font-size:14px;
-    padding:9px 10px;
-  }
-  input[type="date"]::-webkit-calendar-picker-indicator,
-  input[type="month"]::-webkit-calendar-picker-indicator{
-    filter:invert(46%) sepia(60%) saturate(1200%) hue-rotate(346deg) brightness(95%) contrast(92%);
-    cursor:pointer;
-  }
+  .login-caixa{width:100%;max-width:390px;}
+  .login-marca{display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:22px;}
+  .login-marca img{height:58px;}
+  .login-marca .txt{font-family:'Oswald',sans-serif;font-weight:700;text-transform:uppercase;font-size:19px;line-height:1.15;}
+  .login-marca .txt span{color:var(--accent);}
+  .erro-msg{color:var(--bad);font-size:12.5px;margin-top:10px;min-height:15px;}
 
-  .eye-toggle-btn{
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    width:36px;
-    height:36px;
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:6px;
-    color:var(--muted);
-    cursor:pointer;
-    flex-shrink:0;
+  /* ---- Cabeçalho da seção ---- */
+  .filtro-mes{display:flex;align-items:center;gap:8px;}
+  .filtro-mes input{width:auto;padding:7px 10px;font-size:13px;}
+  .olho-btn{
+    display:flex;align-items:center;justify-content:center;
+    width:38px;height:38px;border-radius:10px;flex-shrink:0;
+    background:var(--surface);border:1px solid var(--line);color:var(--muted);cursor:pointer;
   }
-  .eye-toggle-btn:hover{border-color:var(--accent);color:var(--accent-2);}
-  .eye-toggle-btn svg{width:18px;height:18px;}
-  body.ocultar-valores .valor-money{
-    filter:blur(6px);
-    user-select:none;
-  }
-  .primary-btn{
-    width:100%;
-    background:var(--accent);
-    color:#151719;
-    border:none;
-    font-family:'Oswald',sans-serif;
-    text-transform:uppercase;
-    letter-spacing:.05em;
-    font-weight:600;
-    font-size:13px;
-    padding:11px 20px;
-    border-radius:6px;
-    cursor:pointer;
-    margin-top:4px;
-  }
-  .primary-btn:hover{background:#ff7f52;}
-  .primary-btn:disabled{opacity:.5;cursor:default;}
-  .error-msg{
-    color:var(--bad);
-    font-size:12px;
-    font-family:'IBM Plex Mono',monospace;
-    margin-top:10px;
-    min-height:14px;
-  }
+  .olho-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .olho-btn svg{width:18px;height:18px;}
 
-  /* ---- App ---- */
-  #appSection{display:none;}
-  /* Resumo do mês: proposital discreto. Os vendedores nao se sentem a
-     vontade com o quanto venderam/vao receber em destaque na tela, entao o
-     numero fica pequeno e sem cor chamativa — o foco da pagina e a lista de
-     vendas, nao o valor. */
-  .summary-row{
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    margin-bottom:16px;
-  }
-  .stat-card{
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:6px;
-    padding:8px 12px;
-    display:flex;
-    align-items:baseline;
-    gap:8px;
-    flex-wrap:wrap;
-  }
-  .stat-card .label{
-    font-family:'Inter',sans-serif;
-    font-size:12px;
-    color:var(--muted);
-  }
-  .stat-card .value{
-    font-family:'IBM Plex Mono',monospace;
-    font-weight:600;
-    font-size:14px;
-    color:var(--text);
-  }
+  /* ---- Painel ---- */
+  .painel-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:14px;margin-bottom:14px;}
+  @media (max-width:1000px){.painel-grid{grid-template-columns:1fr;}}
 
+  .meta-topo{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+  .meta-valor{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:24px;}
+  .meta-linhas{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:14px;font-size:12.5px;}
+  .meta-linhas b{font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .meta-linhas .rot{color:var(--muted);}
+
+  .mini-metas{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;}
+  .mini-meta .cab{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:5px;}
+  .mini-meta .cab b{color:var(--text);font-family:'IBM Plex Mono',monospace;}
+  .mini-alvo{font-size:10.5px;color:var(--muted);margin-top:4px;}
+
+  /* barras horizontais (top produtos / canais) */
+  .barra-linha{display:grid;grid-template-columns:1fr auto;gap:6px;margin-bottom:11px;}
+  .barra-nome{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .barra-valor{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);white-space:nowrap;}
+  .barra-trilha{grid-column:1/-1;height:7px;border-radius:20px;background:var(--surface-2);overflow:hidden;}
+  .barra-preenchida{height:100%;border-radius:20px;}
+
+  /* gráfico de evolução */
+  .evo-wrap{overflow-x:auto;}
+  .evo-svg{display:block;min-width:100%;}
+
+  .atalho-card{
+    display:flex;align-items:center;gap:12px;
+    padding:13px 15px;border-radius:12px;
+    background:var(--surface-2);border:1px solid var(--line);
+    text-decoration:none;margin-bottom:9px;
+  }
+  .atalho-card:hover{border-color:var(--accent);}
+  .atalho-card .ic{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .atalho-card .ic svg{width:17px;height:17px;stroke-width:2;}
+  .atalho-card .tit{font-size:13.5px;font-weight:600;}
+  .atalho-card .sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
+
+  /* ---- Lançar venda ---- */
   .form-grid{
-    display:grid;
-    grid-template-columns:130px 1fr 110px 70px 70px auto;
-    gap:10px;
-    align-items:end;
-    margin-bottom:18px;
+    display:grid;grid-template-columns:132px 1fr 112px 78px 78px auto;
+    gap:10px;align-items:end;
   }
-  .form-grid .field{margin-bottom:0;}
-  .add-btn{
-    background:var(--accent);
-    color:#151719;
-    border:none;
-    font-family:'Oswald',sans-serif;
-    text-transform:uppercase;
-    letter-spacing:.05em;
-    font-weight:600;
-    font-size:12px;
-    padding:9px 18px;
-    border-radius:6px;
-    cursor:pointer;
-    height:38px;
-  }
-  .add-btn:hover{background:#ff7f52;}
-  .small-btn{
-    background:var(--surface-2);
-    border:1px solid var(--line);
-    color:var(--text);
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    padding:8px 14px;
-    border-radius:6px;
-    cursor:pointer;
-  }
-  .small-btn:hover{border-color:var(--accent);}
+  @media (max-width:820px){.form-grid{grid-template-columns:1fr 1fr;}}
+  .form-grid .btn{height:38px;}
+  .status-msg{font-size:12.5px;margin-top:10px;min-height:16px;color:var(--good);display:none;}
+  .status-msg.show{display:block;}
+  .status-msg.err{color:var(--bad);}
 
-  .month-picker{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-  .month-picker label{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    color:var(--muted);
-    text-transform:uppercase;
-    letter-spacing:.08em;
-  }
-  .month-picker input{width:auto;}
+  .sheet-tabela input{padding:7px 8px;font-size:13px;}
+  .sheet-row-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:6px;width:100%;}
+  .sheet-row-del:hover{color:var(--bad);}
+  .sheet-acoes{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap;}
 
-  table{width:100%;border-collapse:collapse;font-size:13px;}
-  th{
-    text-align:left;
-    font-family:'IBM Plex Mono',monospace;
-    font-size:10px;
-    letter-spacing:.1em;
-    text-transform:uppercase;
-    color:var(--muted);
-    border-bottom:1px solid var(--line);
-    padding:6px 10px;
-  }
-  td{
-    padding:8px 10px;
-    border-bottom:1px solid var(--line);
-    font-family:'IBM Plex Mono',monospace;
-  }
-  td.produto-col{font-family:'Inter',sans-serif;}
-  .del-btn{
-    background:none;
-    border:1px solid var(--line);
-    color:var(--bad);
-    border-radius:4px;
-    padding:3px 8px;
-    font-size:11px;
-    cursor:pointer;
-  }
-  .del-btn:hover{background:rgba(224,91,91,.12);}
-  .empty-hist{color:var(--muted);font-size:12px;padding:14px 0;}
-
-  .devolucao-btn{
-    background:none;
-    border:1px solid var(--line);
-    color:var(--muted);
-    border-radius:4px;
-    padding:3px 8px;
-    font-size:11px;
-    cursor:pointer;
-    margin-right:6px;
-  }
-  .devolucao-btn:hover{border-color:var(--accent-2);color:var(--text);}
-  .devolucao-badge{
-    display:inline-block;
-    font-family:'IBM Plex Mono',monospace;
-    font-size:10px;
-    letter-spacing:.04em;
-    text-transform:uppercase;
-    color:var(--bad);
-    border:1px solid var(--bad);
-    border-radius:4px;
-    padding:2px 6px;
-    margin-right:6px;
-  }
-
-  /* Marca a venda que tem outra igual (mesmo produto e valor) no mês, pro
-     vendedor conferir se foi engano. É aviso, não bloqueio. */
+  /* ---- Lista de vendas ---- */
+  .busca-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+  .busca-row input{flex:1;min-width:180px;}
+  .busca-resumo{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);white-space:nowrap;}
   .dup-badge{
-    display:inline-block;
-    font-family:'IBM Plex Mono',monospace;
-    font-size:9px;
-    letter-spacing:.04em;
-    text-transform:uppercase;
-    color:var(--gold, #E8B84B);
-    border:1px solid var(--gold, #E8B84B);
-    border-radius:4px;
-    padding:1px 5px;
-    margin-left:8px;
-    cursor:help;
-    vertical-align:middle;
+    display:inline-block;font-size:9px;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--warn);border:1px solid var(--warn);border-radius:4px;
+    padding:1px 5px;margin-left:8px;cursor:help;vertical-align:middle;
   }
-
-  .busca-row{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    margin-bottom:10px;
+  .devolucao-badge{
+    display:inline-block;font-size:10px;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--bad);border:1px solid var(--bad);border-radius:4px;padding:2px 6px;margin-right:6px;
   }
-  .busca-row input{
-    flex:1;
-    background:#0F1216;
-    border:1px solid var(--line);
-    border-radius:6px;
-    color:var(--text);
-    font-family:'Inter',sans-serif;
-    font-size:13px;
-    padding:8px 10px;
-  }
-  .busca-row input:focus{outline:none;border-color:var(--accent);}
-  .busca-resumo{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    color:var(--muted);
+  .devolucao-btn{
+    background:none;border:1px solid var(--line);color:var(--muted);
+    border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;
     white-space:nowrap;
   }
+  .devolucao-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .del-btn:hover{border-color:var(--bad) !important;color:var(--bad) !important;}
+  .acoes-col{display:flex;flex-wrap:wrap;gap:4px;align-items:center;justify-content:flex-end;}
+  .acoes-col .btn{padding:3px 9px;font-size:11px;}
+  .sku-linha{color:var(--muted);font-size:11px;}
 
-  .modal-overlay{
-    display:none;
-    position:fixed;
-    inset:0;
-    background:rgba(10,12,15,.72);
-    align-items:center;
-    justify-content:center;
-    z-index:50;
-    padding:20px;
+  .confirm-row{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--raio);
+    box-shadow:var(--sombra);padding:14px 18px;margin-top:14px;
   }
-  .modal-overlay.show{display:flex;}
-  .modal-card{
-    max-width:380px;
-    width:100%;
-  }
-  .modal-card .section-title{margin-bottom:14px;}
-  .modal-card .venda-resumo{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:12px;
-    color:var(--muted);
-    margin-bottom:16px;
-  }
-  .modal-opcoes{display:flex;gap:10px;margin-bottom:14px;}
-  .modal-opcoes .small-btn{flex:1;padding:12px;text-align:center;}
-  .modal-opcoes .small-btn.ativo{border-color:var(--accent);color:var(--accent-2);}
-  .modal-acoes{display:flex;gap:10px;margin-top:14px;}
-  .modal-acoes .small-btn{flex:1;text-align:center;}
+  .confirm-status{font-size:12.5px;color:var(--muted);}
+  .confirm-status.confirmado{color:var(--good);}
 
-  .status{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    color:var(--good);
-    opacity:0;
-    transition:opacity .3s;
-    display:block;
-    margin-top:8px;
-  }
-  .status.show{opacity:1;}
-  .status.err{color:var(--bad);}
-
-  .bonus-note{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    color:var(--muted);
-    margin:-4px 0 14px;
-  }
-  /* Composicao da comissao: fica guardada e so aparece ao passar o mouse
-     (ou ao tocar no celular, via classe .aberto). */
-  .stat-card{position:relative;}
-  .detalhe-dica{
-    font-size:12px;
-    color:var(--muted);
-    cursor:help;
-    user-select:none;
-  }
-  .stat-card.tem-detalhe:hover .detalhe-dica{color:var(--accent-2);}
+  /* comissão com detalhe no hover */
+  .kpi.tem-detalhe{cursor:help;}
+  .detalhe-dica{font-size:12px;color:var(--muted);margin-left:5px;}
   .override-note{
-    display:none;
-    position:absolute;
-    top:100%;
-    left:0;
-    z-index:30;
-    margin-top:6px;
-    min-width:230px;
-    background:var(--surface-2);
-    border:1px solid var(--line);
-    border-radius:6px;
-    padding:10px 12px;
-    box-shadow:0 8px 20px rgba(0,0,0,.5);
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    color:var(--muted);
-    text-align:left;
-    white-space:nowrap;
+    display:none;position:absolute;top:100%;left:0;z-index:30;margin-top:6px;
+    min-width:236px;background:var(--surface);border:1px solid var(--line);
+    border-radius:10px;padding:11px 13px;box-shadow:var(--sombra-forte);
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);
+    text-align:left;white-space:nowrap;
   }
-  .stat-card.tem-detalhe:hover .override-note,
-  .override-note.aberto{display:block;}
+  .kpi.tem-detalhe:hover .override-note,.override-note.aberto{display:block;}
   .override-note div{padding:1px 0;}
   .override-note:empty{display:none !important;}
 
-  .sheet-toggle-row{margin-bottom:18px;}
-  .sheet-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;}
-  table.sheet-table{width:100%;border-collapse:collapse;min-width:560px;}
-  table.sheet-table th{
-    text-align:left;
-    font-family:'IBM Plex Mono',monospace;
-    font-size:10px;
-    letter-spacing:.08em;
-    text-transform:uppercase;
-    color:var(--muted);
-    background:var(--surface-2);
-    padding:7px 8px;
-    border-bottom:1px solid var(--line);
+  /* modal de devolução */
+  .modal-overlay{
+    display:none;position:fixed;inset:0;background:rgba(12,16,22,.6);
+    align-items:center;justify-content:center;z-index:100;padding:16px;
   }
-  table.sheet-table td{
-    padding:0;
-    border-bottom:1px solid var(--line);
-    border-right:1px solid var(--line);
-  }
-  table.sheet-table td:last-child{border-right:none;}
-  table.sheet-table input{
-    width:100%;
-    background:transparent;
-    border:none;
-    border-radius:0;
-    color:var(--text);
-    font-family:'Inter',sans-serif;
-    font-size:13px;
-    padding:8px;
-  }
-  table.sheet-table input[type="date"], table.sheet-table input[type="number"]{
-    font-family:'IBM Plex Mono',monospace;
-  }
-  table.sheet-table input:focus{
-    outline:2px solid var(--accent);
-    outline-offset:-2px;
-    background:var(--surface-2);
-  }
-  .sheet-row-del{
-    background:none;
-    border:none;
-    color:var(--muted);
-    cursor:pointer;
-    font-size:14px;
-    width:100%;
-    padding:8px;
-  }
-  .sheet-row-del:hover{color:var(--bad);}
-  .sheet-actions{display:flex;align-items:center;gap:10px;margin:12px 0 24px;}
-
-  .confirm-row{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:14px;
-    flex-wrap:wrap;
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:8px;
-    padding:12px 16px;
-    margin:6px 0 24px;
-  }
-  .confirm-status{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:12px;
-    color:var(--muted);
-  }
-  .confirm-status.confirmado{color:var(--good);}
-  #cancelEditBtn{margin:-10px 0 14px;display:none;}
-
-  footer{
-    margin-top:24px;
-    color:var(--muted);
-    font-size:10px;
-    font-family:'IBM Plex Mono',monospace;
-    text-align:center;
-  }
+  .modal-overlay.aberto{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--line);border-radius:var(--raio);
+         box-shadow:var(--sombra-forte);padding:22px;max-width:410px;width:100%;}
+  .modal h3{font-family:'Oswald',sans-serif;text-transform:uppercase;font-size:16px;margin:0 0 6px;}
+  .modal .sub{font-size:12.5px;color:var(--muted);margin-bottom:16px;}
+  .tipo-row{display:flex;gap:8px;margin-bottom:14px;}
+  .tipo-btn{flex:1;padding:9px;border-radius:9px;border:1px solid var(--line);
+            background:var(--surface-2);color:var(--muted);cursor:pointer;font-family:inherit;font-size:13px;}
+  .tipo-btn.ativo{border-color:var(--accent);background:var(--accent-suave);color:var(--accent);font-weight:600;}
+  .modal-acoes{display:flex;gap:9px;justify-content:flex-end;margin-top:18px;}
 </style>
 </head>
 <body>
-<div class="wrap">
 
-  <header>
-    <div class="brand-row">
-      <div class="logo-badge"><img src="logo.png" alt="Nevada Eco Peças"></div>
-      <h1>Portal de Comissões</h1>
-    </div>
-    <div style="display:flex;align-items:center;gap:14px;">
-      <button class="eye-toggle-btn" id="toggleValoresBtn" title="Mostrar/ocultar valores" aria-label="Mostrar/ocultar valores"></button>
-      <div class="top-actions" id="topActions"></div>
-    </div>
-  </header>
-
-  <div id="loginCard" class="card">
-    <p class="section-title">Entrar</p>
-    <div class="field">
-      <label for="vendedorSelect">Vendedor</label>
-      <select id="vendedorSelect"></select>
-    </div>
-    <div class="field">
-      <label for="senhaInput">Senha</label>
-      <input type="password" id="senhaInput" autocomplete="current-password">
-    </div>
-    <button class="primary-btn" id="loginBtn">Entrar</button>
-    <div class="error-msg" id="loginError"></div>
-    <button class="link-btn" id="esqueciSenhaBtn" style="margin-top:12px;">Esqueci a senha</button>
-  </div>
-
-  <div id="recuperarCard" class="card" style="display:none;">
-    <p class="section-title">Redefinir senha</p>
-    <div class="field">
-      <label for="recuperarVendedorSelect">Vendedor</label>
-      <select id="recuperarVendedorSelect"></select>
-    </div>
-    <div class="field">
-      <label for="recuperarCodigoInput">Código de recuperação</label>
-      <input type="text" id="recuperarCodigoInput" placeholder="Ex: 02140214">
-    </div>
-    <div class="field">
-      <label for="recuperarNovaSenhaInput">Nova senha</label>
-      <input type="password" id="recuperarNovaSenhaInput" autocomplete="new-password">
-    </div>
-    <button class="primary-btn" id="recuperarBtn">Redefinir senha</button>
-    <div class="error-msg" id="recuperarError"></div>
-    <p style="color:var(--muted);font-size:12px;margin-top:10px;">Não tem um código de recuperação configurado? Fale com o gestor.</p>
-    <button class="link-btn" id="cancelarRecuperarBtn" style="margin-top:4px;">Voltar pro login</button>
-  </div>
-
-  <div id="appSection">
-    <div class="month-picker">
-      <label for="mesInput">Mês</label>
-      <input type="month" id="mesInput">
+<!-- ================= LOGIN ================= -->
+<div class="tela-login" id="telaLogin">
+  <div class="login-caixa">
+    <div class="login-marca">
+      <img src="/logo.png" alt="Nevada Eco Peças" onerror="this.style.display='none'">
+      <div class="txt">Portal do<br><span>Vendedor</span></div>
     </div>
 
-    <div class="summary-row">
-      <div class="stat-card">
-        <div class="label">Total vendido no mês</div>
-        <div class="value valor-money" id="totalVendidoValue">R$ 0,00</div>
+    <div class="card" id="loginCard">
+      <p class="card-titulo">Entrar</p>
+      <div style="margin-bottom:13px;">
+        <label class="campo-rotulo" for="vendedorSelect">Vendedor</label>
+        <select id="vendedorSelect"></select>
       </div>
-      <div class="stat-card" id="cardComissao">
-        <div class="label">Comissão prevista (<span id="percentualLabel">0%</span>)</div>
-        <div class="value valor-money" id="comissaoValue">R$ 0,00</div>
-        <span class="detalhe-dica" id="comissaoDica" style="display:none;" title="Ver como a comissão foi composta">ⓘ</span>
-        <div class="override-note valor-money" id="overrideNote"></div>
+      <div style="margin-bottom:16px;">
+        <label class="campo-rotulo" for="senhaInput">Senha</label>
+        <input type="password" id="senhaInput" autocomplete="current-password">
       </div>
-    </div>
-    <div class="bonus-note valor-money" id="bonusNote"></div>
-
-    <p class="section-title">Lançar venda</p>
-    <div class="form-grid">
-      <div class="field">
-        <label for="dataInput">Data</label>
-        <input type="date" id="dataInput">
-      </div>
-      <div class="field">
-        <label for="produtoInput">O que foi vendido</label>
-        <input type="text" id="produtoInput" placeholder="Ex: Motor de arranque Gol G5">
-      </div>
-      <div class="field">
-        <label for="valorInput">Valor (R$)</label>
-        <input type="number" id="valorInput" min="0" step="0.01" placeholder="0,00">
-      </div>
-      <div class="field">
-        <label for="skuInput">SKU</label>
-        <input type="text" id="skuInput" placeholder="SKU">
-      </div>
-      <div class="field">
-        <label for="canalInput">Canal</label>
-        <input type="text" id="canalInput" placeholder="B / ML">
-      </div>
-      <button class="add-btn" id="addBtn">Adicionar</button>
-    </div>
-    <button class="link-btn" id="cancelEditBtn">Cancelar edição</button>
-    <div class="status" id="formStatus"></div>
-
-    <div class="sheet-toggle-row">
-      <button class="small-btn" id="toggleSheetBtn">Preencher em planilha</button>
+      <button class="btn btn-principal" id="loginBtn" style="width:100%;">Entrar</button>
+      <div class="erro-msg" id="loginError"></div>
+      <button class="perfil-sair" id="esqueciSenhaBtn" style="margin-top:2px;">Esqueci a senha</button>
     </div>
 
-    <div id="sheetSection" style="display:none;">
-      <p class="section-title">Preencher em planilha</p>
-      <div class="sheet-scroll">
-        <table class="sheet-table">
-          <thead>
-            <tr>
-              <th style="width:130px;">Data</th>
-              <th>O que foi vendido</th>
-              <th style="width:130px;">Valor (R$)</th>
-              <th style="width:110px;">SKU</th>
-              <th style="width:90px;">Canal</th>
-              <th style="width:34px;"></th>
-            </tr>
-          </thead>
-          <tbody id="sheetBody"></tbody>
-        </table>
+    <div class="card oculto" id="recuperarCard" style="margin-top:12px;">
+      <p class="card-titulo">Recuperar acesso</p>
+      <div style="margin-bottom:13px;">
+        <label class="campo-rotulo" for="recuperarVendedorSelect">Vendedor</label>
+        <select id="recuperarVendedorSelect"></select>
       </div>
-      <div class="sheet-actions">
-        <button class="small-btn" id="sheetAddRowBtn">+ Nova linha</button>
-        <button class="add-btn" id="sheetSaveBtn">Salvar tudo</button>
-        <span class="status" id="sheetStatus"></span>
+      <div style="margin-bottom:13px;">
+        <label class="campo-rotulo" for="recuperarCodigoInput">Código de recuperação</label>
+        <input type="text" id="recuperarCodigoInput" placeholder="O gestor te passa esse código">
       </div>
-    </div>
-
-    <div style="display:flex;align-items:center;gap:10px;">
-      <p class="section-title destaque" style="flex:1;margin:0;">Minhas vendas do mês</p>
-      <button class="small-btn" id="exportMinhasVendasBtn">Exportar CSV</button>
-    </div>
-    <div class="busca-row">
-      <input type="text" id="buscaVendasInput" placeholder="Pesquisar no mês: motor, jetta, SKU, valor...">
-      <button type="button" class="small-btn" id="limparBuscaBtn" style="display:none;">Limpar</button>
-      <span class="busca-resumo" id="buscaResumo"></span>
-    </div>
-    <table>
-      <thead>
-        <tr><th>Data</th><th>Produto</th><th>Valor</th><th></th></tr>
-      </thead>
-      <tbody id="vendasBody"></tbody>
-    </table>
-    <div class="empty-hist" id="emptyVendas" style="display:none;">Nenhuma venda lançada neste mês.</div>
-
-    <div class="confirm-row">
-      <span class="confirm-status" id="confirmStatus"></span>
-      <button class="small-btn" id="confirmBtn">Confirmar vendas do mês</button>
+      <div style="margin-bottom:16px;">
+        <label class="campo-rotulo" for="recuperarNovaSenhaInput">Nova senha</label>
+        <input type="password" id="recuperarNovaSenhaInput">
+      </div>
+      <div style="display:flex;gap:9px;">
+        <button class="btn btn-principal" id="recuperarBtn" style="flex:1;">Trocar senha</button>
+        <button class="btn btn-neutro" id="cancelarRecuperarBtn">Cancelar</button>
+      </div>
+      <div class="erro-msg" id="recuperarError"></div>
     </div>
   </div>
-
-  <footer>Nevada Eco Peças &middot; Os dados ficam salvos neste computador.</footer>
 </div>
 
+<!-- ================= APLICAÇÃO ================= -->
+<div class="app-shell oculto" id="appShell">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="conteudo">
+    <div class="topo">
+      <button class="menu-abrir" id="menuAbrirBtn" title="Menu"></button>
+      <h1 id="tituloSecao">Painel</h1>
+      <div class="topo-acoes">
+        <div class="filtro-mes">
+          <label class="campo-rotulo" for="mesInput" style="margin:0;">Mês</label>
+          <input type="month" id="mesInput">
+        </div>
+        <button class="olho-btn" id="toggleValoresBtn" title="Mostrar/ocultar valores"></button>
+      </div>
+    </div>
+
+    <!-- ---------- SEÇÃO: PAINEL ---------- -->
+    <section id="secaoPainel">
+      <div class="kpi-grid" id="kpiGrid"></div>
+
+      <div class="painel-grid">
+        <div class="card">
+          <p class="card-titulo">Meta do mês</p>
+          <div class="meta-topo">
+            <div>
+              <div class="meta-valor valor-money" id="metaAtingido">R$ 0,00</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:3px;">
+                de <span class="valor-money" id="metaTotal">R$ 0,00</span>
+              </div>
+            </div>
+            <span class="pilula neutro" id="metaPct">0%</span>
+          </div>
+          <div class="progresso-trilha"><div class="progresso-preenchido" id="metaBarra" style="width:0%"></div></div>
+          <div class="meta-linhas">
+            <div><span class="rot">Falta:</span> <b class="valor-money" id="metaFalta">—</b></div>
+            <div><span class="rot">Precisa por dia:</span> <b class="valor-money" id="metaPorDia">—</b></div>
+          </div>
+          <div class="mini-metas">
+            <div class="mini-meta">
+              <div class="cab"><span>Hoje</span><b class="valor-money" id="miniHojeVal">—</b></div>
+              <div class="progresso-trilha"><div class="progresso-preenchido" id="miniHojeBarra" style="width:0%"></div></div>
+              <div class="mini-alvo">meta <span class="valor-money" id="miniHojeAlvo">—</span></div>
+            </div>
+            <div class="mini-meta">
+              <div class="cab"><span>Semana</span><b class="valor-money" id="miniSemanaVal">—</b></div>
+              <div class="progresso-trilha"><div class="progresso-preenchido" id="miniSemanaBarra" style="width:0%"></div></div>
+              <div class="mini-alvo">meta <span class="valor-money" id="miniSemanaAlvo">—</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <p class="card-titulo">Atalhos</p>
+          <div id="atalhosPainel"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <p class="card-titulo">Evolução das vendas no mês</p>
+        <div class="evo-wrap"><div id="graficoEvolucao"></div></div>
+      </div>
+
+      <div class="painel-grid">
+        <div class="card">
+          <p class="card-titulo">Produtos que mais renderam</p>
+          <div id="topProdutos"></div>
+        </div>
+        <div class="card">
+          <p class="card-titulo">Vendas por canal</p>
+          <div id="topCanais"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- SEÇÃO: MINHAS VENDAS ---------- -->
+    <section id="secaoVendas" class="oculto">
+      <div class="card" style="margin-bottom:14px;">
+        <p class="card-titulo">Lançar venda</p>
+        <div class="form-grid">
+          <div>
+            <label class="campo-rotulo" for="dataInput">Data</label>
+            <input type="date" id="dataInput">
+          </div>
+          <div>
+            <label class="campo-rotulo" for="produtoInput">O que foi vendido</label>
+            <input type="text" id="produtoInput" placeholder="Ex: Motor de arranque Gol G5">
+          </div>
+          <div>
+            <label class="campo-rotulo" for="valorInput">Valor (R$)</label>
+            <input type="number" id="valorInput" min="0" step="0.01" placeholder="0,00">
+          </div>
+          <div>
+            <label class="campo-rotulo" for="skuInput">SKU</label>
+            <input type="text" id="skuInput" placeholder="SKU">
+          </div>
+          <div>
+            <label class="campo-rotulo" for="canalInput">Canal</label>
+            <input type="text" id="canalInput" placeholder="B / ML">
+          </div>
+          <button class="btn btn-principal" id="addBtn">Adicionar</button>
+        </div>
+        <button class="btn btn-neutro btn-pequeno" id="cancelEditBtn" style="display:none;margin-top:10px;">Cancelar edição</button>
+        <div class="status-msg" id="formStatus"></div>
+
+        <div class="sheet-acoes">
+          <button class="btn btn-neutro btn-pequeno" id="toggleSheetBtn">Preencher em planilha</button>
+        </div>
+        <div id="sheetSection" style="display:none;margin-top:12px;">
+          <table class="sheet-tabela">
+            <thead>
+              <tr><th style="width:130px;">Data</th><th>Produto</th><th style="width:110px;">Valor</th><th style="width:90px;">SKU</th><th style="width:90px;">Canal</th><th style="width:40px;"></th></tr>
+            </thead>
+            <tbody id="sheetBody"></tbody>
+          </table>
+          <div class="sheet-acoes">
+            <button class="btn btn-neutro btn-pequeno" id="sheetAddRowBtn">+ Linha</button>
+            <button class="btn btn-principal btn-pequeno" id="sheetSaveBtn">Salvar tudo</button>
+            <span class="status-msg" id="sheetStatus"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+          <p class="card-titulo" style="flex:1;margin:0;">Minhas vendas do mês</p>
+          <button class="btn btn-neutro btn-pequeno" id="exportMinhasVendasBtn">Exportar CSV</button>
+        </div>
+        <div class="busca-row">
+          <input type="text" id="buscaVendasInput" placeholder="Pesquisar no mês: motor, jetta, SKU, valor...">
+          <button class="btn btn-neutro btn-pequeno" id="limparBuscaBtn" style="display:none;">Limpar</button>
+          <span class="busca-resumo" id="buscaResumo"></span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th style="width:100px;">Data</th><th>Produto</th><th style="width:118px;">Valor</th><th style="width:210px;"></th></tr></thead>
+            <tbody id="vendasBody"></tbody>
+          </table>
+        </div>
+        <div class="vazio" id="emptyVendas" style="display:none;">Nenhuma venda lançada neste mês ainda.</div>
+      </div>
+
+      <div class="confirm-row">
+        <span class="confirm-status" id="confirmStatus">—</span>
+        <button class="btn btn-neutro btn-pequeno" id="confirmBtn">Confirmar vendas do mês</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- modal de devolução -->
 <div class="modal-overlay" id="devolucaoOverlay">
-  <div class="card modal-card">
-    <p class="section-title">Marcar devolução</p>
-    <div class="venda-resumo" id="devolucaoResumo"></div>
-    <div class="modal-opcoes">
-      <button class="small-btn" id="devolucaoParcialBtn" type="button">Parcial</button>
-      <button class="small-btn" id="devolucaoTotalBtn" type="button">Total</button>
+  <div class="modal">
+    <h3>Marcar devolução</h3>
+    <div class="sub" id="devolucaoResumo">—</div>
+    <div class="tipo-row">
+      <button class="tipo-btn" id="devolucaoParcialBtn">Parcial</button>
+      <button class="tipo-btn" id="devolucaoTotalBtn">Total</button>
     </div>
-    <div class="field" id="devolucaoValorField" style="display:none;">
-      <label for="devolucaoValorInput">Valor devolvido</label>
-      <input type="number" id="devolucaoValorInput" min="0" step="0.01">
+    <div id="devolucaoValorField">
+      <label class="campo-rotulo" for="devolucaoValorInput">Valor devolvido (R$)</label>
+      <input type="number" id="devolucaoValorInput" min="0" step="0.01" placeholder="0,00">
     </div>
-    <div class="error-msg" id="devolucaoError"></div>
+    <div class="erro-msg" id="devolucaoError"></div>
     <div class="modal-acoes">
-      <button class="small-btn" id="devolucaoCancelarBtn" type="button">Cancelar</button>
-      <button class="primary-btn" id="devolucaoConfirmarBtn" type="button" style="display:none;">Confirmar</button>
+      <button class="btn btn-neutro" id="devolucaoCancelarBtn">Cancelar</button>
+      <button class="btn btn-principal" id="devolucaoConfirmarBtn">Confirmar</button>
     </div>
   </div>
 </div>
 
+<script src="/portal-nav.js"></script>
 <script>
 function fmtMoeda(v){
   return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
@@ -746,28 +422,6 @@ async function carregarVendedores(){
   }
 }
 
-function renderTopActions(){
-  const el = document.getElementById('topActions');
-  const expedicaoUrl = location.hostname.endsWith('.onrender.com')
-    ? 'https://nevada-expedicao.onrender.com'
-    : `http://${location.hostname}:8000`;
-  const card = (href, texto, novaAba = true) =>
-    `<a class="nav-card" href="${href}"${novaAba ? ' target="_blank"' : ''}>${texto}</a>`;
-  const painelLink = card('/painel.html', 'Painel de ranking');
-  const expedicaoLink = card(expedicaoUrl, 'Painel de expedição');
-  if(eu){
-    const atalhos = painelLink + expedicaoLink
-      + card('/simulador', 'Simulador de desconto')
-      + card('/retomada', 'Retomada');
-    // "Olá, fulano" e "Sair" ficam juntos num grupo pra nao se separarem
-    // quando a barra quebra linha em tela estreita.
-    el.innerHTML = `${atalhos}<span class="usuario-grupo"><span class="vendedor-tag">Olá, <strong>${eu.nome}</strong></span><button class="link-btn" id="logoutBtn">Sair</button></span>`;
-    document.getElementById('logoutBtn').addEventListener('click', logout);
-  }else{
-    el.innerHTML = `${painelLink}${expedicaoLink}${card('/admin.html', 'Área do gestor', false)}`;
-  }
-}
-
 async function tentarSessao(){
   try{
     const res = await fetch('/api/me');
@@ -776,18 +430,25 @@ async function tentarSessao(){
       mostrarApp();
     }
   }catch(e){ /* segue deslogado */ }
-  renderTopActions();
+  if(!eu) mostrarLogin();
+}
+
+function mostrarLogin(){
+  document.getElementById('telaLogin').classList.remove('oculto');
+  document.getElementById('appShell').classList.add('oculto');
 }
 
 function mostrarApp(){
-  document.getElementById('loginCard').style.display = 'none';
-  document.getElementById('appSection').style.display = 'block';
-  document.getElementById('percentualLabel').textContent = eu.percentual + '%';
+  document.getElementById('telaLogin').classList.add('oculto');
+  document.getElementById('appShell').classList.remove('oculto');
+  montarSidebar(secaoAtual, {aoSair: logout});
+  preencherPerfil(eu.nome, eu.foto);
   document.getElementById('mesInput').value = todayStr().slice(0,7);
   document.getElementById('dataInput').value = todayStr();
+  irParaSecao(secaoAtual);
   carregarVendas();
-  carregarComissao();
   carregarConfirmacao();
+  carregarPainel();
 }
 
 let editandoId = null;
@@ -861,7 +522,6 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
       return;
     }
     eu = await (await fetch('/api/me')).json();
-    renderTopActions();
     mostrarApp();
   }catch(e){
     errEl.textContent = 'Erro de conexão.';
@@ -912,10 +572,8 @@ document.getElementById('recuperarBtn').addEventListener('click', async () => {
 async function logout(){
   await fetch('/api/logout', {method:'POST'});
   eu = null;
-  document.getElementById('appSection').style.display = 'none';
-  document.getElementById('loginCard').style.display = 'block';
   document.getElementById('senhaInput').value = '';
-  renderTopActions();
+  mostrarLogin();
 }
 
 let vendasDoMes = [];
@@ -983,12 +641,12 @@ function renderVendas(){
         <td>${d}/${m}/${y}</td>
         <td class="produto-col">${v.produto}${repetida}${skuLinha}</td>
         <td class="valor-money">${fmtMoeda(v.valor)}</td>
-        <td>
+        <td><div class="acoes-col">
           ${badge}
           ${devBtn}
-          <button class="small-btn" data-editid="${v.id}">Editar</button>
-          <button class="del-btn" data-id="${v.id}">Excluir</button>
-        </td>
+          <button class="devolucao-btn" data-editid="${v.id}">Editar</button>
+          <button class="devolucao-btn del-btn" data-id="${v.id}">Excluir</button>
+        </div></td>
       `;
       body.appendChild(tr);
     });
@@ -1019,8 +677,8 @@ function renderVendas(){
       }
       if(editandoId === btn.dataset.id) sairModoEdicao();
       carregarVendas();
-      carregarComissao();
-      carregarConfirmacao();
+          carregarConfirmacao();
+      carregarPainel();
     });
   });
 
@@ -1041,8 +699,7 @@ function renderVendas(){
         return;
       }
       carregarVendas();
-      carregarComissao();
-    });
+        });
   });
 }
 
@@ -1104,7 +761,6 @@ document.getElementById('devolucaoConfirmarBtn').addEventListener('click', async
   }
   fecharModalDevolucao();
   carregarVendas();
-  carregarComissao();
 });
 
 document.getElementById('exportMinhasVendasBtn').addEventListener('click', async () => {
@@ -1131,56 +787,13 @@ document.getElementById('exportMinhasVendasBtn').addEventListener('click', async
   URL.revokeObjectURL(url);
 });
 
-async function carregarComissao(){
-  const mes = document.getElementById('mesInput').value;
-  const res = await fetch('/api/minha-comissao?mes=' + mes);
-  if(res.status === 401){ logout(); return; }
-  const c = await res.json();
-
-  document.getElementById('totalVendidoValue').textContent = fmtMoeda(c.total_vendido);
-  document.getElementById('comissaoValue').textContent = fmtMoeda(c.comissao);
-  document.getElementById('percentualLabel').textContent = c.percentual + '%';
-
-  // A composição da comissão (própria + o que ela ganha sobre cada vendedor)
-  // fica escondida e só aparece ao passar o mouse — ou ao tocar, no celular.
-  const overrideNote = document.getElementById('overrideNote');
-  const cardComissao = document.getElementById('cardComissao');
-  const dica = document.getElementById('comissaoDica');
-  if(c.overrides && c.overrides.length > 0){
-    overrideNote.innerHTML = `<div>Própria: ${fmtMoeda(c.comissao_propria)}</div>` +
-      c.overrides.map(o => `<div>+ ${o.percentual}% sobre ${o.nome}: ${fmtMoeda(o.valor)}</div>`).join('');
-    cardComissao.classList.add('tem-detalhe');
-    dica.style.display = 'inline';
-  }else{
-    overrideNote.innerHTML = '';
-    cardComissao.classList.remove('tem-detalhe');
-    dica.style.display = 'none';
-  }
-  overrideNote.classList.remove('aberto');
-
-  const bonusNote = document.getElementById('bonusNote');
-  bonusNote.textContent = c.total_bonus > 0 ? `Bônus/avaliações do mês (fora da comissão): ${fmtMoeda(c.total_bonus)}` : '';
-}
-
-// No celular não existe "passar o mouse", então tocar no card abre/fecha o
-// detalhe da comissão. Tocar fora fecha.
-document.getElementById('cardComissao').addEventListener('click', (e) => {
-  const nota = document.getElementById('overrideNote');
-  if(!nota.innerHTML) return;
-  e.stopPropagation();
-  nota.classList.toggle('aberto');
-});
-document.addEventListener('click', () => {
-  document.getElementById('overrideNote').classList.remove('aberto');
-});
-
 document.getElementById('mesInput').addEventListener('change', () => {
   sairModoEdicao();
   document.getElementById('buscaVendasInput').value = '';
   document.getElementById('limparBuscaBtn').style.display = 'none';
   carregarVendas();
-  carregarComissao();
   carregarConfirmacao();
+  carregarPainel();
 });
 
 // Busca dentro do mês, filtrando conforme digita (sem ir ao servidor, porque
@@ -1281,7 +894,7 @@ document.getElementById('addBtn').addEventListener('click', async () => {
     // continuava igual, achava que não tinha salvo e lançava de novo.
     if(mesDaVenda !== mesInput.value) mesInput.value = mesDaVenda;
     sairModoEdicao();
-    await Promise.all([carregarVendas(), carregarComissao(), carregarConfirmacao()]);
+    await Promise.all([carregarVendas(), carregarConfirmacao(), carregarPainel()]);
   }catch(e){
     status.textContent = 'Sem conexão com o servidor. A venda pode não ter sido salva — confira na lista antes de lançar de novo.';
     status.classList.add('show','err');
@@ -1406,7 +1019,7 @@ document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
       status.classList.add('show');
       iniciarSheetVazia();
     }
-    await Promise.all([carregarVendas(), carregarComissao(), carregarConfirmacao()]);
+    await Promise.all([carregarVendas(), carregarConfirmacao(), carregarPainel()]);
   }catch(e){
     status.textContent = 'Sem conexão com o servidor. As vendas podem não ter sido salvas — confira na lista antes de lançar de novo.';
     status.classList.add('show','err');
@@ -1415,6 +1028,235 @@ document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
     btn.disabled = false;
   }
 });
+
+
+/* ============================================================
+   Painel do vendedor — indicadores, meta, evolução e rankings.
+   Tudo vem de /api/meu-painel numa chamada só.
+   ============================================================ */
+
+let secaoAtual = (location.hash || '#painel').replace('#','');
+if(secaoAtual !== 'vendas') secaoAtual = 'painel';
+let dadosPainel = null;
+
+const IC = {
+  dinheiro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  carrinho: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 12.4a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 2-1.6L21 7H6"/></svg>',
+  alvo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/></svg>',
+  etiqueta: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11V4h7l10 10-7 7z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg>',
+  voltar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h11a5 5 0 0 1 0 10H9"/><path d="M7 6l-4 4 4 4"/></svg>',
+  subir: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 8h6v6"/></svg>',
+};
+
+function kpi(rotulo, numero, rodape, icone, cor, extra){
+  return '<div class="kpi ' + (extra && extra.classe ? extra.classe : '') + '"' + (extra && extra.id ? ' id="' + extra.id + '"' : '') + '>'
+    + '<div class="icone ' + cor + '">' + icone + '</div>'
+    + '<div class="rotulo">' + rotulo + '</div>'
+    + '<div class="numero valor-money">' + numero + '</div>'
+    + (rodape ? '<div class="rodape">' + rodape + '</div>' : '')
+    + (extra && extra.html ? extra.html : '')
+    + '</div>';
+}
+
+async function carregarPainel(){
+  const mes = document.getElementById('mesInput').value;
+  const res = await fetch('/api/meu-painel?mes=' + mes);
+  if(res.status === 401){ logout(); return; }
+  dadosPainel = await res.json();
+  renderPainel();
+}
+
+function renderPainel(){
+  const d = dadosPainel;
+  if(!d) return;
+  const c = d.comissao || {};
+
+  // ---- cartões de indicadores ----
+  const detalheComissao = (c.overrides && c.overrides.length)
+    ? '<span class="detalhe-dica">ⓘ</span><div class="override-note valor-money" id="overrideNote">'
+      + '<div>Própria: ' + fmtMoeda(c.comissao_propria) + '</div>'
+      + c.overrides.map(o => '<div>+ ' + o.percentual + '% sobre ' + o.nome + ': ' + fmtMoeda(o.valor) + '</div>').join('')
+      + '</div>'
+    : '';
+
+  const devolucaoRodape = d.devolucoes.quantidade
+    ? d.devolucoes.quantidade + ' devolução(ões): −' + fmtMoeda(d.devolucoes.valor)
+    : 'Nenhuma devolução no mês';
+
+  document.getElementById('kpiGrid').innerHTML =
+      kpi('Total vendido no mês', fmtMoeda(d.total_mes),
+          d.mes_corrente ? 'Hoje: ' + fmtMoeda(d.total_hoje) : '', IC.dinheiro, 'i-laranja')
+    + kpi('Comissão prevista (<span id="percentualLabel">' + (c.percentual || 0) + '%</span>)',
+          fmtMoeda(c.comissao), '', IC.subir, 'i-verde',
+          {id:'cardComissao', classe: detalheComissao ? 'tem-detalhe' : '', html: detalheComissao})
+    + kpi('Vendas no mês', String(d.qtd_vendas), 'Ticket médio: ' + fmtMoeda(d.ticket_medio), IC.carrinho, 'i-azul')
+    + kpi('Ticket médio', fmtMoeda(d.ticket_medio), devolucaoRodape, IC.etiqueta, 'i-roxo')
+    + kpi('Bônus do mês', fmtMoeda(c.total_bonus || 0), 'Avaliações, fora da comissão', IC.alvo, 'i-amarelo');
+
+  ligarDetalheComissao();
+
+  // ---- meta do mês ----
+  const meta = d.metas.mensal;
+  const pct = meta > 0 ? (d.total_mes / meta) * 100 : 0;
+  document.getElementById('metaAtingido').textContent = fmtMoeda(d.total_mes);
+  document.getElementById('metaTotal').textContent = fmtMoeda(meta);
+  const pilula = document.getElementById('metaPct');
+  pilula.textContent = Math.round(pct) + '%';
+  pilula.className = 'pilula ' + (pct >= 100 ? 'ok' : pct >= 70 ? 'neutro' : 'ruim');
+  const barra = document.getElementById('metaBarra');
+  barra.style.width = Math.min(100, pct) + '%';
+  barra.classList.toggle('batida', pct >= 100);
+  document.getElementById('metaFalta').textContent =
+    d.metas.falta_no_mes > 0 ? fmtMoeda(d.metas.falta_no_mes) : 'Meta batida 🎉';
+  document.getElementById('metaPorDia').textContent =
+    d.metas.falta_no_mes > 0 ? fmtMoeda(d.metas.necessario_por_dia) + ' (' + d.metas.dias_restantes + ' dias)' : '—';
+
+  miniMeta('Hoje', d.total_hoje, d.metas.diaria, 'miniHoje');
+  miniMeta('Semana', d.total_semana, d.metas.semanal, 'miniSemana');
+
+  // ---- atalhos ----
+  const ret = d.retomada;
+  const pendentes = ret ? ret.pendente : 0;
+  document.getElementById('atalhosPainel').innerHTML =
+      atalho('/retomada', IC.voltar, 'i-verde', 'Retomada',
+             ret ? pendentes + ' cliente(s) esperando um retorno' : 'Sem fila gerada ainda')
+    + atalho('/simulador', IC.etiqueta, 'i-roxo', 'Simulador de desconto',
+             'Consultar desconto e parcelamento de uma peça')
+    + atalho('/painel.html', IC.alvo, 'i-amarelo', 'Painel de ranking',
+             'Ver como está o time no mês');
+  marcarBadge('retomada', pendentes || 0);
+
+  renderEvolucao(d.evolucao);
+  renderBarras('topProdutos', d.top_produtos, 'var(--accent)');
+  renderBarras('topCanais', d.top_canais, 'var(--info)');
+}
+
+function miniMeta(rotulo, valor, meta, prefixo){
+  const el = document.getElementById(prefixo + 'Val');
+  const bar = document.getElementById(prefixo + 'Barra');
+  if(valor === null || valor === undefined){
+    el.textContent = '—';
+    const alvoVazio = document.getElementById(prefixo + 'Alvo');
+    if(alvoVazio) alvoVazio.textContent = '—';
+    bar.style.width = '0%';
+    return;
+  }
+  el.textContent = fmtMoeda(valor);
+  const alvo = document.getElementById(prefixo + 'Alvo');
+  if(alvo) alvo.textContent = fmtMoeda(meta);
+  const p = meta > 0 ? (valor / meta) * 100 : 0;
+  bar.style.width = Math.min(100, p) + '%';
+  bar.classList.toggle('batida', p >= 100);
+}
+
+function atalho(href, icone, cor, titulo, sub){
+  const externo = href.endsWith('.html') ? ' target="_blank"' : '';
+  return '<a class="atalho-card" href="' + href + '"' + externo + '>'
+    + '<div class="ic ' + cor + '">' + icone + '</div>'
+    + '<div><div class="tit">' + titulo + '</div><div class="sub">' + sub + '</div></div></a>';
+}
+
+function renderBarras(alvoId, itens, cor){
+  const el = document.getElementById(alvoId);
+  if(!itens || !itens.length){
+    el.innerHTML = '<div class="vazio">Nada lançado neste mês ainda.</div>';
+    return;
+  }
+  const maior = Math.max(...itens.map(i => i.valor)) || 1;
+  el.innerHTML = itens.map(i =>
+    '<div class="barra-linha">'
+    + '<span class="barra-nome" title="' + i.nome.replace(/"/g,'&quot;') + '">' + i.nome + '</span>'
+    + '<span class="barra-valor valor-money">' + fmtMoeda(i.valor) + '</span>'
+    + '<span class="barra-trilha"><span class="barra-preenchida" style="width:'
+    + Math.max(3, (i.valor / maior) * 100) + '%;background:' + cor + ';"></span></span>'
+    + '</div>').join('');
+}
+
+// Gráfico de linha em SVG puro — sem biblioteca externa, pra página continuar
+// leve e funcionar mesmo se o vendedor estiver com internet ruim.
+function renderEvolucao(dias){
+  const el = document.getElementById('graficoEvolucao');
+  if(!dias || dias.length === 0){
+    el.innerHTML = '<div class="vazio">Nenhuma venda lançada neste mês ainda.</div>';
+    return;
+  }
+  const L = 40, R = 12, T = 14, B = 26;
+  const largura = Math.max(560, dias.length * 46);
+  const altura = 190;
+  const gl = largura - L - R, ga = altura - T - B;
+  const maior = Math.max(...dias.map(d => d.valor)) || 1;
+  const x = i => L + (dias.length === 1 ? gl/2 : (i / (dias.length - 1)) * gl);
+  const y = v => T + ga - (v / maior) * ga;
+
+  const pontos = dias.map((d,i) => x(i) + ',' + y(d.valor));
+  const area = 'M' + x(0) + ',' + (T+ga) + ' L' + pontos.join(' L') + ' L' + x(dias.length-1) + ',' + (T+ga) + ' Z';
+  const linha = 'M' + pontos.join(' L');
+
+  const grade = [0, .5, 1].map(f => {
+    const yy = T + ga - f * ga;
+    return '<line x1="' + L + '" y1="' + yy + '" x2="' + (largura-R) + '" y2="' + yy
+      + '" stroke="var(--line)" stroke-dasharray="3 4"/>'
+      + '<text x="6" y="' + (yy+3.5) + '" font-size="9" fill="var(--muted)">'
+      + (maior*f >= 1000 ? Math.round(maior*f/1000) + 'k' : Math.round(maior*f)) + '</text>';
+  }).join('');
+
+  const marcas = dias.map((d,i) => {
+    const mostrar = dias.length <= 12 || i % Math.ceil(dias.length/12) === 0 || i === dias.length-1;
+    return '<circle cx="' + x(i) + '" cy="' + y(d.valor) + '" r="3" fill="var(--accent)"><title>'
+      + d.data.slice(8,10) + '/' + d.data.slice(5,7) + ' — ' + fmtMoeda(d.valor) + '</title></circle>'
+      + (mostrar ? '<text x="' + x(i) + '" y="' + (altura-8) + '" font-size="9.5" fill="var(--muted)" text-anchor="middle">'
+          + d.data.slice(8,10) + '</text>' : '');
+  }).join('');
+
+  el.innerHTML = '<svg class="evo-svg" viewBox="0 0 ' + largura + ' ' + altura + '" width="' + largura + '" height="' + altura + '">'
+    + '<defs><linearGradient id="gradEvo" x1="0" y1="0" x2="0" y2="1">'
+    + '<stop offset="0%" stop-color="var(--accent)" stop-opacity=".28"/>'
+    + '<stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>'
+    + grade
+    + '<path d="' + area + '" fill="url(#gradEvo)"/>'
+    + '<path d="' + linha + '" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>'
+    + marcas + '</svg>';
+}
+
+function ligarDetalheComissao(){
+  const card = document.getElementById('cardComissao');
+  const nota = document.getElementById('overrideNote');
+  if(!card || !nota) return;
+  card.addEventListener('click', (e) => {
+    e.stopPropagation();
+    nota.classList.toggle('aberto');
+  });
+}
+document.addEventListener('click', () => {
+  const n = document.getElementById('overrideNote');
+  if(n) n.classList.remove('aberto');
+});
+
+/* ---------- troca de seção ---------- */
+const TITULOS = {painel: 'Painel', vendas: 'Minhas vendas'};
+
+function irParaSecao(chave){
+  secaoAtual = (chave === 'vendas') ? 'vendas' : 'painel';
+  document.getElementById('secaoPainel').classList.toggle('oculto', secaoAtual !== 'painel');
+  document.getElementById('secaoVendas').classList.toggle('oculto', secaoAtual !== 'vendas');
+  document.getElementById('tituloSecao').textContent = TITULOS[secaoAtual];
+  document.querySelectorAll('.nav-item[data-nav]').forEach(a => {
+    a.classList.toggle('ativo', a.dataset.nav === secaoAtual);
+  });
+  if(location.hash !== '#' + secaoAtual) history.replaceState({}, '', '#' + secaoAtual);
+  fecharMenu();
+}
+
+window.addEventListener('hashchange', () => {
+  const alvo = (location.hash || '#painel').replace('#','');
+  if(alvo === 'painel' || alvo === 'vendas') irParaSecao(alvo);
+});
+
+// Redesenha o gráfico ao trocar de tema — o SVG usa as cores do tema.
+window.aoTrocarTema = () => { if(dadosPainel) renderPainel(); };
+
+document.getElementById('menuAbrirBtn').innerHTML = ICONES.menu;
+document.getElementById('menuAbrirBtn').addEventListener('click', abrirMenu);
 
 (async function init(){
   await carregarVendedores();
