@@ -86,6 +86,23 @@
   }
   .cli-todos:hover{color:var(--accent);}
 
+  /* Respiro lento no card enquanto houver cliente esperando: chama o olho sem
+     piscar na cara de ninguem. Para sozinho quando a fila zera — animacao que
+     nunca termina vira ruido e o vendedor deixa de enxergar. */
+  @keyframes respiro-cliente{
+    0%, 100%{box-shadow:0 0 0 0 rgba(232,116,58,0);}
+    50%     {box-shadow:0 0 0 4px rgba(232,116,58,.16);}
+  }
+  .card.tem-cliente{
+    animation:respiro-cliente 3.2s ease-in-out infinite;
+    border-color:rgba(232,116,58,.45);
+  }
+  .card.tem-cliente .card-titulo{color:var(--accent);}
+  /* Quem pediu menos animacao no sistema nao recebe nenhuma. */
+  @media (prefers-reduced-motion: reduce){
+    .card.tem-cliente{animation:none;}
+  }
+
   .toast{
     position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
     background:var(--text);color:var(--surface);
@@ -1351,6 +1368,8 @@ function esc(t){
 
 function renderTopoRetomada(ret){
   const el = document.getElementById('topoRetomada');
+  const card = el.closest('.card');
+  if(card) card.classList.toggle('tem-cliente', !!(ret && ret.topo && ret.topo.length));
   if(!ret || !ret.topo || !ret.topo.length){
     el.innerHTML = ret
       ? '<div class="vazio">Você chamou todo mundo da fila. 👏</div>'
@@ -1515,7 +1534,10 @@ async function carregarPerformance(){
   const res = await fetch('/api/desempenho?mes=' + campoMes.value);
   if(res.status === 401){ logout(); return; }
   if(!res.ok){
-    corpo.innerHTML = '<div class="vazio">Não consegui carregar seus números.</div>';
+    // Mostra o codigo: "nao apareceu nada" nao diz se foi sessao, servidor ou
+    // banco, e sem isso a mesma investigacao comeca do zero toda vez.
+    corpo.innerHTML = '<div class="vazio">Não consegui carregar seus números '
+      + '(erro ' + res.status + '). Tente de novo em instantes; se continuar, avise o gestor.</div>';
     return;
   }
   const d = await res.json();
