@@ -408,15 +408,39 @@
     color:var(--muted);
     margin:-4px 0 14px;
   }
+  /* Composicao da comissao: fica guardada e so aparece ao passar o mouse
+     (ou ao tocar no celular, via classe .aberto). */
+  .stat-card{position:relative;}
+  .detalhe-dica{
+    font-size:12px;
+    color:var(--muted);
+    cursor:help;
+    user-select:none;
+  }
+  .stat-card.tem-detalhe:hover .detalhe-dica{color:var(--accent-2);}
   .override-note{
+    display:none;
+    position:absolute;
+    top:100%;
+    left:0;
+    z-index:30;
+    margin-top:6px;
+    min-width:230px;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 12px;
+    box-shadow:0 8px 20px rgba(0,0,0,.5);
     font-family:'IBM Plex Mono',monospace;
     font-size:11px;
     color:var(--muted);
-    margin:4px 0 0;
-    flex-basis:100%;   /* quebra linha dentro do card, abaixo do valor */
+    text-align:left;
+    white-space:nowrap;
   }
+  .stat-card.tem-detalhe:hover .override-note,
+  .override-note.aberto{display:block;}
   .override-note div{padding:1px 0;}
-  .override-note:empty{display:none;}
+  .override-note:empty{display:none !important;}
 
   .sheet-toggle-row{margin-bottom:18px;}
   .sheet-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;}
@@ -557,9 +581,10 @@
         <div class="label">Total vendido no mês</div>
         <div class="value valor-money" id="totalVendidoValue">R$ 0,00</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card" id="cardComissao">
         <div class="label">Comissão prevista (<span id="percentualLabel">0%</span>)</div>
         <div class="value valor-money" id="comissaoValue">R$ 0,00</div>
+        <span class="detalhe-dica" id="comissaoDica" style="display:none;" title="Ver como a comissão foi composta">ⓘ</span>
         <div class="override-note valor-money" id="overrideNote"></div>
       </div>
     </div>
@@ -1116,17 +1141,38 @@ async function carregarComissao(){
   document.getElementById('comissaoValue').textContent = fmtMoeda(c.comissao);
   document.getElementById('percentualLabel').textContent = c.percentual + '%';
 
+  // A composição da comissão (própria + o que ela ganha sobre cada vendedor)
+  // fica escondida e só aparece ao passar o mouse — ou ao tocar, no celular.
   const overrideNote = document.getElementById('overrideNote');
+  const cardComissao = document.getElementById('cardComissao');
+  const dica = document.getElementById('comissaoDica');
   if(c.overrides && c.overrides.length > 0){
     overrideNote.innerHTML = `<div>Própria: ${fmtMoeda(c.comissao_propria)}</div>` +
       c.overrides.map(o => `<div>+ ${o.percentual}% sobre ${o.nome}: ${fmtMoeda(o.valor)}</div>`).join('');
+    cardComissao.classList.add('tem-detalhe');
+    dica.style.display = 'inline';
   }else{
     overrideNote.innerHTML = '';
+    cardComissao.classList.remove('tem-detalhe');
+    dica.style.display = 'none';
   }
+  overrideNote.classList.remove('aberto');
 
   const bonusNote = document.getElementById('bonusNote');
   bonusNote.textContent = c.total_bonus > 0 ? `Bônus/avaliações do mês (fora da comissão): ${fmtMoeda(c.total_bonus)}` : '';
 }
+
+// No celular não existe "passar o mouse", então tocar no card abre/fecha o
+// detalhe da comissão. Tocar fora fecha.
+document.getElementById('cardComissao').addEventListener('click', (e) => {
+  const nota = document.getElementById('overrideNote');
+  if(!nota.innerHTML) return;
+  e.stopPropagation();
+  nota.classList.toggle('aberto');
+});
+document.addEventListener('click', () => {
+  document.getElementById('overrideNote').classList.remove('aberto');
+});
 
 document.getElementById('mesInput').addEventListener('change', () => {
   sairModoEdicao();
