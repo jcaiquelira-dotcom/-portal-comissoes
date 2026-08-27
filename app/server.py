@@ -2163,15 +2163,35 @@ def api_marketing_gestor():
     for g in gasto_linhas:
         gasto_dia[g["data"]] = round(gasto_dia.get(g["data"], 0.0) + g["spend"], 2)
 
-    # O Meta vem agregado do periodo inteiro do relatorio, nao por dia. So entra
-    # na soma quando a janela pedida cobre esse periodo todo — num recorte menor
-    # nao da pra saber que fatia do gasto caiu ali, e somar o total inflaria o
-    # investimento e derrubaria o custo por lead.
+    # O Meta vem agregado do periodo inteiro do relatorio, nao por dia. Exigir
+    # que a janela cobrisse o relatorio inteiro pra somar deixava o investimento
+    # dele fora da conta em qualquer mes — que e justamente como o painel e
+    # aberto. Entao rateia por dia: o gasto do relatorio dividido pelos dias que
+    # ele cobre, multiplicado pelos dias que caem na janela pedida.
+    #
+    # E aproximacao, e a tela diz isso. Gasto de midia nao e uniforme dia a dia,
+    # mas num recorte de semanas o erro e pequeno perto de simplesmente ignorar
+    # metade do investimento.
     meta = gasto_bruto.get("meta")
-    meta_no_periodo = bool(meta and de <= meta["de"] and ate >= meta["ate"])
-    if meta_no_periodo:
-        investimento = round(investimento + meta["spend"], 2)
-        impressoes += meta.get("impressions", 0)
+    meta_rateio = None
+    if meta and meta.get("de") and meta.get("ate"):
+        ini = max(de, meta["de"])
+        fim = min(ate, meta["ate"])
+        if ini <= fim:
+            dias_relatorio = (date.fromisoformat(meta["ate"])
+                              - date.fromisoformat(meta["de"])).days + 1
+            dias_dentro = (date.fromisoformat(fim) - date.fromisoformat(ini)).days + 1
+            fatia = dias_dentro / dias_relatorio if dias_relatorio else 0
+            meta_rateio = {
+                "de": ini, "ate": fim,
+                "dias_dentro": dias_dentro, "dias_relatorio": dias_relatorio,
+                "spend": round(meta["spend"] * fatia, 2),
+                "impressions": int(meta.get("impressions", 0) * fatia),
+                "conversas": int(meta.get("conversas", 0) * fatia),
+                "integral": dias_dentro == dias_relatorio,
+            }
+            investimento = round(investimento + meta_rateio["spend"], 2)
+            impressoes += meta_rateio["impressions"]
 
     vendas = _vendas_no_periodo(vendedores, ef_de, ef_ate,
                                 so_vendedor=filtro_vendedor or None,
@@ -2221,7 +2241,7 @@ def api_marketing_gestor():
             "google": {"investimento": round(sum(g["spend"] for g in gasto_linhas), 2),
                        "clicks": cliques},
             "meta": meta,
-            "meta_no_periodo": meta_no_periodo,
+            "meta_rateio": meta_rateio,
         },
     })
 

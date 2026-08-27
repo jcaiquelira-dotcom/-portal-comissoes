@@ -2317,7 +2317,7 @@ function renderMarketing(d){
     kpi('Vendas', d.vendas.qtd, fmtMoeda(d.vendas.total)),
     kpi('Conversão', (d.conversao ?? 0) + '%', 'venda ÷ lead'),
     kpi('Investimento', fmtMoeda(m.investimento),
-        m.meta_no_periodo ? 'Google + Meta' : 'só Google Ads'),
+        m.meta_rateio ? 'Google + Meta' : 'só Google Ads'),
     kpi('Custo por lead', m.custo_por_lead === null ? '—' : fmtMoeda(m.custo_por_lead)),
     kpi('Custo por venda', m.custo_por_venda === null ? '—' : fmtMoeda(m.custo_por_venda)),
     kpi('CPC', m.cpc === null ? '—' : fmtMoeda(m.cpc), m.ctr === null ? '' : `CTR ${m.ctr}%`),
@@ -2353,8 +2353,13 @@ function renderMarketing(d){
   </div>`;
 
   const mt = m.meta;
+  const rat = m.meta_rateio;
   const cardMeta = mt ? `<div class="card" style="margin-bottom:14px;">
     <p class="card-titulo">Meta Ads — anúncios</p>
+    ${rat && !rat.integral ? `<p class="fechamento-nota" style="margin:0 0 12px;">
+      No período que você escolheu entram <b>${rat.dias_dentro} dos ${rat.dias_relatorio} dias</b>
+      do relatório: <b class="valor-money">${fmtMoeda(rat.spend)}</b> — é esse valor que está
+      somado no investimento acima. Os números da tabela abaixo são do relatório inteiro.</p>` : ''}
     <div class="dp-kpis" style="margin-bottom:12px;">
       <div class="dp-kpi"><div class="rot">Investido</div>
         <div class="num valor-money">${fmtMoeda(mt.spend)}</div></div>
@@ -2376,11 +2381,12 @@ function renderMarketing(d){
       </tr>`).join('')}</tbody>
     </table></div>
     <div class="dp-aviso">O relatório do Meta vem fechado de <b>${mt.de.slice(8)}/${mt.de.slice(5,7)}</b>
-      a <b>${mt.ate.slice(8)}/${mt.ate.slice(5,7)}</b>, sem quebra por dia.
-      ${m.meta_no_periodo
-        ? 'Como o período que você escolheu cobre essa janela inteira, o valor está somado no investimento acima.'
-        : '<b>Não está somado no investimento acima</b>: o período escolhido não cobre a janela inteira do relatório, e não dá pra saber que fatia do gasto caiu no seu recorte.'}
-      As colunas “Compras” e “ROAS” vêm vazias do Meta — ele não enxerga a venda, que fecha no WhatsApp.</div>
+      a <b>${mt.ate.slice(8)}/${mt.ate.slice(5,7)}</b>, <b>sem quebra por dia</b>. Quando o período
+      escolhido pega só um pedaço dessa janela, o gasto entra rateado por dia — é aproximação, porque
+      investimento não é uniforme dia a dia, mas erra menos do que deixar metade do dinheiro de fora
+      da conta. Pra ter o valor exato por dia, seria preciso ligar o conector do Meta no Windsor.
+      As colunas “Compras” e “ROAS” vêm vazias do Meta — ele não enxerga a venda, que fecha no
+      WhatsApp.</div>
   </div>` : '';
 
   const cardCampanhas = m.campanhas.length ? `<div class="card">
@@ -2411,6 +2417,12 @@ function renderMarketing(d){
   }
   avisos.push(`CPC e CTR são <b>só do Google Ads</b>. O export do Meta traz conversa iniciada,
     não clique — dividir um pelo outro não significaria nada.`);
+  if(m.meta_rateio && !m.meta_rateio.integral){
+    avisos.push(`O investimento inclui <b>${fmtMoeda(m.meta_rateio.spend)}</b> de Meta Ads,
+      rateado por dia a partir do relatório de ${m.meta.de.slice(8)}/${m.meta.de.slice(5,7)} a
+      ${m.meta.ate.slice(8)}/${m.meta.ate.slice(5,7)} (${m.meta_rateio.dias_dentro} de
+      ${m.meta_rateio.dias_relatorio} dias). Custo por lead e por venda carregam essa aproximação.`);
+  }
   avisos.push(`Faturamento por real de mídia no período: <b>${m.faturamento_por_real ?? '—'}×</b>.
     Não é ROAS: o faturamento é o total do período, não o atribuído a anúncio.`);
 
