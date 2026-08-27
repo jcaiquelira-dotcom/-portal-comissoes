@@ -747,7 +747,19 @@ def api_ambiente():
     olhar o portal local — com dados congelados e sem os arquivos de
     atendimento — e concluir que produção estava quebrada. Público de propósito:
     o aviso precisa aparecer antes do login, que é onde a confusão começa."""
-    return jsonify({"local": not bool(DATABASE_URL)})
+    # A versao e o carimbo dos arquivos da tela. A pagina guarda o valor que
+    # recebeu ao abrir e reconfere de tempos em tempos: mudou, e porque saiu
+    # publicacao nova e aquela aba esta velha. Sem isso, quem deixa a janela
+    # aberta o dia todo (atalho do Chrome em modo app) fica vendo a versao
+    # antiga e concluindo que o portal esta com defeito.
+    try:
+        marcas = [(STATIC_DIR / nome).stat().st_mtime
+                  for nome in ("index.html", "admin.html", "portal-nav.js")
+                  if (STATIC_DIR / nome).exists()]
+        versao = str(int(max(marcas))) if marcas else "0"
+    except OSError:
+        versao = "0"
+    return jsonify({"local": not bool(DATABASE_URL), "versao": versao})
 
 
 @app.route("/api/me")

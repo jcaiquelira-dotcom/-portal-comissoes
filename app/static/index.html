@@ -401,6 +401,19 @@
         <button class="btn btn-neutro btn-pequeno" id="confirmBtn">Confirmar vendas do mês</button>
       </div>
     </section>
+
+    <section id="secaoPerformance" class="oculto">
+      <div class="dp-topo">
+        <div class="dp-quem">
+          <div class="dp-foto" id="dpFoto">--</div>
+          <div>
+            <div class="dp-nome" id="dpNome">—</div>
+            <div class="dp-sub" id="dpSub">—</div>
+          </div>
+        </div>
+      </div>
+      <div id="dpCorpo"></div>
+    </section>
   </main>
 </div>
 
@@ -426,19 +439,6 @@
     <!-- ---------- PERFORMANCE ---------- -->
     <!-- Mesma estrutura da area do gestor de proposito: o desenho vem de
          desempenho.js, que procura estes ids. -->
-    <section id="secaoPerformance" class="oculto">
-      <div class="dp-topo">
-        <div class="dp-quem">
-          <div class="dp-foto" id="dpFoto">--</div>
-          <div>
-            <div class="dp-nome" id="dpNome">—</div>
-            <div class="dp-sub" id="dpSub">—</div>
-          </div>
-        </div>
-        <input type="month" id="dpMes" class="dp-mes">
-      </div>
-      <div id="dpCorpo"></div>
-    </section>
 </div>
 
 <script src="/portal-nav.js"></script>
@@ -1260,8 +1260,12 @@ document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
    Tudo vem de /api/meu-painel numa chamada só.
    ============================================================ */
 
+// Sobra de quando so existiam Painel e Minhas vendas: qualquer outro hash
+// virava 'painel'. Com a chegada de Performance isso passou a jogar a pessoa
+// de volta pro painel ao abrir ou recarregar em #performance — a secao ficava
+// escondida e a tela, em branco. A validacao agora e contra as secoes que
+// existem de fato, definidas mais abaixo em SECOES_VENDEDOR.
 let secaoAtual = (location.hash || '#painel').replace('#','');
-if(secaoAtual !== 'vendas') secaoAtual = 'painel';
 let dadosPainel = null;
 
 const IC = {
@@ -1541,11 +1545,12 @@ document.addEventListener('click', () => {
    O servidor é que decide o que ele pode ver: /api/desempenho devolve tudo
    menos a participação no faturamento do time. */
 async function carregarPerformance(){
-  const campoMes = document.getElementById('dpMes');
-  if(!campoMes.value) campoMes.value = todayStr().slice(0, 7);
+  // Usa o seletor de mes do topo, o mesmo do painel e das vendas: dois campos
+  // de mes na tela sao duas fontes de verdade pra mesma pergunta.
+  const mes = document.getElementById('mesInput').value || todayStr().slice(0, 7);
   const corpo = document.getElementById('dpCorpo');
   corpo.innerHTML = '<div class="vazio">Carregando…</div>';
-  const res = await fetch('/api/desempenho?mes=' + campoMes.value);
+  const res = await fetch('/api/desempenho?mes=' + mes);
   if(res.status === 401){ logout(); return; }
   if(!res.ok){
     // Mostra o codigo: "nao apareceu nada" nao diz se foi sessao, servidor ou
@@ -1562,12 +1567,20 @@ async function carregarPerformance(){
     d.time && d.time.posicao ? `${d.time.posicao}º lugar entre ${d.time.de} no mês` : '';
 }
 
-document.getElementById('dpMes').addEventListener('change', carregarPerformance);
+// Trocar o mes no topo tem que refazer a Performance tambem, se ela e a
+// secao aberta.
+document.getElementById('mesInput').addEventListener('change', () => {
+  if(secaoAtual === 'performance') carregarPerformance();
+});
 
 /* ---------- troca de seção ---------- */
 const TITULOS = {painel: 'Painel', vendas: 'Minhas vendas', performance: 'Performance'};
 const SECOES_VENDEDOR = {painel: 'secaoPainel', vendas: 'secaoVendas',
                          performance: 'secaoPerformance'};
+
+// Roda assim que SECOES_VENDEDOR existe: se a URL trouxe um hash que nao e
+// secao, cai no painel — mas '#performance' agora e reconhecido.
+if(!SECOES_VENDEDOR[secaoAtual]) secaoAtual = 'painel';
 
 function irParaSecao(chave){
   secaoAtual = SECOES_VENDEDOR[chave] ? chave : 'painel';

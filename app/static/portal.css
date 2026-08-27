@@ -511,3 +511,20 @@ tr.dia-novo:first-child > td{border-top:none;padding-top:8px;}
 }
 .faixa-local a{color:#FFD9B0;}
 body.com-faixa-local{padding-bottom:34px;}
+
+/* Aviso de versao nova — mesma faixa da copia local, cor da marca. Fica acima
+   dela quando as duas aparecem juntas (so acontece em desenvolvimento). */
+.faixa-versao{
+  position:fixed;left:0;right:0;bottom:0;z-index:201;
+  background:var(--accent);color:#fff;
+  font-size:12.5px;text-align:center;padding:7px 14px;
+  box-shadow:0 -2px 10px rgba(0,0,0,.2);
+}
+.faixa-versao button{
+  margin-left:10px;background:#fff;color:var(--accent);
+  border:none;border-radius:6px;padding:3px 12px;
+  font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;
+}
+body.com-faixa-versao{padding-bottom:34px;}
+body.com-faixa-versao.com-faixa-local{padding-bottom:68px;}
+body.com-faixa-versao.com-faixa-local .faixa-local{bottom:34px;}

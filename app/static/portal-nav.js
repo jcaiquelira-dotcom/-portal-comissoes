@@ -10,6 +10,7 @@
 const ICONES = {
   painel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
   vendas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/></svg>',
+  cifrao: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M16.5 6.5H10a3.2 3.2 0 0 0 0 6.4h4a3.2 3.2 0 0 1 0 6.4H7"/></svg>',
   simulador: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M12 10h2M16 10h.01M8 14h2M12 14h2M16 14h.01M8 18h6"/></svg>',
   retomada: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 20.5l1.5-4.4A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4z"/></svg>',
   ranking: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>',
@@ -97,7 +98,7 @@ const PORTAIS = {
     itens: [
       {chave: 'painel',    texto: 'Painel',                href: '/#painel', icone: 'painel'},
       {chave: 'vendas',    texto: 'Minhas vendas',         href: '/#vendas', icone: 'vendas'},
-      {chave: 'simulador', texto: 'Simulador de desconto', href: '/simulador', icone: 'simulador'},
+      {chave: 'simulador', texto: 'Simulação',             href: '/simulador', icone: 'cifrao'},
       {chave: 'retomada',  texto: 'Follow-up',              href: '/follow-up', icone: 'retomada'},
       {chave: 'performance', texto: 'Performance',          href: '/#performance', icone: 'desempenho'},
     ],
@@ -165,18 +166,51 @@ aplicarTema(temaAtual());
    alguem olhar o local — com dados congelados e sem os arquivos de
    atendimento — e concluir que producao estava fora. A faixa some sozinha em
    producao, entao ninguem ve nada no dia a dia. */
-fetch('/api/ambiente')
-  .then(r => r.ok ? r.json() : null)
-  .then(d => {
-    if(!d || !d.local) return;
-    const faixa = document.createElement('div');
-    faixa.className = 'faixa-local';
-    faixa.innerHTML = '<b>Cópia local</b> — dados de teste, congelados. '
-      + 'O portal de verdade é <a href="https://nevadaecopecas.onrender.com">nevadaecopecas.onrender.com</a>';
-    document.body.appendChild(faixa);
-    document.body.classList.add('com-faixa-local');
-  })
-  .catch(() => {});
+let versaoDaAba = null;
+
+function avisarCopiaLocal(){
+  if(document.querySelector('.faixa-local')) return;
+  const faixa = document.createElement('div');
+  faixa.className = 'faixa-local';
+  faixa.innerHTML = '<b>Cópia local</b> — dados de teste, congelados. '
+    + 'O portal de verdade é <a href="https://nevadaecopecas.onrender.com">nevadaecopecas.onrender.com</a>';
+  document.body.appendChild(faixa);
+  document.body.classList.add('com-faixa-local');
+}
+
+/* Quem deixa a janela aberta o dia todo — o atalho do Chrome em modo app, a TV
+   da expedicao — nao recarrega sozinho e continua vendo a versao antiga. A aba
+   guarda a versao que recebeu ao abrir e reconfere; mudou, avisa. */
+function avisarVersaoNova(){
+  if(document.querySelector('.faixa-versao')) return;
+  const faixa = document.createElement('div');
+  faixa.className = 'faixa-versao';
+  faixa.innerHTML = '<b>Tem versão nova do portal.</b> '
+    + '<button type="button" id="recarregarAgora">Atualizar agora</button>';
+  document.body.appendChild(faixa);
+  document.body.classList.add('com-faixa-versao');
+  document.getElementById('recarregarAgora')
+    .addEventListener('click', () => location.reload());
+}
+
+function conferirAmbiente(primeira){
+  fetch('/api/ambiente', {cache: 'no-store'})
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if(!d) return;
+      if(d.local) avisarCopiaLocal();
+      if(primeira){ versaoDaAba = d.versao; return; }
+      if(versaoDaAba && d.versao && d.versao !== versaoDaAba) avisarVersaoNova();
+    })
+    .catch(() => {});
+}
+
+conferirAmbiente(true);
+setInterval(() => conferirAmbiente(false), 5 * 60 * 1000);
+// Voltar pra aba e o momento natural de descobrir que ela envelheceu.
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) conferirAmbiente(false);
+});
 
 function montarSidebar(ativo, opcoes){
   opcoes = opcoes || {};
