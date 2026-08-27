@@ -130,6 +130,27 @@
   @media (max-width:700px){.grid-2{grid-template-columns:1fr;}}
   .tabela-rolante{overflow-x:auto;}
 
+  /* ---- Blocos dobrados ----
+     Usado nos logs e nas metas. Tudo nasce fechado: essas telas sao de
+     consulta e ajuste pontual, e abertas de uma vez nao cabem na tela. */
+  .dobra > summary{
+    display:flex;align-items:center;gap:10px;
+    cursor:pointer;list-style:none;
+  }
+  .dobra > summary::-webkit-details-marker{display:none;}
+  .dobra > summary .card-titulo{margin:0;}
+  .dobra > summary:before{
+    content:'▸';color:var(--muted);font-size:12px;
+    display:inline-block;transition:transform .12s;
+  }
+  .dobra[open] > summary:before{transform:rotate(90deg);}
+  .dobra > summary:hover .card-titulo{color:var(--accent);}
+  .dobra-conta{
+    margin-left:auto;font-size:11.5px;color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .dobra[open] > summary{margin-bottom:12px;}
+
   /* ---- Abas de Configurações ---- */
   .config-abas{
     display:flex;gap:6px;flex-wrap:wrap;
@@ -346,15 +367,24 @@
 
     <!-- ---------- METAS ---------- -->
     <section id="secMetas" class="oculto">
+      <div class="card" style="margin-bottom:14px;">
+        <details class="dobra">
+          <summary><span class="card-titulo">Meta do grupo</span><span class="dobra-conta" id="resumoMetaGrupo"></span></summary>
+          <div class="grid-3">
+            <div class="campo"><label class="campo-rotulo" for="metaGrupoDiaria">Diária (R$)</label><input type="number" id="metaGrupoDiaria" min="0" step="0.01"></div>
+            <div class="campo"><label class="campo-rotulo" for="metaGrupoSemanal">Semanal (R$)</label><input type="number" id="metaGrupoSemanal" min="0" step="0.01"></div>
+            <div class="campo"><label class="campo-rotulo" for="metaGrupoMensal">Mensal (R$)</label><input type="number" id="metaGrupoMensal" min="0" step="0.01"></div>
+          </div>
+        </details>
+      </div>
+
       <div class="card">
-        <p class="card-titulo">Meta do grupo</p>
-        <div class="grid-3">
-          <div class="campo"><label class="campo-rotulo" for="metaGrupoDiaria">Diária (R$)</label><input type="number" id="metaGrupoDiaria" min="0" step="0.01"></div>
-          <div class="campo"><label class="campo-rotulo" for="metaGrupoSemanal">Semanal (R$)</label><input type="number" id="metaGrupoSemanal" min="0" step="0.01"></div>
-          <div class="campo"><label class="campo-rotulo" for="metaGrupoMensal">Mensal (R$)</label><input type="number" id="metaGrupoMensal" min="0" step="0.01"></div>
-        </div>
-        <p class="card-titulo" style="margin:8px 0 12px;">Por vendedor</p>
-        <div id="metasVendedoresList"></div>
+        <details class="dobra">
+          <summary><span class="card-titulo">Meta por vendedor</span><span class="dobra-conta" id="resumoMetaVendedores"></span></summary>
+          <div id="metasVendedoresList"></div>
+        </details>
+        <!-- Salvar fica fora das dobras: grava os dois blocos de uma vez, e
+             dobrado nao esconde valor nenhum (o input continua no DOM). -->
         <div style="display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap;">
           <button class="btn btn-principal btn-pequeno" id="salvarMetasBtn">Salvar metas</button>
           <span class="status-msg" id="metasStatus"></span>
@@ -409,25 +439,29 @@
     <!-- ---------- REGISTROS ---------- -->
     <section id="secRegistros" class="oculto">
       <div class="card" style="margin-bottom:14px;">
-        <p class="card-titulo">Log de acessos</p>
-        <div class="tabela-rolante">
-          <table>
-            <thead><tr><th>Quando</th><th>Quem</th><th>Resultado</th><th>IP</th></tr></thead>
-            <tbody id="logAcessosBody"></tbody>
-          </table>
-        </div>
-        <div class="vazio" id="emptyLog" style="display:none;">Nenhum acesso registrado ainda.</div>
+        <details class="dobra">
+          <summary><span class="card-titulo">Log de acessos</span><span class="dobra-conta" id="contaAcessos"></span></summary>
+          <div class="tabela-rolante">
+            <table>
+              <thead><tr><th>Quando</th><th>Quem</th><th>Resultado</th><th>IP</th></tr></thead>
+              <tbody id="logAcessosBody"></tbody>
+            </table>
+          </div>
+          <div class="vazio" id="emptyLog" style="display:none;">Nenhum acesso registrado ainda.</div>
+        </details>
       </div>
 
       <div class="card">
-        <p class="card-titulo">Log de ações (edições, exclusões e devoluções)</p>
-        <div class="tabela-rolante">
-          <table>
-            <thead><tr><th>Quando</th><th>Vendedor</th><th>Ação</th><th>Produto</th><th>Valor</th><th>Detalhe</th></tr></thead>
-            <tbody id="logAcoesBody"></tbody>
-          </table>
-        </div>
-        <div class="vazio" id="emptyLogAcoes" style="display:none;">Nenhuma ação registrada ainda.</div>
+        <details class="dobra">
+          <summary><span class="card-titulo">Log de ações (edições, exclusões e devoluções)</span><span class="dobra-conta" id="contaAcoes"></span></summary>
+          <div class="tabela-rolante">
+            <table>
+              <thead><tr><th>Quando</th><th>Vendedor</th><th>Ação</th><th>Produto</th><th>Valor</th><th>Detalhe</th></tr></thead>
+              <tbody id="logAcoesBody"></tbody>
+            </table>
+          </div>
+          <div class="vazio" id="emptyLogAcoes" style="display:none;">Nenhuma ação registrada ainda.</div>
+        </details>
       </div>
     </section>
 
@@ -662,6 +696,12 @@ async function carregarMetas(){
   document.getElementById('metaGrupoSemanal').value = metas.grupo?.semanal || 0;
   document.getElementById('metaGrupoMensal').value = metas.grupo?.mensal || 0;
 
+  // Resumo no titulo pra ele ver o essencial sem abrir.
+  document.getElementById('resumoMetaGrupo').textContent =
+    'mensal ' + fmtMoeda(Number(metas.grupo?.mensal || 0));
+  document.getElementById('resumoMetaVendedores').textContent =
+    vendedoresParaMetas.length + (vendedoresParaMetas.length === 1 ? ' vendedor' : ' vendedores');
+
   const lista = document.getElementById('metasVendedoresList');
   if(vendedoresParaMetas.length === 0){
     lista.innerHTML = '<div class="override-empty">Cadastre vendedores primeiro.</div>';
@@ -728,6 +768,8 @@ async function carregarLogAcessos(){
   const body = document.getElementById('logAcessosBody');
   const empty = document.getElementById('emptyLog');
   body.innerHTML = '';
+  document.getElementById('contaAcessos').textContent =
+    log.length ? log.length + ' registro' + (log.length > 1 ? 's' : '') : 'vazio';
   if(log.length === 0){
     empty.style.display = 'block';
     return;
@@ -761,6 +803,8 @@ async function carregarLogAcoes(){
   const body = document.getElementById('logAcoesBody');
   const empty = document.getElementById('emptyLogAcoes');
   body.innerHTML = '';
+  document.getElementById('contaAcoes').textContent =
+    log.length ? log.length + ' registro' + (log.length > 1 ? 's' : '') : 'vazio';
   if(log.length === 0){
     empty.style.display = 'block';
     return;
