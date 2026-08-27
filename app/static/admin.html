@@ -635,6 +635,31 @@
     </details>
 
     <details class="log-collapse">
+      <summary>Retomada — como o time está trabalhando a fila</summary>
+      <div class="log-body">
+        <p class="fechamento-nota" id="retomadaPeriodo" style="margin-top:0;"></p>
+        <div style="overflow-x:auto;border:1px solid var(--line);border-radius:8px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Vendedor</th><th>Fila</th><th>A chamar</th><th>Chamou</th>
+                <th>Responderam</th><th>Fecharam</th><th>Descartou</th>
+                <th>% da fila</th><th>% resposta</th>
+              </tr>
+            </thead>
+            <tbody id="retomadaBody"></tbody>
+          </table>
+        </div>
+        <div class="empty-hist" id="emptyRetomada" style="display:none;">Nenhuma fila de retomada foi sincronizada ainda.</div>
+        <p class="fechamento-nota">
+          <strong>% da fila</strong> é quanto da lista ele já percorreu.
+          <strong>% resposta</strong> é, entre os que ele chamou, quantos deram sinal de vida
+          (responderam ou fecharam) — essa é a que mede a abordagem; a outra mede só o ritmo.
+        </p>
+      </div>
+    </details>
+
+    <details class="log-collapse">
       <summary>Metas de vendas</summary>
       <div class="log-body">
         <div class="card" style="margin-bottom:26px;">
@@ -762,6 +787,33 @@ function mostrarApp(){
   carregarLogAcessos();
   carregarLogAcoes();
   carregarMetas();
+  carregarRetomada();
+}
+
+async function carregarRetomada(){
+  const res = await fetch('/api/admin/retomada/resumo');
+  if(!res.ok) return;
+  const dados = await res.json();
+  const corpo = document.getElementById('retomadaBody');
+  const vazio = document.getElementById('emptyRetomada');
+  const linhas = dados.vendedores || [];
+  vazio.style.display = linhas.length ? 'none' : 'block';
+  const p = dados.periodo || {};
+  const dt = (v) => v ? v.slice(8,10) + '/' + v.slice(5,7) : '';
+  document.getElementById('retomadaPeriodo').textContent = dados.gerado_em
+    ? `Fila gerada em ${new Date(dados.gerado_em).toLocaleDateString('pt-BR', {timeZone:'America/Sao_Paulo'})}, a partir dos atendimentos de ${dt(p.de)} a ${dt(p.ate)}.`
+    : '';
+  corpo.innerHTML = linhas.map(v => `<tr>
+      <td>${v.nome}</td>
+      <td>${v.total}</td>
+      <td>${v.pendente}</td>
+      <td>${v.chamei}</td>
+      <td>${v.respondeu}</td>
+      <td>${v.vendeu}</td>
+      <td>${v.perdido}</td>
+      <td>${v.pct_trabalhado}%</td>
+      <td>${v.trabalhados ? v.pct_resposta + '%' : '—'}</td>
+    </tr>`).join('');
 }
 
 let vendedoresParaMetas = [];

@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retomada · Nevada Eco Peças</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14171C; --surface:#1E2229; --surface-2:#262B33; --line:#333944;
+    --accent:#C15A2A; --accent-2:#E08A57; --text:#EDEFF2; --muted:#7A8290;
+    --good:#4CAF7D; --bad:#E05B5B; --info:#4C8AAF; --gold:#D4AF37;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:radial-gradient(1200px 600px at 15% -10%, #1c212a 0%, transparent 60%), var(--bg);
+    color:var(--text); font-family:'Inter',sans-serif;
+    padding:12px 12px 50px;
+  }
+  .wrap{max-width:820px;margin:0 auto;}
+  .hidden{display:none !important;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  header{
+    display:flex;justify-content:space-between;align-items:center;
+    flex-wrap:wrap;gap:8px;border-bottom:2px solid var(--line);
+    padding-bottom:8px;margin-bottom:10px;
+  }
+  h1{font-family:'Oswald',sans-serif;font-weight:700;text-transform:uppercase;
+     letter-spacing:.03em;font-size:20px;margin:0;}
+  .top-actions{display:flex;align-items:center;gap:12px;}
+  .link-btn{
+    background:none;border:none;color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;
+    text-decoration:underline;cursor:pointer;padding:0;
+  }
+  .link-btn:hover{color:var(--text);}
+
+  .intro{
+    background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:6px;padding:9px 12px;font-size:12.5px;line-height:1.45;
+    color:#C9CFD8;margin-bottom:9px;
+  }
+  .intro strong{color:var(--text);}
+
+  /* Placar em faixa unica: os cinco numeros cabem numa olhada so, sem virar
+     cinco caixas que empurram a lista pra baixo da dobra no celular. */
+  .placar{
+    display:flex;gap:6px;margin-bottom:9px;overflow-x:auto;padding-bottom:2px;
+  }
+  .placar div{
+    flex:1;min-width:62px;background:var(--surface);border:1px solid var(--line);
+    border-radius:5px;padding:6px 4px;text-align:center;
+  }
+  .placar .n{font-family:'Oswald',sans-serif;font-weight:700;font-size:17px;line-height:1;}
+  .placar .r{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--muted);margin-top:4px;}
+  .n-pendente{color:var(--accent-2);} .n-chamei{color:var(--info);}
+  .n-respondeu{color:var(--gold);} .n-vendeu{color:var(--good);} .n-perdido{color:var(--muted);}
+
+  .barra{
+    position:sticky;top:0;z-index:6;background:var(--bg);
+    padding:6px 0 8px;margin-bottom:8px;border-bottom:1px solid var(--line);
+  }
+  .filtros{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;}
+  .chip{
+    background:var(--surface);border:1px solid var(--line);color:var(--muted);
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+    padding:5px 10px;border-radius:20px;cursor:pointer;white-space:nowrap;
+  }
+  .chip.active{background:var(--accent);border-color:var(--accent);color:#151719;font-weight:600;}
+  #busca{
+    width:100%;background:#0F1216;border:1px solid var(--line);border-radius:5px;
+    color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;padding:7px 9px;
+  }
+
+  /* ---- item da lista ---- */
+  .cliente{
+    background:var(--surface);border:1px solid var(--line);
+    border-left:3px solid var(--gold);border-radius:6px;
+    padding:8px 10px;margin-bottom:6px;
+  }
+  .cliente.alta{border-left-color:var(--bad);}
+  .cliente.feito{opacity:.5;}
+
+  .l1{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:3px;}
+  .gancho{
+    font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--gold);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .cliente.alta .gancho{color:var(--bad);}
+  .quando{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap;}
+
+  .peca{font-size:14px;font-weight:600;line-height:1.25;margin-bottom:2px;}
+  .meta{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted);
+    margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .meta b{color:var(--text);font-weight:600;}
+
+  /* A linha sempre visivel e a ULTIMA fala do cliente: e a que diz onde a
+     conversa parou, e cabe em 16px. O resto do contexto (as falas anteriores e
+     o resumo do atendimento) fica dobrado, pra lista continuar sendo lista. */
+  details.ctx{margin-bottom:6px;}
+  details.ctx summary{
+    display:block;cursor:pointer;font-size:11.5px;line-height:1.35;
+    color:#C9CFD8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    list-style:none;
+  }
+  details.ctx summary::-webkit-details-marker{display:none;}
+  details.ctx summary:before{content:'“';color:var(--muted);}
+  details.ctx summary:after{content:'” ▾';color:var(--muted);}
+  details.ctx[open] summary:after{content:'” ▴';}
+  details.ctx summary:hover{color:var(--text);}
+  details.ctx summary.vazio-fala{color:var(--muted);font-style:italic;}
+  details.ctx summary.vazio-fala:before{content:'';}
+  details.ctx summary.vazio-fala:after{content:' ▾';}
+
+  .corpo{
+    background:#0F1216;border:1px solid var(--line);border-radius:5px;
+    padding:5px 8px;margin-top:5px;
+  }
+  .corpo .cab{
+    font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--muted);margin:0 0 2px;
+  }
+  .corpo p.fala{
+    margin:0;font-size:11.5px;line-height:1.35;color:#C9CFD8;
+  }
+  .corpo p.fala:before{content:'“';color:var(--muted);}
+  .corpo p.fala:after{content:'”';color:var(--muted);}
+  .corpo p.midia:before,.corpo p.midia:after{content:'';}
+  .corpo p.midia{color:var(--muted);font-style:italic;}
+  .corpo p.res{margin:6px 0 0;font-size:11.5px;line-height:1.4;color:var(--muted);}
+
+  .acoes{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+  .btn-chamar{
+    background:var(--accent);color:#151719;border:none;
+    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.04em;
+    font-weight:600;font-size:12px;padding:7px 14px;border-radius:5px;
+    cursor:pointer;text-decoration:none;white-space:nowrap;
+  }
+  .btn-chamar:hover{background:#ff7f52;}
+  .sem-link{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--bad);
+    border:1px solid var(--bad);border-radius:5px;padding:6px 10px;
+  }
+  .sep{flex:1;}
+  .sbtn{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--muted);
+    font-family:'Inter',sans-serif;font-size:11.5px;
+    padding:6px 9px;border-radius:4px;cursor:pointer;white-space:nowrap;
+  }
+  .sbtn:hover{border-color:var(--accent);color:var(--text);}
+  .sbtn.on{font-weight:600;}
+  .sbtn.on[data-s="chamei"]{background:rgba(76,138,175,.2);border-color:var(--info);color:var(--info);}
+  .sbtn.on[data-s="respondeu"]{background:rgba(212,175,55,.18);border-color:var(--gold);color:var(--gold);}
+  .sbtn.on[data-s="vendeu"]{background:rgba(76,175,125,.2);border-color:var(--good);color:var(--good);}
+  .sbtn.on[data-s="perdido"]{background:rgba(122,130,144,.2);border-color:var(--muted);color:var(--text);}
+
+  .aviso{
+    background:rgba(224,91,91,.1);border:1px solid var(--bad);border-radius:6px;
+    padding:14px 16px;font-size:13px;line-height:1.5;
+  }
+  .vazio{color:var(--muted);text-align:center;padding:32px 10px;font-size:13.5px;}
+  .rodape{
+    margin-top:18px;padding-top:10px;border-top:1px solid var(--line);
+    font-size:11px;color:var(--muted);line-height:1.55;
+  }
+
+  @media (max-width:520px){
+    body{padding:10px 8px 44px;}
+    h1{font-size:18px;}
+    .sep{flex-basis:100%;height:0;}
+    .peca{font-size:13.5px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="app" class="hidden">
+    <header>
+      <h1>Retomada</h1>
+      <div class="top-actions">
+        <span id="nomeVendedor" class="mono" style="font-size:11.5px;color:var(--muted);"></span>
+        <a class="link-btn" href="/">Voltar ao portal</a>
+      </div>
+    </header>
+
+    <div class="intro">
+      Seus atendimentos que <strong>não fecharam</strong> e ainda dá pra recuperar: a peça
+      existia no estoque e o motivo da perda tem volta. Os de
+      <strong>borda vermelha</strong> vêm primeiro — neles a conversa parou do nosso
+      lado, ninguém disse não pra você.
+      <span class="mono" id="periodo" style="display:block;margin-top:4px;font-size:10.5px;color:var(--muted);"></span>
+    </div>
+
+    <div class="placar" id="placar"></div>
+
+    <div class="barra">
+      <div class="filtros" id="filtros">
+        <button class="chip active" data-f="pendentes">A chamar</button>
+        <button class="chip" data-f="alta">Só prioridade alta</button>
+        <button class="chip" data-f="trabalhados">Já trabalhei</button>
+        <button class="chip" data-f="todos">Todos</button>
+      </div>
+      <input type="text" id="busca" placeholder="Buscar por peça ou nome...">
+    </div>
+
+    <div id="lista"></div>
+
+    <div class="rodape">
+      Lista confidencial: tem nome de cliente. Não encaminhe pra fora da equipe.<br>
+      Pode aparecer alguém que comprou no balcão — o registro de vendas não guarda quem
+      foi o cliente, só a peça. Se reconhecer, marque <em>Não rola</em> e siga.
+    </div>
+  </div>
+
+  <div id="semFila" class="hidden">
+    <header><h1>Retomada</h1><a class="link-btn" href="/">Voltar ao portal</a></header>
+    <div class="aviso">
+      Ainda não há fila gerada pra você. A lista é montada a partir das suas conversas
+      no Totalk e atualizada pelo gestor — fale com ele.
+    </div>
+  </div>
+
+</div>
+
+<script>
+// Rotulo curto na tela; o do servidor vai no title, pra caber a lista inteira
+// numa linha sem cortar o botao de acao.
+const CURTO = {chamei:'Chamei', respondeu:'Respondeu', vendeu:'Fechou', perdido:'Não rola'};
+const ORDEM_BTN = ['chamei','respondeu','vendeu','perdido'];
+let eu = null, itens = [], rotulos = {}, filtro = 'pendentes';
+
+function esc(t){
+  return String(t == null ? '' : t)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+async function api(path, opts){
+  const res = await fetch(path, Object.assign({headers:{'Content-Type':'application/json'}}, opts || {}));
+  if (res.status === 401){ location.href = '/'; return null; }
+  return res;
+}
+
+function placar(r){
+  const caixas = [
+    ['pendente','A chamar'], ['chamei','Chamei'], ['respondeu','Responderam'],
+    ['vendeu','Fecharam'], ['perdido','Descartados']
+  ];
+  document.getElementById('placar').innerHTML = caixas.map(([k, rot]) =>
+    '<div><div class="n n-' + k + '">' + (r[k] || 0) + '</div><div class="r">' + rot + '</div></div>'
+  ).join('');
+}
+
+function visiveis(){
+  const q = document.getElementById('busca').value.trim().toLowerCase();
+  return itens.filter(it => {
+    if (filtro === 'pendentes' && it.status !== 'pendente') return false;
+    if (filtro === 'alta' && !(it.status === 'pendente' && it.prio === 'ALTA')) return false;
+    if (filtro === 'trabalhados' && it.status === 'pendente') return false;
+    if (q && !((it.peca || '') + ' ' + (it.nome || '')).toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function contexto(it){
+  const linhas = it.ultimas || [];
+  const ultima = linhas.length ? linhas[linhas.length - 1] : '';
+  if (!ultima && !it.resumo) return '';
+
+  const resumo = it.resumo
+    ? '<p class="res">' + esc(it.resumo) + '</p>' : '';
+  const anteriores = linhas.slice(0, -1);
+  const bloco = anteriores.length
+    ? '<p class="cab">antes disso ele disse</p>'
+      + anteriores.map(t => '<p class="fala' + (/^\[.+\]$/.test(t) ? ' midia' : '')
+                            + '">' + esc(t) + '</p>').join('')
+    : '';
+  if (!bloco && !resumo) return '';
+
+  const cabeca = ultima
+    ? '<summary>' + esc(ultima) + '</summary>'
+    : '<summary class="vazio-fala">cliente não escreveu nada</summary>';
+  return '<details class="ctx">' + cabeca
+    + '<div class="corpo">' + bloco + resumo + '</div></details>';
+}
+
+function item(it){
+  const alta = it.prio === 'ALTA';
+  const feito = it.status !== 'pendente';
+  const cls = ['cliente']; if (alta) cls.push('alta'); if (feito) cls.push('feito');
+
+  // O contato acontece no Totalk, que e o unico canal que a loja usa — por isso
+  // abrir a conversa e a acao principal, e nao um link secundario.
+  const chamar = it.link
+    ? '<a class="btn-chamar" href="' + esc(it.link) + '" target="_blank" rel="noopener"'
+      + ' data-chamar="' + it.sid + '">Chamar o cliente</a>'
+    : '<span class="sem-link">sem link da conversa</span>';
+
+  const botoes = ORDEM_BTN.map(s =>
+    '<button class="sbtn' + (it.status === s ? ' on' : '') + '" data-s="' + s
+    + '" data-sid="' + it.sid + '" title="' + esc(rotulos[s] || s) + '">'
+    + esc(CURTO[s]) + '</button>'
+  ).join('');
+  const desmarcar = feito
+    ? '<button class="sbtn" data-s="pendente" data-sid="' + it.sid + '">↺</button>'
+    : '';
+
+  return '<div class="' + cls.join(' ') + '">'
+    + '<div class="l1">'
+      + '<span class="gancho">' + esc(it.gancho) + '</span>'
+      + '<span class="quando">' + esc(it.data.slice(0,5)) + ' · ' + it.dias + 'd</span>'
+    + '</div>'
+    + '<div class="peca">' + esc(it.peca) + '</div>'
+    + '<div class="meta"><b>' + esc(it.nome) + '</b> · ' + esc(it.tipo) + ' · '
+      + esc(it.canal) + ' · ' + (it.tinha === 'Sim' ? 'tínhamos' : 'tínhamos parecida') + '</div>'
+    + contexto(it)
+    + '<div class="acoes">' + chamar + '<span class="sep"></span>' + botoes + desmarcar + '</div>'
+  + '</div>';
+}
+
+function render(){
+  const lista = visiveis();
+  document.getElementById('lista').innerHTML = lista.length
+    ? lista.map(item).join('')
+    : '<div class="vazio">Nada aqui com esse filtro.</div>';
+}
+
+async function marcar(sid, status){
+  const res = await api('/api/retomada/' + sid + '/status',
+                        {method:'POST', body: JSON.stringify({status})});
+  if (!res) return;
+  const dados = await res.json();
+  if (!res.ok){ alert(dados.erro || 'Não consegui salvar.'); return; }
+  const it = itens.find(x => x.sid === sid);
+  if (it) it.status = status;
+  placar(dados.resumo);
+  render();
+}
+
+document.addEventListener('click', ev => {
+  // Abrir a conversa ja marca "chamei": e o momento em que o contato acontece
+  // de verdade, e depender de um segundo toque faria o painel do gestor mostrar
+  // menos trabalho do que o time realmente fez. Da pra corrigir no botao ↺.
+  const chamar = ev.target.closest('[data-chamar]');
+  if (chamar){
+    const sid = chamar.dataset.chamar;
+    const it = itens.find(x => x.sid === sid);
+    if (it && it.status === 'pendente') marcar(sid, 'chamei');
+    return;
+  }
+  const btn = ev.target.closest('.sbtn');
+  if (btn){ marcar(btn.dataset.sid, btn.dataset.s); return; }
+  const chip = ev.target.closest('.chip');
+  if (chip){
+    filtro = chip.dataset.f;
+    document.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c === chip));
+    render();
+  }
+});
+
+document.getElementById('busca').addEventListener('input', render);
+
+(async function inicio(){
+  const me = await fetch('/api/me');
+  if (!me.ok){ location.href = '/'; return; }
+  eu = await me.json();
+  document.getElementById('nomeVendedor').textContent = eu.nome;
+
+  const res = await api('/api/retomada/fila');
+  if (!res) return;
+  const dados = await res.json();
+  if (dados.sem_fila){
+    document.getElementById('semFila').classList.remove('hidden');
+    return;
+  }
+  itens = dados.itens;
+  rotulos = dados.rotulos || {};
+  const dt = (s) => s ? s.slice(8,10) + '/' + s.slice(5,7) : '';
+  document.getElementById('periodo').textContent =
+    itens.length + ' clientes · atendimentos seus de ' + dt(dados.de) + ' a ' + dt(dados.ate);
+  placar(dados.resumo);
+  render();
+  document.getElementById('app').classList.remove('hidden');
+})();
+</script>
+</body>
+</html>

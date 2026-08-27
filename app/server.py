@@ -1825,5 +1825,155 @@ def api_simulador_definir_data_entrada(cod_peca):
     return jsonify({"ok": True})
 
 
+# ============================================================
+# Retomada — CRM dos clientes que não fecharam
+# ============================================================
+# A fila não é montada aqui. Ela vem do projeto vendas-insights
+# (app/gerar_fila_retomada.py), que lê as conversas do Totalk, classifica cada
+# uma com IA e decide quem vale uma segunda tentativa; de lá ela é empurrada
+# pra cá por vendas-insights/app/sincronizar_crm.py. Este arquivo só mostra a
+# fila do vendedor logado e guarda o que ele marcou.
+#
+# Duas chaves separadas de propósito: `crm_fila_<id>` é substituída inteira a
+# cada sincronização, `crm_status_<id>` é do vendedor e a sincronização nunca
+# encosta nela. Se fossem a mesma chave, regerar a fila apagaria o trabalho
+# já feito.
+
+STATUS_RETOMADA = {
+    "pendente": "Não chamei ainda",
+    "chamei": "Chamei, sem resposta",
+    "respondeu": "Respondeu",
+    "vendeu": "Fechou venda",
+    "perdido": "Não vai rolar",
+}
+STATUS_TRABALHADO = ("chamei", "respondeu", "vendeu", "perdido")
+
+
+def _caminho_crm(prefixo: str, vendedor_id: str) -> Path:
+    return resolver_pasta_dados() / f"crm_{prefixo}_{vendedor_id}.json"
+
+
+def carregar_fila_retomada(vendedor_id: str):
+    # Padrão None (nunca Path.exists()): em modo banco o arquivo local não
+    # existe, e checar o disco faria a fila parecer vazia em produção.
+    return ler_json(_caminho_crm("fila", vendedor_id), None)
+
+
+def carregar_status_retomada(vendedor_id: str) -> dict:
+    return ler_json(_caminho_crm("status", vendedor_id), None) or {}
+
+
+def _resumo_retomada(itens: list, status: dict) -> dict:
+    contagem = {chave: 0 for chave in STATUS_RETOMADA}
+    for item in itens:
+        atual = (status.get(item["sid"]) or {}).get("status", "pendente")
+        contagem[atual if atual in contagem else "pendente"] += 1
+    contagem["total"] = len(itens)
+    contagem["trabalhados"] = sum(contagem[s] for s in STATUS_TRABALHADO)
+    return contagem
+
+
+@app.route("/retomada")
+def pagina_retomada():
+    return send_from_directory(STATIC_DIR, "retomada.html")
+
+
+@app.route("/api/retomada/fila")
+def api_retomada_fila():
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    fila = carregar_fila_retomada(vendedor_id)
+    if not fila:
+        return jsonify({"sem_fila": True, "itens": [], "rotulos": STATUS_RETOMADA})
+    status = carregar_status_retomada(vendedor_id)
+    itens = []
+    for item in fila.get("itens", []):
+        marca = status.get(item["sid"]) or {}
+        itens.append({**item, "status": marca.get("status", "pendente"),
+                      "marcado_em": marca.get("em")})
+    # Pendente primeiro, e dentro dele prioridade ALTA sempre no topo — nesses a
+    # conversa parou do nosso lado, ninguém disse não pro vendedor, e são os que
+    # ele tem que chamar antes. Só depois a nota desempata. O que já foi
+    # trabalhado desce mas continua na tela, pra ele corrigir a marcação ou
+    # voltar num cliente que pediu pra chamar depois.
+    itens.sort(key=lambda x: (x["status"] != "pendente", x["prio"] != "ALTA", -x["nota"]))
+    return jsonify({
+        "gerado_em": fila.get("gerado_em"),
+        "de": fila.get("de"),
+        "ate": fila.get("ate"),
+        "itens": itens,
+        "resumo": _resumo_retomada(fila.get("itens", []), status),
+        "rotulos": STATUS_RETOMADA,
+    })
+
+
+@app.route("/api/retomada/<sid>/status", methods=["POST"])
+def api_retomada_status(sid):
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    novo = (corpo.get("status") or "").strip()
+    if novo not in STATUS_RETOMADA:
+        return jsonify({"erro": "status inválido"}), 400
+    fila = carregar_fila_retomada(vendedor_id) or {}
+    itens = fila.get("itens", [])
+    # Só aceita cliente que está na fila DESTE vendedor: sem isso um id chutado
+    # entraria no arquivo dele e apareceria no painel do gestor como trabalho.
+    if not any(item["sid"] == sid for item in itens):
+        return jsonify({"erro": "Este cliente não está na sua fila."}), 404
+    status = carregar_status_retomada(vendedor_id)
+    if novo == "pendente":
+        status.pop(sid, None)
+    else:
+        status[sid] = {"status": novo, "em": agora_br().isoformat()}
+    escrever_json(_caminho_crm("status", vendedor_id), status)
+    return jsonify({"ok": True, "resumo": _resumo_retomada(itens, status)})
+
+
+@app.route("/api/admin/retomada/resumo")
+def api_admin_retomada_resumo():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    linhas, gerado_em, periodo = [], None, {}
+    for vendedor_id, vendedor in sorted(carregar_vendedores().items(),
+                                        key=lambda kv: kv[1]["nome"]):
+        fila = carregar_fila_retomada(vendedor_id)
+        if not fila:
+            continue
+        gerado_em = gerado_em or fila.get("gerado_em")
+        periodo = periodo or {"de": fila.get("de"), "ate": fila.get("ate")}
+        itens = fila.get("itens", [])
+        resumo = _resumo_retomada(itens, carregar_status_retomada(vendedor_id))
+        trabalhados = resumo["trabalhados"]
+        linhas.append({
+            "vendedor_id": vendedor_id,
+            "nome": vendedor["nome"],
+            **resumo,
+            "pct_trabalhado": round(100 * trabalhados / len(itens)) if itens else 0,
+            # Entre os que ele chamou, quantos deram sinal de vida. É a medida
+            # que interessa: percentual sobre a fila inteira mede só o quanto
+            # ele avançou na lista, não se a abordagem funcionou.
+            "pct_resposta": (round(100 * (resumo["respondeu"] + resumo["vendeu"])
+                                   / trabalhados) if trabalhados else 0),
+        })
+    return jsonify({"gerado_em": gerado_em, "periodo": periodo,
+                    "vendedores": linhas, "rotulos": STATUS_RETOMADA})
+
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8010)
+    # use_reloader liga SÓ o recarregador: mudou o código, o servidor reinicia
+    # sozinho, sem ninguém precisar lembrar de reiniciar na mão.
+    #
+    # Continua sem debug=True de propósito. debug traz junto o depurador do
+    # Werkzeug, que numa tela de erro abre um console de Python rodando dentro
+    # do servidor. Como isto escuta em 0.0.0.0, esse console ficaria ao alcance
+    # de qualquer um na rede da loja -- daria pra ler os telefones dos clientes
+    # e os segredos do processo.
+    #
+    # O reloader vigia os módulos Python importados, não a pasta data/. Os JSON
+    # que a sincronização reescreve não disparam reinício, e os arquivos de
+    # static/ são lidos a cada requisição -- editar a tela não pede reinício.
+    app.run(host="0.0.0.0", port=8010, use_reloader=True)
