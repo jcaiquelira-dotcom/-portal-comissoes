@@ -98,6 +98,12 @@
   .mk-aviso{font-size:11.5px;color:var(--muted);margin-top:10px;padding-top:9px;
             border-top:1px solid var(--line);line-height:1.5;}
 
+  .sheet-dica{
+    font-size:11.5px;color:var(--muted);line-height:1.5;
+    margin:9px 0 0;padding:8px 10px;border-radius:8px;
+    background:var(--surface-2);border:1px solid var(--line);
+  }
+
   .toast{
     position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
     background:var(--text);color:var(--surface);
@@ -350,6 +356,9 @@
             </thead>
             <tbody id="sheetBody"></tbody>
           </table>
+          <p class="sheet-dica">Dá pra copiar várias linhas do Excel e colar aqui de uma vez —
+            clique na primeira célula e cole (Ctrl+V). As colunas caem em Data, Produto, Valor,
+            SKU e Canal, e as linhas que faltarem são criadas.</p>
           <div class="sheet-acoes">
             <button class="btn btn-neutro btn-pequeno" id="sheetAddRowBtn">+ Linha</button>
             <button class="btn btn-principal btn-pequeno" id="sheetSaveBtn">Salvar tudo</button>
@@ -1006,6 +1015,142 @@ function iniciarSheetVazia(){
     body.appendChild(criarLinhaSheet(todayStr()));
   }
 }
+
+/* ---------- Colar direto do Excel ----------
+   O vendedor copia as linhas na planilha dele e cola aqui. O Excel entrega o
+   recorte como texto separado por TAB entre colunas e por quebra de linha
+   entre linhas — é isso que a gente desmonta e distribui pelas células, criando
+   linhas conforme precisa.
+
+   A colagem começa na célula onde ele está: colar 3 colunas em cima de
+   "Produto" preenche produto, valor e SKU, e não desloca tudo pra data. */
+const SHEET_COLUNAS = ['sheet-data', 'sheet-produto', 'sheet-valor', 'sheet-sku', 'sheet-canal'];
+
+function limparNumero(bruto){
+  let t = String(bruto || '').replace(/[R$\s ]/gi, '').trim();
+  if(!t) return '';
+  const temVirgula = t.includes(',');
+  const temPonto = t.includes('.');
+  if(temVirgula && temPonto){
+    // "1.234,56" — ponto é milhar, vírgula é decimal
+    t = t.replace(/\./g, '').replace(',', '.');
+  }else if(temVirgula){
+    t = t.replace(',', '.');
+  }else if(temPonto){
+    // Só ponto é ambíguo: "1.234" costuma ser milhar numa planilha pt-BR, mas
+    // "150.50" vindo de um arquivo em inglês é decimal. Três casas depois do
+    // ponto e mais de três dígitos no total = milhar.
+    const partes = t.split('.');
+    if(partes.length > 2 || (partes[1] && partes[1].length === 3 && partes[0].length > 0)){
+      t = partes.join('');
+    }
+  }
+  const n = parseFloat(t);
+  return isNaN(n) ? '' : String(n);
+}
+
+function limparData(bruto){
+  const t = String(bruto || '').trim();
+  if(!t) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+
+  const br = t.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/);
+  if(br){
+    const dia = br[1].padStart(2, '0');
+    const mes = br[2].padStart(2, '0');
+    let ano = br[3] || todayStr().slice(0, 4);
+    if(ano.length === 2) ano = '20' + ano;
+    return `${ano}-${mes}-${dia}`;
+  }
+  // Data do Excel colada como número de série (dias desde 30/12/1899).
+  if(/^\d{5}$/.test(t)){
+    const base = Date.UTC(1899, 11, 30);
+    const d = new Date(base + Number(t) * 86400000);
+    return d.toISOString().slice(0, 10);
+  }
+  return '';
+}
+
+function limparCelula(classe, bruto){
+  if(classe === 'sheet-data') return limparData(bruto);
+  if(classe === 'sheet-valor') return limparNumero(bruto);
+  return String(bruto || '').trim();
+}
+
+/* Excel manda \r\n e uma linha vazia no fim. Célula com quebra de linha dentro
+   vem entre aspas — raro nessa planilha, mas se vier a gente não parte no meio. */
+function partirColagem(texto){
+  const linhas = [];
+  let atual = [''], dentroDeAspas = false;
+  for(let i = 0; i < texto.length; i++){
+    const c = texto[i];
+    if(dentroDeAspas){
+      if(c === '"' && texto[i + 1] === '"'){ atual[atual.length - 1] += '"'; i++; }
+      else if(c === '"') dentroDeAspas = false;
+      else atual[atual.length - 1] += c;
+      continue;
+    }
+    if(c === '"'){ dentroDeAspas = true; }
+    else if(c === '\t'){ atual.push(''); }
+    else if(c === '\n' || c === '\r'){
+      if(c === '\r' && texto[i + 1] === '\n') i++;
+      linhas.push(atual);
+      atual = [''];
+    }else{
+      atual[atual.length - 1] += c;
+    }
+  }
+  linhas.push(atual);
+  return linhas.filter(l => l.some(c => c.trim() !== ''));
+}
+
+function colarNaSheet(ev){
+  const alvo = ev.target;
+  const classe = SHEET_COLUNAS.find(c => alvo.classList && alvo.classList.contains(c));
+  if(!classe) return;
+
+  const texto = (ev.clipboardData || window.clipboardData).getData('text');
+  if(!texto) return;
+  // Uma célula só: deixa o navegador colar normal, sem mexer em nada.
+  if(!texto.includes('\t') && !/[\r\n]/.test(texto.trim())) return;
+
+  ev.preventDefault();
+  const grade = partirColagem(texto);
+  if(!grade.length) return;
+
+  const body = document.getElementById('sheetBody');
+  const linhas = Array.from(body.querySelectorAll('tr'));
+  const linhaInicial = linhas.indexOf(alvo.closest('tr'));
+  const colunaInicial = SHEET_COLUNAS.indexOf(classe);
+
+  grade.forEach((celulas, i) => {
+    let tr = body.querySelectorAll('tr')[linhaInicial + i];
+    if(!tr){
+      tr = criarLinhaSheet(todayStr());
+      body.appendChild(tr);
+    }
+    celulas.forEach((valor, j) => {
+      const col = SHEET_COLUNAS[colunaInicial + j];
+      if(!col) return;                      // colou mais colunas do que existe
+      const campo = tr.querySelector('.' + col);
+      if(!campo) return;
+      const limpo = limparCelula(col, valor);
+      // Data que não deu pra entender não apaga a que já estava na linha.
+      if(col === 'sheet-data' && !limpo) return;
+      campo.value = limpo;
+    });
+  });
+
+  const status = document.getElementById('sheetStatus');
+  if(status){
+    const n = grade.length;
+    status.textContent = `${n} linha${n > 1 ? 's' : ''} colada${n > 1 ? 's' : ''}. Confira antes de salvar.`;
+    status.classList.remove('err');
+    status.classList.add('show');
+  }
+}
+
+document.addEventListener('paste', colarNaSheet);
 
 document.getElementById('toggleSheetBtn').addEventListener('click', () => {
   const sec = document.getElementById('sheetSection');
