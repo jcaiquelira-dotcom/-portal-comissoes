@@ -9,6 +9,7 @@
   --surface:#FFFFFF;
   --surface-2:#F5F7FA;
   --line:#E4E9F0;
+  --linha-dia:#B9C3D2;
   --text:#1B2430;
   --muted:#6B7789;
   --accent:#E8722F;
@@ -36,6 +37,7 @@ html[data-tema="escuro"]{
   --surface:#1B1F26;
   --surface-2:#232830;
   --line:#2F3743;
+  --linha-dia:#4A5666;
   --text:#EDEFF2;
   --muted:#8A94A6;
   --accent:#E8722F;
@@ -381,3 +383,11 @@ body.ocultar-valores .valor-money{filter:blur(7px);user-select:none;}
   border:1px solid var(--warn);
   border-radius:10px;padding:11px 14px;font-size:13px;
 }
+
+/* ---- separacao entre os dias na lista de vendas ----
+   Com seis, sete vendas no mesmo dia a tabela vira um bloco so. Uma linha mais
+   forte no primeiro registro de cada dia, e o dia da semana ao lado da data,
+   dao o corte sem precisar de linha de cabecalho por dia. */
+tr.dia-novo > td{border-top:2px solid var(--linha-dia);padding-top:11px;}
+tr.dia-novo:first-child > td{border-top:none;padding-top:8px;}
+.dia-semana{color:var(--muted);font-size:11px;margin-left:5px;text-transform:lowercase;}

@@ -632,6 +632,14 @@ async function carregarVendas(){
   renderVendas();
 }
 
+/* Monta a data por partes em vez de new Date("2026-08-26"): a forma com a
+   string ISO e lida como UTC e, a noite, cai no dia anterior. */
+const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+function diaDaSemana(iso){
+  const [y, m, d] = iso.split('-').map(Number);
+  return DIAS_SEMANA[new Date(y, m - 1, d).getDay()];
+}
+
 function renderVendas(){
   const termo = (document.getElementById('buscaVendasInput')?.value || '').trim().toLowerCase();
   const repetidas = contarRepetidas(vendasDoMes);
@@ -650,9 +658,14 @@ function renderVendas(){
       : 'Nenhuma venda lançada neste mês ainda.';
   }else{
     empty.style.display = 'none';
+    let diaAnterior = null;
     vendas.forEach(v => {
       const [y,m,d] = v.data.split('-');
       const tr = document.createElement('tr');
+      // A lista vem ordenada por data, entao basta comparar com a linha de cima.
+      const trocouDia = v.data !== diaAnterior;
+      if(trocouDia) tr.classList.add('dia-novo');
+      diaAnterior = v.data;
       const dev = v.devolucao;
       const badge = dev
         ? `<span class="devolucao-badge valor-money">${dev.tipo === 'total' ? 'Devolvido' : 'Dev. parcial ' + fmtMoeda(dev.valor_devolvido)}</span>`
@@ -666,7 +679,7 @@ function renderVendas(){
         : `<button class="devolucao-btn" data-devolucao="${v.id}">Devolução</button>`;
       const skuLinha = v.sku ? `<br><span style="color:var(--muted);font-size:11px;">SKU ${v.sku}</span>` : '';
       tr.innerHTML = `
-        <td>${d}/${m}/${y}</td>
+        <td>${d}/${m}/${y}${trocouDia ? `<span class="dia-semana">${diaDaSemana(v.data)}</span>` : ''}</td>
         <td class="produto-col">${v.produto}${repetida}${skuLinha}</td>
         <td class="valor-money">${fmtMoeda(v.valor)}</td>
         <td><div class="acoes-col">

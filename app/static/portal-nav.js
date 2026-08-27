@@ -43,9 +43,9 @@ const PORTAIS = {
       {chave: 'painel',      texto: 'Painel',            href: '#painel',      icone: 'painel'},
       {chave: 'fechamento',  texto: 'Fechamento de mês', href: '#fechamento',  icone: 'fechamento'},
       {chave: 'retomada',    texto: 'Follow-up do time',  href: '#retomada',    icone: 'retomada'},
-      {chave: 'metas',       texto: 'Metas',             href: '#metas',       icone: 'metas'},
       {chave: 'vendedores',  texto: 'Vendedores',        href: '#vendedores',  icone: 'equipe'},
-      {chave: 'registros',   texto: 'Registros',         href: '#registros',   icone: 'registros'},
+      // Metas, Registros e o simulador viraram topicos dentro de Configuracoes:
+      // sao telas de ajuste, nao de acompanhamento do dia.
       {chave: 'configuracoes', texto: 'Configurações',   href: '#configuracoes', icone: 'config'},
     ],
     trocar: {texto: 'Ir para o portal do vendedor', href: '/'},

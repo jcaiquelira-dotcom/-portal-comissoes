@@ -130,6 +130,19 @@
   @media (max-width:700px){.grid-2{grid-template-columns:1fr;}}
   .tabela-rolante{overflow-x:auto;}
 
+  /* ---- Abas de Configurações ---- */
+  .config-abas{
+    display:flex;gap:6px;flex-wrap:wrap;
+    margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line);
+  }
+  .config-aba{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--muted);
+    font-family:inherit;font-size:12.5px;font-weight:600;
+    padding:7px 14px;border-radius:8px;cursor:pointer;
+  }
+  .config-aba:hover{border-color:var(--accent);color:var(--text);}
+  .config-aba.ativa{background:var(--accent);border-color:var(--accent);color:#fff;}
+
   /* ---- Configurações / simulador ---- */
   #simTabelaDesconto th, #simTabelaDesconto td,
   #simTabelaParcelas th, #simTabelaParcelas td{text-align:center;padding:7px 9px;}
@@ -199,6 +212,9 @@
     </div>
 
     <!-- ---------- PAINEL ---------- -->
+    <!-- topicos de Configuracoes: so aparece dentro dessa secao -->
+    <div class="config-abas oculto" id="configAbas"></div>
+
     <section id="secPainel">
       <div class="filtros">
         <div class="filtro-campo">
@@ -506,7 +522,7 @@ function mostrarApp(){
   montarSidebar(secaoAtual, {aoSair: sairDoGestor, portal: 'gestor'});
   preencherPerfil('Gestor', null);
   montarKpisGestor();
-  irParaSecao(secaoAtual);
+  irParaSecao(secaoAtual, topicoAtual);
   document.getElementById('deInput').value = primeiroDiaMes();
   document.getElementById('ateInput').value = todayStr();
   document.getElementById('fechamentoMesInput').value = todayStr().slice(0,7);
@@ -1043,8 +1059,11 @@ async function carregarResumo(){
       if(v.vendas.length === 0){
         vendasHtml = `<div class="detalhe-wrap">Nenhuma venda no período.</div>`;
       }else{
+        let diaAnterior = null;
         const linhas = v.vendas.map(venda => {
           const [y,m,d] = venda.data.split('-');
+          const trocouDia = venda.data !== diaAnterior;
+          diaAnterior = venda.data;
           let suspeita = false;
           if(venda.criado_em){
             const dataVenda = new Date(venda.data + 'T00:00:00');
@@ -1053,7 +1072,9 @@ async function carregarResumo(){
             suspeita = diffDias > 3;
           }
           const marca = suspeita ? `<span class="suspeita-marca" title="Lançada bem depois da data informada">lançada tarde</span>` : '';
-          return `<tr class="${suspeita ? 'venda-suspeita' : ''}"><td>${d}/${m}/${y}</td><td>${venda.produto}${marca}</td><td>${fmtMoeda(venda.valor)}</td></tr>`;
+          const classes = [suspeita ? 'venda-suspeita' : '', trocouDia ? 'dia-novo' : ''].filter(Boolean).join(' ');
+          const semana = trocouDia ? `<span class="dia-semana">${diaDaSemana(venda.data)}</span>` : '';
+          return `<tr class="${classes}"><td>${d}/${m}/${y}${semana}</td><td>${venda.produto}${marca}</td><td>${fmtMoeda(venda.valor)}</td></tr>`;
         }).join('');
         vendasHtml = `<div class="detalhe-wrap"><table><thead><tr><th>Data</th><th>Produto</th><th>Valor</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
       }
@@ -1406,38 +1427,91 @@ document.getElementById('simReimportarBtn').addEventListener('click', async () =
   btn.disabled = false;
 });
 
+const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+function diaDaSemana(iso){
+  const [y, m, d] = iso.split('-').map(Number);
+  return DIAS_SEMANA[new Date(y, m - 1, d).getDay()];
+}
+
 /* ---------- troca de seção ---------- */
 const SECOES = {
   painel:     {titulo: 'Painel',            el: 'secPainel'},
   fechamento: {titulo: 'Fechamento de mês', el: 'secFechamento'},
   retomada:   {titulo: 'Follow-up do time',  el: 'secRetomada'},
-  metas:      {titulo: 'Metas',             el: 'secMetas'},
   vendedores: {titulo: 'Vendedores',        el: 'secVendedores'},
-  registros:  {titulo: 'Registros',         el: 'secRegistros'},
-  configuracoes: {titulo: 'Configurações',  el: 'secConfiguracoes'},
+  configuracoes: {titulo: 'Configurações',  el: null},
 };
 
-let secaoAtual = (location.hash || '#painel').replace('#','');
-if(!SECOES[secaoAtual]) secaoAtual = 'painel';
+/* Tópicos de Configurações. Cada um continua sendo a mesma <section> de antes —
+   só deixaram de ter entrada própria no menu. */
+const TOPICOS_CONFIG = {
+  metas:      {titulo: 'Metas',                 el: 'secMetas'},
+  registros:  {titulo: 'Registros',             el: 'secRegistros'},
+  simulador:  {titulo: 'Simulador de desconto', el: 'secConfiguracoes'},
+};
+const PADRAO_CONFIG = 'metas';
 
-function irParaSecao(chave){
+// Todas as <section> que a navegação controla, pra esconder de uma vez.
+const TODAS_SECOES = Object.values(SECOES).map(c => c.el).filter(Boolean)
+  .concat(Object.values(TOPICOS_CONFIG).map(c => c.el));
+
+/* O endereço vira #configuracoes/registros, pra dar pra salvar o link de um
+   tópico e pra o F5 voltar onde ele estava. */
+// Endereco antigo (#metas, #registros) continua funcionando: vira o topico.
+const HASH_ANTIGO = {metas: 'metas', registros: 'registros', simulador: 'simulador'};
+
+function lerHash(){
+  const bruto = (location.hash || '#painel').replace('#', '');
+  const [chave, sub] = bruto.split('/');
+  if(HASH_ANTIGO[chave]) return {chave: 'configuracoes', sub: HASH_ANTIGO[chave]};
+  return {chave: SECOES[chave] ? chave : 'painel', sub: sub || ''};
+}
+
+let secaoAtual = lerHash().chave;
+let topicoAtual = lerHash().sub;
+
+function renderAbasConfig(){
+  const el = document.getElementById('configAbas');
+  el.innerHTML = Object.entries(TOPICOS_CONFIG).map(([k, cfg]) =>
+    '<button class="config-aba' + (k === topicoAtual ? ' ativa' : '') + '"'
+    + ' data-topico="' + k + '">' + cfg.titulo + '</button>').join('');
+}
+
+function irParaSecao(chave, sub){
   if(!SECOES[chave]) chave = 'painel';
   secaoAtual = chave;
-  Object.entries(SECOES).forEach(([k, cfg]) => {
-    document.getElementById(cfg.el).classList.toggle('oculto', k !== chave);
+  const ehConfig = chave === 'configuracoes';
+  topicoAtual = ehConfig ? (TOPICOS_CONFIG[sub] ? sub : PADRAO_CONFIG) : '';
+
+  const visivel = ehConfig ? TOPICOS_CONFIG[topicoAtual].el : SECOES[chave].el;
+  TODAS_SECOES.forEach(id => {
+    document.getElementById(id).classList.toggle('oculto', id !== visivel);
   });
-  document.getElementById('tituloSecao').textContent = SECOES[chave].titulo;
+
+  document.getElementById('configAbas').classList.toggle('oculto', !ehConfig);
+  if(ehConfig) renderAbasConfig();
+
+  document.getElementById('tituloSecao').textContent = ehConfig
+    ? 'Configurações · ' + TOPICOS_CONFIG[topicoAtual].titulo
+    : SECOES[chave].titulo;
   document.querySelectorAll('.nav-item[data-nav]').forEach(a => {
     a.classList.toggle('ativo', a.dataset.nav === chave);
   });
   // Exportar CSV e o olho só fazem sentido no painel
   document.getElementById('exportBtn').style.display = chave === 'painel' ? '' : 'none';
-  if(location.hash !== '#' + chave) history.replaceState({}, '', '#' + chave);
+  const alvo = '#' + chave + (topicoAtual ? '/' + topicoAtual : '');
+  if(location.hash !== alvo) history.replaceState({}, '', alvo);
   fecharMenu();
 }
 
 window.addEventListener('hashchange', () => {
-  irParaSecao((location.hash || '#painel').replace('#',''));
+  const h = lerHash();
+  irParaSecao(h.chave, h.sub);
+});
+
+document.getElementById('configAbas').addEventListener('click', ev => {
+  const aba = ev.target.closest('[data-topico]');
+  if(aba) irParaSecao('configuracoes', aba.dataset.topico);
 });
 
 document.getElementById('menuAbrirBtn').innerHTML = ICONES.menu;
