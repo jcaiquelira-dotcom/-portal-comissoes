@@ -657,6 +657,29 @@
       </div>
     </section>
 
+    <!-- ---------- MARKETING ---------- -->
+    <section id="secMarketing" class="oculto">
+      <div class="filtros">
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="mktDe">De</label>
+          <input type="date" id="mktDe">
+        </div>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="mktAte">Até</label>
+          <input type="date" id="mktAte">
+        </div>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="mktCanal">Canal</label>
+          <select id="mktCanal"><option value="">Todos os canais</option></select>
+        </div>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="mktVendedor">Vendedor</label>
+          <select id="mktVendedor"><option value="">Todos os vendedores</option></select>
+        </div>
+      </div>
+      <div id="mktCorpo"></div>
+    </section>
+
     <!-- ---------- CONFIGURAÇÕES ---------- -->
     <section id="secConfiguracoes" class="oculto">
       <div class="card" style="margin-bottom:14px;">
@@ -1649,6 +1672,187 @@ function diaDaSemana(iso){
   return DIAS_SEMANA[new Date(y, m - 1, d).getDay()];
 }
 
+/* ---------- Marketing ----------
+   Junta o que a midia trouxe (leads, canal, investimento) com o que virou
+   venda no portal. Os dois lados vem de bases diferentes e param em datas
+   diferentes, entao a tela sempre diz em que janela a conta foi feita. */
+let mktDados = null;
+
+function mktPeriodoPadrao(){
+  const hoje = new Date();
+  const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  return {de: iso(primeiro), ate: iso(hoje)};
+}
+
+async function carregarMarketing(){
+  const de = document.getElementById('mktDe').value;
+  const ate = document.getElementById('mktAte').value;
+  const canal = document.getElementById('mktCanal').value;
+  const vend = document.getElementById('mktVendedor').value;
+  const corpo = document.getElementById('mktCorpo');
+  corpo.innerHTML = '<div class="vazio">Carregando…</div>';
+
+  const q = new URLSearchParams({de, ate});
+  if(canal) q.set('canal', canal);
+  if(vend) q.set('vendedor', vend);
+  const res = await fetch('/api/admin/marketing?' + q);
+  if(!res.ok){ corpo.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  mktDados = await res.json();
+  mktPreencherFiltros(mktDados);
+  renderMarketing(mktDados);
+}
+
+function mktPreencherFiltros(d){
+  const selCanal = document.getElementById('mktCanal');
+  if(selCanal.dataset.pronto !== '1'){
+    selCanal.innerHTML = '<option value="">Todos os canais</option>'
+      + (d.canais || []).map(c => `<option value="${c}">${c}</option>`).join('');
+    selCanal.value = d.filtro.canal || '';
+    selCanal.dataset.pronto = '1';
+  }
+  const selVend = document.getElementById('mktVendedor');
+  if(selVend.dataset.pronto !== '1'){
+    selVend.innerHTML = '<option value="">Todos os vendedores</option>'
+      + (d.vendedores || []).map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
+    selVend.value = d.filtro.vendedor || '';
+    selVend.dataset.pronto = '1';
+  }
+}
+
+/* duas series no mesmo desenho: leads (barras) e investimento (linha). E onde
+   da pra ver se gastar mais no dia trouxe mais gente. */
+function mktGraficoDia(porDia, gastoDia){
+  if(!porDia.length) return '<div class="vazio">Sem leads no período.</div>';
+  const gasto = Object.fromEntries((gastoDia || []).map(g => [g.data, g.spend]));
+  const alt = 170, L = 8, B = 24;
+  const larg = Math.max(340, porDia.length * 26);
+  const maxLeads = Math.max(...porDia.map(d => d.leads), 1);
+  const maxGasto = Math.max(...porDia.map(d => gasto[d.data] || 0), 1);
+  const passo = (larg - L * 2) / porDia.length;
+
+  const barras = porDia.map((d, i) => {
+    const h = (d.leads / maxLeads) * (alt - B - 12);
+    const x = L + passo * i + passo * 0.16;
+    return `<rect x="${x.toFixed(1)}" y="${(alt - B - h).toFixed(1)}"
+      width="${(passo * 0.68).toFixed(1)}" height="${Math.max(2, h).toFixed(1)}" rx="3"
+      fill="var(--accent)" opacity=".75"><title>${d.data.slice(8)}/${d.data.slice(5,7)}: ${d.leads} leads</title></rect>`;
+  }).join('');
+
+  const temGasto = porDia.some(d => gasto[d.data]);
+  const pontos = porDia.map((d, i) => [
+    L + passo * i + passo / 2,
+    alt - B - ((gasto[d.data] || 0) / maxGasto) * (alt - B - 12),
+  ]);
+  const linha = temGasto ? `<polyline fill="none" stroke="var(--info)" stroke-width="2"
+     points="${pontos.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}"/>` : '';
+
+  const rotulos = porDia.map((d, i) => (i % Math.ceil(porDia.length / 12) ? '' :
+    `<text x="${(L + passo * i + passo / 2).toFixed(1)}" y="${alt - 7}" text-anchor="middle"
+      font-size="9" fill="var(--muted)">${d.data.slice(8)}/${d.data.slice(5,7)}</text>`)).join('');
+
+  return `<div style="overflow-x:auto"><svg class="dp-svg" viewBox="0 0 ${larg} ${alt}" height="${alt}">
+      ${barras}${linha}${rotulos}</svg></div>
+    <div class="dp-aviso">Barras = leads no dia.${temGasto ? ' Linha azul = investimento em mídia no dia.' : ''}</div>`;
+}
+
+function renderMarketing(d){
+  const m = d.midia, t = d.total;
+  const ef = d.periodo_efetivo || {};
+  const janelaCurta = ef.ate && d.ate && ef.ate < d.ate;
+
+  const kpi = (rot, num, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money">${num}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+
+  const kpis = [
+    kpi('Leads', t.leads, `${d.por_canal.length} canais`),
+    kpi('Com sinal de compra', t.sinal, t.leads ? (100 * t.sinal / t.leads).toFixed(1) + '% dos leads' : ''),
+    kpi('Vendas', d.vendas.qtd, fmtMoeda(d.vendas.total)),
+    kpi('Conversão', (d.conversao ?? 0) + '%', 'venda ÷ lead'),
+    kpi('Investimento', fmtMoeda(m.investimento), 'só Google Ads'),
+    kpi('Custo por lead', m.custo_por_lead === null ? '—' : fmtMoeda(m.custo_por_lead)),
+    kpi('Custo por venda', m.custo_por_venda === null ? '—' : fmtMoeda(m.custo_por_venda)),
+    kpi('CPC', m.cpc === null ? '—' : fmtMoeda(m.cpc), m.ctr === null ? '' : `CTR ${m.ctr}%`),
+  ].join('');
+
+  const maxCanal = Math.max(...d.por_canal.map(c => c.leads), 1);
+  const cardCanais = `<div class="card">
+    <p class="card-titulo">De onde vieram os leads</p>
+    <div class="dp-lista">${d.por_canal.map(c => `
+      <div class="dp-linha">
+        <span class="nome">${c.canal}</span>
+        <span class="v">${c.leads} · ${c.sinal} com sinal</span>
+        <span class="t"><span class="f" style="width:${(c.leads / maxCanal * 100).toFixed(1)}%"></span></span>
+      </div>`).join('')}</div>
+  </div>`;
+
+  const cardVendedores = `<div class="card">
+    <p class="card-titulo">Por vendedor</p>
+    <div class="tabela-rolante"><table>
+      <thead><tr><th>Vendedor</th><th>Leads</th><th>Com sinal</th><th>Vendas</th><th>Conversão</th><th>Faturamento</th></tr></thead>
+      <tbody>${d.por_vendedor.map(v => `<tr>
+        <td>${v.nome || v.vendedor}</td>
+        <td>${v.leads}</td>
+        <td>${v.sinal}</td>
+        <td>${v.vendas.qtd}</td>
+        <td>${v.conversao === null ? '—' : v.conversao + '%'}</td>
+        <td class="valor-money">${fmtMoeda(v.vendas.total)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    ${(d.fora_do_totalk || []).length ? `<div class="dp-aviso">Fora desta conta:
+      ${d.fora_do_totalk.join(', ')} — não atende pelo Totalk, então não tem lead registrado.
+      As vendas dessa pessoa também ficam de fora, senão a conversão sairia inflada.</div>` : ''}
+  </div>`;
+
+  const cardCampanhas = m.campanhas.length ? `<div class="card">
+    <p class="card-titulo">Campanhas</p>
+    <div class="tabela-rolante"><table>
+      <thead><tr><th>Campanha</th><th>Investido</th><th>Cliques</th><th>Impressões</th><th>CPC</th><th>CTR</th></tr></thead>
+      <tbody>${m.campanhas.map(c => `<tr>
+        <td>${c.campanha}</td>
+        <td class="valor-money">${fmtMoeda(c.spend)}</td>
+        <td>${c.clicks || '—'}</td>
+        <td>${c.impressions || '—'}</td>
+        <td class="valor-money">${c.cpc === null ? '—' : fmtMoeda(c.cpc)}</td>
+        <td>${c.ctr === null ? '—' : c.ctr + '%'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>` : '';
+
+  const avisos = [];
+  if(janelaCurta){
+    avisos.push(`Os leads do Totalk vão até <b>${ef.ate.slice(8)}/${ef.ate.slice(5,7)}</b>.
+      Leads, vendas e conversão acima usam só até essa data — comparar leads que pararam
+      com vendas que continuaram faria a conversão parecer melhor do que é.
+      O investimento segue o período cheio que você pediu.`);
+  }
+  if((m.fontes_ausentes || []).length){
+    avisos.push(`Falta o gasto de <b>${m.fontes_ausentes.join(', ')}</b>: o CSV não está mais no
+      computador e o conector não está ligado no Windsor. Investimento, custo por lead e custo por
+      venda estão <b>menores do que a realidade</b> — cobrem só o Google Ads.`);
+  }
+  avisos.push(`Faturamento por real de mídia no período: <b>${m.faturamento_por_real ?? '—'}×</b>.
+    Não é ROAS: o faturamento é o total do período, não o atribuído a anúncio.`);
+
+  document.getElementById('mktCorpo').innerHTML = `
+    <div class="dp-kpis">${kpis}</div>
+    <div class="card" style="margin-bottom:14px;">
+      <p class="card-titulo">Leads dia a dia</p>
+      ${mktGraficoDia(d.por_dia, m.por_dia)}
+    </div>
+    <div class="dp-grid duas">${cardCanais}${cardVendedores}</div>
+    ${cardCampanhas}
+    <div class="card" style="margin-top:14px;">
+      <p class="card-titulo">Como ler estes números</p>
+      ${avisos.map(a => `<div class="dp-destaque"><span class="rot" style="margin:0">${a}</span></div>`).join('')}
+    </div>`;
+}
+
+document.addEventListener('change', ev => {
+  if(['mktDe','mktAte','mktCanal','mktVendedor'].includes(ev.target.id)) carregarMarketing();
+});
+
 /* ---------- Desempenho por vendedor ----------
    Junta as duas metades da vida do vendedor: o que ele vendeu (portal) e o que
    ele atendeu antes de vender (vendas-insights/Totalk, sincronizado). Sem a
@@ -2083,7 +2287,7 @@ const SECOES = {
   fechamento: {titulo: 'Fechamento de mês', el: 'secFechamento'},
   retomada:   {titulo: 'Follow-up do time',  el: 'secRetomada'},
   desempenho: {titulo: 'Desempenho',        el: 'secDesempenho'},
-  vendedores: {titulo: 'Vendedores',        el: 'secVendedores'},
+  marketing:  {titulo: 'Marketing',         el: 'secMarketing'},
   configuracoes: {titulo: 'Configurações',  el: null},
 };
 
@@ -2091,6 +2295,7 @@ const SECOES = {
    só deixaram de ter entrada própria no menu. */
 const TOPICOS_CONFIG = {
   metas:      {titulo: 'Metas',                 el: 'secMetas'},
+  vendedores: {titulo: 'Vendedores',            el: 'secVendedores'},
   registros:  {titulo: 'Registros',             el: 'secRegistros'},
   simulador:  {titulo: 'Simulador de desconto', el: 'secConfiguracoes'},
 };
@@ -2103,7 +2308,8 @@ const TODAS_SECOES = Object.values(SECOES).map(c => c.el).filter(Boolean)
 /* O endereço vira #configuracoes/registros, pra dar pra salvar o link de um
    tópico e pra o F5 voltar onde ele estava. */
 // Endereco antigo (#metas, #registros) continua funcionando: vira o topico.
-const HASH_ANTIGO = {metas: 'metas', registros: 'registros', simulador: 'simulador'};
+const HASH_ANTIGO = {metas: 'metas', registros: 'registros', simulador: 'simulador',
+                     vendedores: 'vendedores'};
 
 function lerHash(){
   const bruto = (location.hash || '#painel').replace('#', '');
@@ -2144,6 +2350,12 @@ function irParaSecao(chave, sub){
   });
   // Entrar em Desempenho sempre comeca pela escolha do vendedor.
   if(chave === 'desempenho') abrirEscolhaDesempenho();
+  if(chave === 'marketing' && !mktDados){
+    const p = mktPeriodoPadrao();
+    document.getElementById('mktDe').value = p.de;
+    document.getElementById('mktAte').value = p.ate;
+    carregarMarketing();
+  }
   // Exportar CSV e o olho só fazem sentido no painel
   document.getElementById('exportBtn').style.display = chave === 'painel' ? '' : 'none';
   const alvo = '#' + chave + (topicoAtual ? '/' + topicoAtual : '');

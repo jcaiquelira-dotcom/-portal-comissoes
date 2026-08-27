@@ -1598,6 +1598,242 @@ def _nome_aba_excel(nome: str) -> str:
     return limpo[:31] or "Vendedor"
 
 
+# ============================================================
+# Marketing
+# ============================================================
+# Os números vêm do vendas-insights (espelho do Totalk + investimento de mídia
+# do Windsor), sincronizados no grão diário por `sincronizar_marketing.py`. O
+# recorte é feito aqui, na leitura: assim período, canal e vendedor mudam sem
+# precisar regerar nada do outro lado.
+#
+# Vendedor vê só as linhas dele. Gestor vê tudo, incluindo investimento — que é
+# de conta, não de pessoa, e por isso nunca aparece na tela do vendedor.
+
+def _marketing_bruto():
+    leads = ler_json(resolver_pasta_dados() / "marketing_leads.json", None) or {}
+    gasto = ler_json(resolver_pasta_dados() / "marketing_gasto.json", None) or {}
+    return leads, gasto
+
+
+def _recortar(linhas, de, ate, campo_data="data"):
+    return [l for l in linhas if de <= l[campo_data] <= ate]
+
+
+def _agregar_marketing(linhas, vendedores_nome=None):
+    """Soma um conjunto de linhas de lead em vários cortes de uma vez."""
+    total = {"leads": 0, "sinal": 0}
+    por_canal, por_dia, por_vendedor = {}, {}, {}
+    for l in linhas:
+        total["leads"] += l["leads"]
+        total["sinal"] += l["sinal"]
+        for destino, chave in ((por_canal, l["canal"]), (por_dia, l["data"]),
+                               (por_vendedor, l["vendedor"] or "sem_atendente")):
+            d = destino.setdefault(chave, {"leads": 0, "sinal": 0})
+            d["leads"] += l["leads"]
+            d["sinal"] += l["sinal"]
+
+    def lista(dic, rotulo, ordenar_por_chave=False):
+        itens = [{rotulo: k, **v} for k, v in dic.items()]
+        itens.sort(key=(lambda x: x[rotulo]) if ordenar_por_chave
+                   else (lambda x: -x["leads"]))
+        return itens
+
+    saida = {
+        "total": total,
+        "por_canal": lista(por_canal, "canal"),
+        "por_dia": lista(por_dia, "data", ordenar_por_chave=True),
+        "por_vendedor": lista(por_vendedor, "vendedor"),
+    }
+    if vendedores_nome:
+        for item in saida["por_vendedor"]:
+            item["nome"] = vendedores_nome.get(item["vendedor"], "Sem atendente")
+    return saida
+
+
+def _vendas_no_periodo(vendedores, de, ate, so_vendedor=None, universo=None):
+    """Vendas lançadas no portal — é o que fecha a conta do marketing: leads de
+    um lado, venda de verdade do outro.
+
+    `universo` limita a conta a quem realmente aparece no dado de leads. Sem
+    isso a Brenda entraria: ela não atende pelo Totalk, então as vendas dela
+    somariam no numerador sem nenhum lead no denominador e a conversão sairia
+    inflada."""
+    vendas = carregar_vendas_todos(vendedores)
+    itens = [v for v in vendas.values()
+             if v.get("tipo", "venda") == "venda" and de <= v["data"] <= ate
+             and (so_vendedor is None or v["vendedor_id"] == so_vendedor)
+             and (universo is None or v["vendedor_id"] in universo)]
+    total = round(sum(valor_liquido(v) for v in itens), 2)
+    por_vendedor = {}
+    for v in itens:
+        d = por_vendedor.setdefault(v["vendedor_id"], {"qtd": 0, "total": 0.0})
+        d["qtd"] += 1
+        d["total"] += valor_liquido(v)
+    return {
+        "qtd": len(itens),
+        "total": total,
+        "ticket": round(total / len(itens), 2) if itens else 0.0,
+        "por_vendedor": {k: {"qtd": d["qtd"], "total": round(d["total"], 2)}
+                         for k, d in por_vendedor.items()},
+    }
+
+
+def _periodo_pedido():
+    hoje = hoje_br().isoformat()
+    de = request.args.get("de") or f"{hoje[:7]}-01"
+    ate = request.args.get("ate") or hoje
+    return de, ate
+
+
+def _janela_comparavel(de, ate, cobertura):
+    """Leads param na data em que o Totalk foi sincronizado; as vendas seguem
+    até hoje. Comparar as duas coisas na janela cheia faz a conversão parecer
+    melhor do que é — então a conta usa só o pedaço em que os dois lados
+    existem."""
+    if not cobertura:
+        return de, ate
+    return max(de, cobertura["de"]), min(ate, cobertura["ate"])
+
+
+@app.route("/api/marketing")
+def api_marketing_vendedor():
+    """A visão do vendedor: só o que passou pela mão dele, sem investimento."""
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    de, ate = _periodo_pedido()
+    leads, _ = _marketing_bruto()
+    minhas = [l for l in _recortar(leads.get("linhas", []), de, ate)
+              if l["vendedor"] == vendedor_id]
+    if not leads.get("linhas"):
+        return jsonify({"sem_dados": True, "de": de, "ate": ate})
+
+    vendedores = carregar_vendedores()
+    cobertura = _cobertura(leads.get("linhas", []))
+    ef_de, ef_ate = _janela_comparavel(de, ate, cobertura)
+    minhas = [l for l in minhas if ef_de <= l["data"] <= ef_ate]
+    agregado = _agregar_marketing(minhas)
+    vendas = _vendas_no_periodo(vendedores, ef_de, ef_ate, so_vendedor=vendedor_id)
+    total_leads = agregado["total"]["leads"]
+    return jsonify({
+        "de": de, "ate": ate,
+        "periodo_efetivo": {"de": ef_de, "ate": ef_ate},
+        "gerado_em": leads.get("gerado_em"),
+        "cobertura": cobertura,
+        **agregado,
+        "vendas": vendas,
+        "conversao": round(100 * vendas["qtd"] / total_leads, 1) if total_leads else None,
+    })
+
+
+def _cobertura(linhas):
+    """Até quando o espelho do Totalk foi sincronizado. Sem isso, um período
+    que passa dessa data mostra queda de leads que é só falta de dado."""
+    if not linhas:
+        return None
+    datas = [l["data"] for l in linhas]
+    return {"de": min(datas), "ate": max(datas)}
+
+
+@app.route("/api/admin/marketing")
+def api_marketing_gestor():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    de, ate = _periodo_pedido()
+    filtro_canal = request.args.get("canal") or ""
+    filtro_vendedor = request.args.get("vendedor") or ""
+
+    leads_bruto, gasto_bruto = _marketing_bruto()
+    vendedores = carregar_vendedores()
+    nomes = {vid: v["nome"] for vid, v in vendedores.items()}
+
+    cobertura = _cobertura(leads_bruto.get("linhas", []))
+    ef_de, ef_ate = _janela_comparavel(de, ate, cobertura)
+
+    linhas = _recortar(leads_bruto.get("linhas", []), ef_de, ef_ate)
+    # Quem de fato tem lead no periodo — e o universo que pode entrar na
+    # conversao. Fora dele a venda nao tem lead correspondente.
+    universo = {l["vendedor"] for l in linhas if l["vendedor"]}
+    fora = sorted(nomes[vid] for vid in nomes if vid not in universo)
+    if filtro_canal:
+        linhas = [l for l in linhas if l["canal"] == filtro_canal]
+    if filtro_vendedor:
+        linhas = [l for l in linhas if l["vendedor"] == filtro_vendedor]
+    agregado = _agregar_marketing(linhas, nomes)
+
+    # canais disponíveis saem do período inteiro, não do recorte — senão filtrar
+    # por um canal apagaria os outros da lista e não daria pra voltar
+    todos_canais = sorted({l["canal"] for l in _recortar(leads_bruto.get("linhas", []), ef_de, ef_ate)})
+
+    # O investimento segue a janela pedida: gasto de midia nao depende do Totalk.
+    gasto_linhas = _recortar(gasto_bruto.get("linhas", []), de, ate)
+    investimento = round(sum(g["spend"] for g in gasto_linhas), 2)
+    cliques = sum(g["clicks"] for g in gasto_linhas)
+    impressoes = sum(g["impressions"] for g in gasto_linhas)
+
+    por_campanha = {}
+    for g in gasto_linhas:
+        d = por_campanha.setdefault(g["campanha"], {"spend": 0.0, "clicks": 0, "impressions": 0})
+        d["spend"] += g["spend"]
+        d["clicks"] += g["clicks"]
+        d["impressions"] += g["impressions"]
+    campanhas = sorted(
+        [{"campanha": k, "spend": round(v["spend"], 2), "clicks": v["clicks"],
+          "impressions": v["impressions"],
+          "cpc": round(v["spend"] / v["clicks"], 2) if v["clicks"] else None,
+          "ctr": round(100 * v["clicks"] / v["impressions"], 2) if v["impressions"] else None}
+         for k, v in por_campanha.items()],
+        key=lambda x: -x["spend"])
+
+    gasto_dia = {}
+    for g in gasto_linhas:
+        gasto_dia[g["data"]] = round(gasto_dia.get(g["data"], 0.0) + g["spend"], 2)
+
+    vendas = _vendas_no_periodo(vendedores, ef_de, ef_ate,
+                                so_vendedor=filtro_vendedor or None,
+                                universo=universo)
+    for item in agregado["por_vendedor"]:
+        item["vendas"] = vendas["por_vendedor"].get(item["vendedor"], {"qtd": 0, "total": 0.0})
+        item["conversao"] = (round(100 * item["vendas"]["qtd"] / item["leads"], 1)
+                             if item["leads"] else None)
+
+    total_leads = agregado["total"]["leads"]
+    return jsonify({
+        "de": de, "ate": ate,
+        "periodo_efetivo": {"de": ef_de, "ate": ef_ate},
+        "gerado_em": leads_bruto.get("gerado_em"),
+        "cobertura": cobertura,
+        "fora_do_totalk": fora,
+        "canais": todos_canais,
+        "vendedores": [{"id": vid, "nome": nome} for vid, nome in sorted(
+            nomes.items(), key=lambda kv: kv[1])],
+        "filtro": {"canal": filtro_canal, "vendedor": filtro_vendedor},
+        **agregado,
+        "vendas": vendas,
+        "conversao": round(100 * vendas["qtd"] / total_leads, 1) if total_leads else None,
+        "midia": {
+            "investimento": investimento,
+            "clicks": cliques,
+            "impressions": impressoes,
+            "cpc": round(investimento / cliques, 2) if cliques else None,
+            "ctr": round(100 * cliques / impressoes, 2) if impressoes else None,
+            # Custo por lead e por venda usam o total de leads/vendas do período,
+            # não só os que vieram de anúncio: é o custo de mídia por resultado
+            # do negócio. Com o gasto do Meta faltando, o número real é maior.
+            "custo_por_lead": round(investimento / total_leads, 2) if total_leads else None,
+            "custo_por_venda": round(investimento / vendas["qtd"], 2) if vendas["qtd"] else None,
+            # Nao chamamos isso de ROAS: o faturamento aqui e o total do
+            # periodo, nao o atribuido a anuncio, e falta o gasto do Meta. E
+            # "quanto o negocio faturou por real de midia paga", nada mais.
+            "faturamento_por_real": (round(vendas["total"] / investimento, 1)
+                                     if investimento else None),
+            "campanhas": campanhas,
+            "por_dia": [{"data": k, "spend": v} for k, v in sorted(gasto_dia.items())],
+            "fontes_ausentes": gasto_bruto.get("fontes_ausentes", []),
+        },
+    })
+
+
 @app.route("/api/admin/desempenho")
 def api_admin_desempenho():
     """Tudo o que dá pra medir de um vendedor sozinho, num mês.
