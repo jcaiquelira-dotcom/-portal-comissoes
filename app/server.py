@@ -1698,24 +1698,67 @@ def api_admin_auditoria():
     if not exigir_admin():
         return jsonify({"erro": "Não autenticado."}), 401
 
-    mes = request.args.get("mes") or hoje_br().isoformat()[:7]
+    # Periodo por data, nao por mes: conferencia raramente casa com o calendario
+    # — e mais comum querer "a semana passada" ou "do dia 10 ao 20". `mes` ainda
+    # e aceito pra nao quebrar link salvo.
+    mes = request.args.get("mes") or ""
+    de = request.args.get("de") or ""
+    ate = request.args.get("ate") or ""
+    if not (de and ate):
+        base = mes or hoje_br().isoformat()[:7]
+        ultimo = calendar.monthrange(int(base[:4]), int(base[5:7]))[1]
+        de, ate = f"{base}-01", f"{base}-{ultimo:02d}"
+
     try:
         tamanho = max(5, min(100, int(request.args.get("tamanho") or 20)))
     except ValueError:
         tamanho = 20
     filtro_vendedor = request.args.get("vendedor") or ""
+    busca = (request.args.get("busca") or "").strip().lower()
 
     vendedores = carregar_vendedores()
+    nomes_vend = {vid: v["nome"] for vid, v in vendedores.items()}
+
+    def casa_busca(v):
+        """Procura no que a pessoa lembra: nome da peca, do carro, SKU, canal,
+        vendedor — ou o valor. Numero digitado casa tanto por texto ("1.200")
+        quanto por comparacao, entao '1200' acha 1.200,00 e 1.200,50."""
+        if not busca:
+            return True
+        valor = float(v.get("valor") or 0)
+        alvo = " ".join(str(x) for x in (
+            v.get("produto"), v.get("sku"), v.get("canal"),
+            nomes_vend.get(v.get("vendedor_id"), ""), v.get("data"),
+            # Tres jeitos de escrever o mesmo valor. Quem procura digita como le
+            # na tela ("1.200,00"), como pensa ("1200") ou como o teclado dá.
+            f"{valor:.2f}".replace(".", ","), f"{valor:,.2f}".replace(",", "."),
+            f"{int(valor)}",
+        ) if x).lower()
+        # Todas as palavras precisam aparecer: "farol sorento" nao traz farol de
+        # outro carro.
+        return all(termo in alvo for termo in busca.split())
+
     todas = carregar_vendas_todos(vendedores)
     vendas = [{**v, "id": vid} for vid, v in todas.items()
-              if v.get("tipo", "venda") == "venda" and v["data"][:7] == mes
-              and (not filtro_vendedor or v["vendedor_id"] == filtro_vendedor)]
+              if v.get("tipo", "venda") == "venda" and de <= v["data"] <= ate
+              and (not filtro_vendedor or v["vendedor_id"] == filtro_vendedor)
+              and casa_busca(v)]
     if not vendas:
-        return jsonify({"mes": mes, "vazio": True, "amostra": [],
-                        "rotulos": STATUS_AUDITORIA,
-                        "vendedores": [{"id": k, "nome": v["nome"]}
-                                       for k, v in sorted(vendedores.items(),
-                                                          key=lambda kv: kv[1]["nome"])]})
+        return jsonify({
+            "mes": mes, "de": de, "ate": ate, "busca": busca, "vazio": True,
+            "modo": request.args.get("modo") or "amostra", "foco": "",
+            "amostra": [], "revisadas": [], "total_lista": [],
+            "rotulos": STATUS_AUDITORIA, "sinais": {k: x[0] for k, x in SINAIS_AUDITORIA.items()},
+            "total": {"vendas": 0, "valor": 0.0},
+            "cobertura": {"conferidas": 0, "divergentes": 0, "valor_conferido": 0.0,
+                          "pct_qtd": 0, "pct_valor": 0},
+            "com_sinal": 0,
+            "qualidade": {"sem_canal": 0, "sem_sku": 0, "sem_criado_em": 0},
+            "nomes": {k: v["nome"] for k, v in vendedores.items()},
+            "filtro": {"vendedor": filtro_vendedor, "tamanho": tamanho},
+            "vendedores": [{"id": k, "nome": v["nome"]}
+                           for k, v in sorted(vendedores.items(),
+                                              key=lambda kv: kv[1]["nome"])]})
 
     contagem_dup = {}
     for v in vendas:
@@ -1742,7 +1785,7 @@ def api_admin_auditoria():
     # auditoria não diz nada sobre o conjunto.
     ja_marcadas = [v for v in vendas if v["status"]]
     candidatas = [v for v in vendas if not v["status"]]
-    candidatas.sort(key=lambda v: (-v["risco"], _chave_sorteio(v["id"], mes)))
+    candidatas.sort(key=lambda v: (-v["risco"], _chave_sorteio(v["id"], de + ate)))
     com_sinal = [v for v in candidatas if v["risco"] > 0]
     sem_sinal = [v for v in candidatas if v["risco"] == 0]
 
@@ -1784,6 +1827,9 @@ def api_admin_auditoria():
 
     return jsonify({
         "mes": mes,
+        "de": de,
+        "ate": ate,
+        "busca": busca,
         "modo": request.args.get("modo") or "amostra",
         "foco": foco if foco in FOCOS else "",
         "total_lista": lista_total,

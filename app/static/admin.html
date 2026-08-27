@@ -159,26 +159,32 @@
   .aud-cabecalho .btn{margin-left:auto;}
 
   .aud-ficha{
-    padding:12px 13px;border-radius:10px;margin-bottom:9px;
+    display:grid;
+    grid-template-columns:46px minmax(0,1fr) minmax(0,150px) 96px 24px auto;
+    align-items:center;gap:10px;
+    padding:5px 10px;border-radius:7px;margin-bottom:4px;
     background:var(--surface-2);border:1px solid var(--line);
   }
-  .aud-ficha.marcada{opacity:.72;}
-  .aud-topo{display:flex;align-items:baseline;gap:10px;margin-bottom:5px;}
-  .aud-data{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);flex-shrink:0;}
-  .aud-produto{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .aud-valor{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:13.5px;
-             font-weight:600;white-space:nowrap;}
-  .aud-meta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;
-            font-size:11.5px;color:var(--muted);margin-bottom:9px;}
-  .aud-meta .fraco{font-style:italic;}
+  .aud-ficha.marcada{opacity:.62;}
+  .aud-data{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);}
+  .aud-produto{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .aud-detalhe{font-size:11px;color:var(--muted);overflow:hidden;
+               text-overflow:ellipsis;white-space:nowrap;}
+  .aud-valor{font-family:'IBM Plex Mono',monospace;font-size:13px;
+             font-weight:600;white-space:nowrap;text-align:right;}
+  .aud-sinais{text-align:center;}
+  /* So o numero de sinais, com o detalhe no title: escrever "Lancada dias
+     depois da data" em cada linha comia a largura do produto. */
   .aud-sinal{
-    font-size:10.5px;color:var(--warn);border:1px solid var(--warn);
-    border-radius:20px;padding:1px 8px;
+    display:inline-block;min-width:19px;
+    font-size:11px;font-weight:700;color:var(--warn);
+    border:1px solid var(--warn);border-radius:20px;padding:0 5px;
   }
-  .aud-acoes{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .aud-acoes{display:flex;gap:4px;align-items:center;}
   .aud-btn{
     background:var(--surface);border:1px solid var(--line);color:var(--muted);
-    font-family:inherit;font-size:11.5px;padding:5px 10px;border-radius:6px;cursor:pointer;
+    font-family:inherit;font-size:13px;line-height:1;
+    padding:5px 9px;border-radius:6px;cursor:pointer;
   }
   .aud-btn:hover{border-color:var(--accent);color:var(--text);}
   .aud-btn.on{font-weight:600;}
@@ -186,12 +192,22 @@
   .aud-btn.on.divergente{background:rgba(224,91,91,.15);border-color:var(--bad);color:var(--bad);}
   .aud-btn.on.nao_achei{background:rgba(212,175,55,.15);border-color:var(--gold);color:var(--gold);}
   .aud-obs{
-    flex:1;min-width:170px;background:var(--surface);color:var(--text);
-    border:1px solid var(--line);border-radius:6px;padding:5px 9px;
-    font-family:inherit;font-size:12px;
+    width:104px;background:var(--surface);color:var(--text);
+    border:1px solid var(--line);border-radius:6px;padding:4px 8px;
+    font-family:inherit;font-size:11.5px;
+  }
+  .aud-obs:not(:focus):placeholder-shown{
+    width:26px;color:transparent;
+  }
+  /* Encolhe quando esta vazio e cresce ao focar: numa linha de 600, o campo
+     vazio so ocupava espaco. */
+  .aud-obs{transition:width .15s;}
+  @media (max-width:1100px){
+    .aud-ficha{grid-template-columns:44px minmax(0,1fr) 90px auto;}
+    .aud-detalhe,.aud-sinais{display:none;}
   }
   .aud-obs:focus{outline:none;border-color:var(--accent);}
-  .aud-quando{font-size:10.5px;color:var(--muted);margin-top:6px;}
+
 
   /* ---- Meta Bônus ---- */
   .mb-linha{margin-bottom:15px;}
@@ -719,8 +735,16 @@
     <section id="secAuditoria" class="oculto">
       <div class="filtros" id="audFiltros">
         <div class="filtro-campo">
-          <label class="campo-rotulo" for="audMes">Mês</label>
-          <input type="month" id="audMes">
+          <label class="campo-rotulo" for="audDe">De</label>
+          <input type="date" id="audDe">
+        </div>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="audAte">Até</label>
+          <input type="date" id="audAte">
+        </div>
+        <div class="filtro-campo" style="flex:1;min-width:210px;">
+          <label class="campo-rotulo" for="audBusca">Buscar</label>
+          <input type="search" id="audBusca" placeholder="peça, carro, SKU, canal, valor...">
         </div>
         <div class="filtro-campo">
           <label class="campo-rotulo" for="audVendedor">Vendedor</label>
@@ -1762,9 +1786,20 @@ function audAbrirModo(modo){
   audMarcarModo();
   // O tamanho só existe na amostragem: no modo total ele não significa nada.
   document.getElementById('audCampoTamanho').classList.toggle('oculto', modo !== 'amostra');
-  const m = document.getElementById('audMes');
-  if(!m.value) m.value = new Date().toISOString().slice(0,7);
+  audPeriodoPadrao();
   carregarAuditoria();
+}
+
+/* Abre no mes corrente, que e o recorte mais comum, mas em campos de data —
+   dai da pra esticar ou encurtar sem trocar de tipo de filtro. */
+function audPeriodoPadrao(){
+  const de = document.getElementById('audDe');
+  const ate = document.getElementById('audAte');
+  if(de.value && ate.value) return;
+  const hoje = new Date();
+  const iso = (d) => d.toISOString().slice(0,10);
+  de.value = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+  ate.value = iso(hoje);
 }
 
 function audMarcarModo(){
@@ -1783,9 +1818,12 @@ async function carregarAuditoria(){
   const corpo = document.getElementById('audCorpo');
   corpo.innerHTML = '<div class="vazio">Carregando…</div>';
   const q = new URLSearchParams({
-    mes: document.getElementById('audMes').value || '',
+    de: document.getElementById('audDe').value || '',
+    ate: document.getElementById('audAte').value || '',
     tamanho: document.getElementById('audTamanho').value || 20,
   });
+  const busca = document.getElementById('audBusca').value.trim();
+  if(busca) q.set('busca', busca);
   const vend = document.getElementById('audVendedor').value;
   if(vend) q.set('vendedor', vend);
   if(audModo === 'total') q.set('modo', 'total');
@@ -1803,39 +1841,47 @@ async function carregarAuditoria(){
   renderAuditoria(audDados);
 }
 
+/* Uma linha por venda. Antes eram tres (produto, metadados, acoes) mais o
+   campo de observacao — numa conferencia de 600 vendas isso vira quilometros
+   de rolagem. O que nao cabe na linha vira title, e a observacao so aparece
+   quando ha o que escrever nela. */
+const AUD_CURTO = {conferida: '✓', divergente: '✗', nao_achei: '?'};
+
+function audPeriodoTexto(d){
+  const br = (iso) => iso ? iso.slice(8) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '';
+  return d.de === d.ate ? br(d.de) : `${br(d.de)} a ${br(d.ate)}`;
+}
+
 function audFicha(v, d, revisada){
   const dt = v.data.slice(8) + '/' + v.data.slice(5,7);
-  const sinais = (v.sinais || []).map(s =>
-    `<span class="aud-sinal">${d.sinais[s] || s}</span>`).join('');
+  const sinais = (v.sinais || []).map(s => (d.sinais[s] || s));
   const botoes = Object.entries(d.rotulos).map(([k, rot]) =>
-    `<button class="aud-btn${v.status === k ? ' on ' + k : ''}" data-aud="${v.id}" data-status="${k}">${rot}</button>`).join('');
+    `<button class="aud-btn${v.status === k ? ' on ' + k : ''}" data-aud="${v.id}"
+      data-status="${k}" title="${rot}">${AUD_CURTO[k] || rot}</button>`).join('');
+  const detalhe = [d.nomes[v.vendedor_id] || v.vendedor_id, v.canal || 'sem canal',
+                   v.sku ? 'SKU ' + v.sku : null].filter(Boolean).join(' · ');
   return `<div class="aud-ficha${v.status ? ' marcada' : ''}" data-ficha="${v.id}">
-    <div class="aud-topo">
-      <span class="aud-data">${dt}</span>
-      <span class="aud-produto">${v.produto || 'Sem descrição'}</span>
-      <span class="aud-valor valor-money">${fmtMoeda(v.valor)}</span>
-    </div>
-    <div class="aud-meta">
-      <span>${d.nomes[v.vendedor_id] || v.vendedor_id}</span>
-      ${v.canal ? `<span>${v.canal}</span>` : '<span class="fraco">sem canal</span>'}
-      ${v.sku ? `<span>SKU ${v.sku}</span>` : ''}
-      ${sinais}
-    </div>
-    <div class="aud-acoes">
+    <span class="aud-data">${dt}</span>
+    <span class="aud-produto" title="${(v.produto || '').replace(/"/g, '&quot;')}">${v.produto || 'Sem descrição'}</span>
+    <span class="aud-detalhe" title="${detalhe}">${detalhe}</span>
+    <span class="aud-valor valor-money">${fmtMoeda(v.valor)}</span>
+    <span class="aud-sinais">${sinais.length
+      ? `<span class="aud-sinal" title="${sinais.join(' · ')}">${sinais.length}</span>` : ''}</span>
+    <span class="aud-acoes">
       ${botoes}
-      ${v.status ? `<button class="aud-btn limpar" data-aud="${v.id}" data-status="">↺ desfazer</button>` : ''}
-      <input type="text" class="aud-obs" data-obs="${v.id}" placeholder="observação (opcional)"
+      ${v.status ? `<button class="aud-btn limpar" data-aud="${v.id}" data-status="" title="Desfazer">↺</button>` : ''}
+      <input type="text" class="aud-obs" data-obs="${v.id}" placeholder="obs"
              value="${(v.obs || '').replace(/"/g, '&quot;')}">
-    </div>
-    ${revisada && v.conferida_em ? `<div class="aud-quando">marcada em
-      ${v.conferida_em.slice(8,10)}/${v.conferida_em.slice(5,7)} às ${v.conferida_em.slice(11,16)}</div>` : ''}
+    </span>
   </div>`;
 }
 
 function renderAuditoria(d){
   const corpo = document.getElementById('audCorpo');
   if(d.vazio){
-    corpo.innerHTML = '<div class="vazio">Nenhuma venda neste mês.</div>';
+    corpo.innerHTML = '<div class="vazio">' + (d.busca
+      ? `Nada encontrado para “${d.busca}” de ${audPeriodoTexto(d)}.`
+      : `Nenhuma venda de ${audPeriodoTexto(d)}.`) + '</div>';
     return;
   }
   const c = d.cobertura, q = d.qualidade || {};
@@ -1890,8 +1936,9 @@ function renderAuditoria(d){
       <div class="aud-cabecalho">
         <p class="card-titulo" style="margin:0;">${ehFoco
           ? TITULO_FOCO[d.foco]
-          : (ehTotal ? `Todas as vendas de ${d.mes.slice(5)}/${d.mes.slice(0,4)}`
+          : (ehTotal ? (d.busca ? `Resultado da busca` : `Todas as vendas de ${audPeriodoTexto(d)}`)
                      : 'Amostra pra conferir')}</p>
+        ${d.busca ? `<span class="aud-conta">“${d.busca}”</span>` : ''}
         <span class="aud-conta">${lista.length} venda${lista.length === 1 ? '' : 's'}</span>
         ${ehFoco ? '<button class="btn btn-neutro btn-pequeno" id="audLimparFoco">← Voltar</button>' : ''}
       </div>
@@ -1933,6 +1980,15 @@ async function audMarcar(id, status){
   carregarAuditoria();
 }
 
+let audTimerBusca = null;
+document.addEventListener('input', ev => {
+  if(ev.target.id !== 'audBusca') return;
+  // Espera a pessoa parar de digitar: sem isso e uma consulta por tecla, e a
+  // lista pisca no meio da palavra.
+  clearTimeout(audTimerBusca);
+  audTimerBusca = setTimeout(carregarAuditoria, 350);
+});
+
 document.addEventListener('click', ev => {
   const modo = ev.target.closest('[data-modo]');
   if(modo){ audAbrirModo(modo.dataset.modo); return; }
@@ -1944,7 +2000,7 @@ document.addEventListener('click', ev => {
 });
 
 document.addEventListener('change', ev => {
-  if(['audMes','audTamanho','audVendedor'].includes(ev.target.id)) carregarAuditoria();
+  if(['audDe','audAte','audTamanho','audVendedor'].includes(ev.target.id)) carregarAuditoria();
 });
 
 /* ---------- Meta Bônus ----------
@@ -2715,8 +2771,7 @@ function irParaSecao(chave, sub){
   if(chave === 'metabonus' && !mbCarregado) carregarMetaBonus();
   if(chave === 'auditoria' && !audCarregado){
     audMarcarModo();
-    const m = document.getElementById('audMes');
-    if(!m.value) m.value = new Date().toISOString().slice(0,7);
+    audPeriodoPadrao();
     carregarAuditoria();
   }
   if(chave === 'marketing' && !mktDados){
