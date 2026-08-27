@@ -565,7 +565,7 @@ document.getElementById('busca').addEventListener('input', render);
   if (!me.ok){ location.href = '/'; return; }
   eu = await me.json();
   document.getElementById('nomeVendedor').textContent = eu.nome;
-  preencherPerfil(eu.nome, eu.foto);
+  preencherPerfil(eu.nome, eu.foto, eu.avatar);
 
   const res = await api('/api/retomada/fila');
   if (!res) return;

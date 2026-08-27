@@ -1330,6 +1330,7 @@ def api_painel_ranking():
             "id": vid,
             "nome": info["nome"],
             "foto": info.get("foto"),
+            "avatar": info.get("avatar", ""),
             "hoje": hoje_v,
             "semana": semana_v,
             "mes": mes_v,
@@ -2000,6 +2001,7 @@ def api_admin_desempenho():
     return jsonify({
         "vendedor": {"id": vid, "nome": vendedores[vid]["nome"],
                      "foto": vendedores[vid].get("foto"),
+                     "avatar": vendedores[vid].get("avatar", ""),
                      "percentual": float(vendedores[vid].get("percentual", 0))},
         "mes": mes,
         "atual": atual,
@@ -2107,6 +2109,7 @@ def api_admin_listar_vendedores():
             "percentual": v.get("percentual", 0),
             "overrides": v.get("overrides", []),
             "foto": v.get("foto"),
+            "avatar": v.get("avatar", ""),
             "liberacao_retroativa": retroativo_ativo(v),
             "liberacao_retroativa_ate": v.get("liberacao_retroativa_ate") if retroativo_ativo(v) else None,
         }
@@ -2179,6 +2182,13 @@ def api_admin_salvar_vendedor():
     }
     if existente.get("foto"):
         vendedores[vendedor_id]["foto"] = existente["foto"]
+    # Avatar generico usado quando nao ha foto. E escolha do gestor, nunca
+    # deduzida do nome — nome nao diz genero de ninguem.
+    avatar = (body.get("avatar") or "").strip().lower()
+    if avatar in ("feminino", "masculino"):
+        vendedores[vendedor_id]["avatar"] = avatar
+    elif existente.get("avatar") and "avatar" not in body:
+        vendedores[vendedor_id]["avatar"] = existente["avatar"]
     codigo_recuperacao = (body.get("codigo_recuperacao") or "").strip().upper()
     if codigo_recuperacao:
         if len(codigo_recuperacao) < 6:

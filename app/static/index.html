@@ -496,7 +496,7 @@ function mostrarApp(){
   document.getElementById('telaLogin').classList.add('oculto');
   document.getElementById('appShell').classList.remove('oculto');
   montarSidebar(secaoAtual, {aoSair: logout});
-  preencherPerfil(eu.nome, eu.foto);
+  preencherPerfil(eu.nome, eu.foto, eu.avatar);
   document.getElementById('mesInput').value = todayStr().slice(0,7);
   document.getElementById('dataInput').value = todayStr();
   irParaSecao(secaoAtual);

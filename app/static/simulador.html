@@ -231,7 +231,7 @@ async function iniciar() {
     return;
   }
   $('nomeVendedor').textContent = 'Olá, ' + eu.nome;
-  preencherPerfil(eu.nome, eu.foto);
+  preencherPerfil(eu.nome, eu.foto, eu.avatar);
   $('appArea').classList.remove('hidden');
   try {
     await popularFaixasRapido();

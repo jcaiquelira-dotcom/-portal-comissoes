@@ -28,6 +28,66 @@ const ICONES = {
   menu: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
 };
 
+/* ---------- Avatares ----------
+   Desenhados aqui em SVG em vez de virem de arquivo: acompanham a paleta do
+   tema, ficam nítidos em qualquer tamanho e não dependem de nenhum host
+   externo. Servem de retrato padrão enquanto o vendedor não sobe uma foto.
+
+   Qual avatar cada pessoa usa é escolha do gestor (campo `avatar` no cadastro),
+   nunca deduzido do nome — nome não diz o gênero de ninguém. */
+const AVATARES = {
+  feminino:
+    '<svg viewBox="0 0 64 64" aria-hidden="true">'
+    + '<circle cx="32" cy="32" r="32" fill="var(--av-fundo)"/>'
+    + '<path d="M32 12c-9 0-14 6-14 14 0 3 .6 6 .6 6l-1.6 1c-.6.4-.8 1.2-.4 1.8l1.4 2.2 1 6"'
+    + ' fill="var(--av-cabelo)" stroke="none"/>'
+    + '<path d="M18 27c0-8 5-14 14-14s14 6 14 14c0 3-.5 5.6-.5 5.6" fill="var(--av-cabelo)"/>'
+    + '<path d="M26 38v5c0 2-1 3-3 3.6l-4 1.4v4h26v-4l-4-1.4c-2-.6-3-1.6-3-3.6v-5z" fill="var(--av-pele)"/>'
+    + '<path d="M32 42c-2.6 0-5-1.2-6-2.6V38h12v1.4c-1 1.4-3.4 2.6-6 2.6z" fill="var(--av-sombra)"/>'
+    + '<path d="M23 26c0-6 4-10 9-10s9 4 9 10v4c0 5.6-4 10-9 10s-9-4.4-9-10z" fill="var(--av-pele)"/>'
+    + '<path d="M23 27c0-7 4-11 9-11s9 4 9 11c0 0-3.4-4-9-4s-9 4-9 4z" fill="var(--av-cabelo)"/>'
+    + '<path d="M22.5 24c-1.6 0-2.5 2-2 4.5.4 2 1.6 3.2 2.6 3M41.5 24c1.6 0 2.5 2 2 4.5-.4 2-1.6 3.2-2.6 3"'
+    + ' fill="var(--av-cabelo)"/>'
+    + '<circle cx="27.5" cy="28.5" r="1.5" fill="var(--av-traco)"/>'
+    + '<circle cx="36.5" cy="28.5" r="1.5" fill="var(--av-traco)"/>'
+    + '<path d="M29.5 33.5c1.5 1.2 3.5 1.2 5 0" stroke="var(--av-traco)" stroke-width="1.6"'
+    + ' fill="none" stroke-linecap="round"/>'
+    + '<path d="M19 52c2-5 7-7.5 13-7.5S43 47 45 52l1.4 5c-4 3.6-9 5-14.4 5s-10.4-1.4-14.4-5z"'
+    + ' fill="var(--av-roupa)"/>'
+    + '</svg>',
+  masculino:
+    '<svg viewBox="0 0 64 64" aria-hidden="true">'
+    + '<circle cx="32" cy="32" r="32" fill="var(--av-fundo)"/>'
+    + '<path d="M26 38v5c0 2-1 3-3 3.6l-4 1.4v4h26v-4l-4-1.4c-2-.6-3-1.6-3-3.6v-5z" fill="var(--av-pele)"/>'
+    + '<path d="M32 42c-2.6 0-5-1.2-6-2.6V38h12v1.4c-1 1.4-3.4 2.6-6 2.6z" fill="var(--av-sombra)"/>'
+    + '<path d="M23 26c0-6 4-10 9-10s9 4 9 10v4c0 5.6-4 10-9 10s-9-4.4-9-10z" fill="var(--av-pele)"/>'
+    + '<path d="M22.6 25.5c0-6.5 4-10.5 9.4-10.5s9.4 4 9.4 10.5c0 0-1-3.5-3-4.5-2.6 1.6-9.6 2-12.4.5'
+    + ' -1.6 1-2.4 2.6-3.4 4z" fill="var(--av-cabelo)"/>'
+    + '<circle cx="27.5" cy="28.5" r="1.5" fill="var(--av-traco)"/>'
+    + '<circle cx="36.5" cy="28.5" r="1.5" fill="var(--av-traco)"/>'
+    + '<path d="M29.5 33.5c1.5 1.2 3.5 1.2 5 0" stroke="var(--av-traco)" stroke-width="1.6"'
+    + ' fill="none" stroke-linecap="round"/>'
+    + '<path d="M19 52c2-5 7-7.5 13-7.5S43 47 45 52l1.4 5c-4 3.6-9 5-14.4 5s-10.4-1.4-14.4-5z"'
+    + ' fill="var(--av-roupa)"/>'
+    + '<path d="M28 45.5l4 4 4-4-1.4-1.2h-5.2z" fill="var(--av-fundo)" opacity=".5"/>'
+    + '</svg>',
+};
+
+/* Foto de verdade > avatar escolhido > iniciais. As iniciais continuam
+   valendo pra quem ainda não tem nem foto nem avatar definido. */
+function avatarHtml(pessoa, classe){
+  const cls = classe || 'avatar';
+  if(pessoa && pessoa.foto){
+    return '<img class="' + cls + '" src="/fotos/' + pessoa.foto + '" alt="">';
+  }
+  const tipo = pessoa && AVATARES[pessoa.avatar] ? pessoa.avatar : null;
+  if(tipo){
+    return '<span class="' + cls + ' avatar-svg">' + AVATARES[tipo] + '</span>';
+  }
+  const nome = (pessoa && pessoa.nome) || '?';
+  return '<span class="' + cls + '">' + nome.trim().slice(0, 2).toUpperCase() + '</span>';
+}
+
 const PORTAIS = {
   vendedor: {
     titulo: 'Portal do<br><span>Vendedor</span>',
@@ -163,16 +223,13 @@ function fecharMenu(){
   if(f) f.classList.remove('ativo');
 }
 
-function preencherPerfil(nome, foto){
+function preencherPerfil(nome, foto, avatar){
   const elNome = document.getElementById('perfilNome');
   const elFoto = document.getElementById('perfilFoto');
   if(elNome) elNome.textContent = nome || '—';
   if(elFoto){
-    if(foto){
-      elFoto.outerHTML = '<img class="perfil-foto" id="perfilFoto" src="/fotos/' + foto + '" alt="">';
-    }else{
-      elFoto.textContent = (nome || '?').trim().slice(0,2).toUpperCase();
-    }
+    elFoto.outerHTML = avatarHtml({nome, foto, avatar}, 'perfil-foto')
+      .replace('class="perfil-foto', 'id="perfilFoto" class="perfil-foto');
   }
 }
 

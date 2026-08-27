@@ -589,6 +589,14 @@
             <label class="campo-rotulo" for="vFotoInput">Foto</label>
             <input type="file" id="vFotoInput" accept="image/*">
           </div>
+          <div class="campo">
+            <label class="campo-rotulo" for="vAvatarInput">Avatar (usado quando não há foto)</label>
+            <select id="vAvatarInput">
+              <option value="">Iniciais do nome</option>
+              <option value="feminino">Feminino</option>
+              <option value="masculino">Masculino</option>
+            </select>
+          </div>
         </div>
         <p class="card-titulo" style="margin:6px 0 10px;">Comissão sobre outros vendedores</p>
         <div id="overridesEditor"></div>
@@ -1389,7 +1397,7 @@ async function carregarVendedores(){
     lista.forEach(v => {
       const item = document.createElement('div');
       item.className = 'vendedor-item';
-      const fotoHtml = v.foto ? `<img class="foto-thumb" src="/fotos/${v.foto}" alt="">` : '';
+      const fotoHtml = avatarHtml(v, 'foto-thumb');
       const liberacaoBadge = v.liberacao_retroativa
         ? `<span class="devolucao-badge" data-retroativo-ate="${v.liberacao_retroativa_ate}">Retroativo liberado (--:--)</span>`
         : '';
@@ -1429,6 +1437,7 @@ async function carregarVendedores(){
         document.getElementById('vSenhaInput').value = '';
         document.getElementById('vCodigoRecuperacaoInput').value = '';
         document.getElementById('vPercentualInput').value = v.percentual;
+        document.getElementById('vAvatarInput').value = v.avatar || '';
         document.getElementById('vFotoInput').value = '';
         renderOverridesEditor(v.overrides);
         window.scrollTo({top:0, behavior:'smooth'});
@@ -1481,6 +1490,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
   const senha = document.getElementById('vSenhaInput').value;
   const codigo_recuperacao = document.getElementById('vCodigoRecuperacaoInput').value.trim();
   const percentual = document.getElementById('vPercentualInput').value;
+  const avatar = document.getElementById('vAvatarInput').value;
   const overrides = Array.from(document.querySelectorAll('.override-pct'))
     .map(inp => ({vendedor_id: inp.dataset.vid, percentual: parseFloat(inp.value || '0')}))
     .filter(o => o.percentual > 0);
@@ -1489,7 +1499,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
     const res = await fetch('/api/admin/vendedores', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({id, nome, senha, codigo_recuperacao, percentual, overrides})
+      body: JSON.stringify({id, nome, senha, codigo_recuperacao, percentual, overrides, avatar})
     });
     const dados = await res.json();
     if(!res.ok){
@@ -1521,6 +1531,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
     document.getElementById('vSenhaInput').value = '';
     document.getElementById('vCodigoRecuperacaoInput').value = '';
     document.getElementById('vPercentualInput').value = '';
+    document.getElementById('vAvatarInput').value = '';
     document.getElementById('vFotoInput').value = '';
     carregarVendedores();
     carregarResumo();
@@ -1870,10 +1881,7 @@ function abrirEscolhaDesempenho(){
     return;
   }
   el.innerHTML = lista.map(v => {
-    const iniciais = (v.nome || '?').trim().slice(0,2).toUpperCase();
-    const av = v.foto
-      ? `<img class="av" src="/fotos/${v.foto}" alt="">`
-      : `<span class="av">${iniciais}</span>`;
+    const av = avatarHtml(v, 'av');
     return `<button class="dp-card" data-dp="${v.id}">
         ${av}
         <span><span class="n">${v.nome}</span>
@@ -1994,12 +2002,8 @@ function dpBarrasLista(itens, formatar){
 function renderDesempenho(d){
   const v = d.vendedor;
   document.getElementById('dpNome').textContent = v.nome;
-  const foto = document.getElementById('dpFoto');
-  if(v.foto){
-    foto.outerHTML = `<img class="dp-foto" id="dpFoto" src="/fotos/${v.foto}" alt="">`;
-  }else{
-    foto.textContent = (v.nome || '?').trim().slice(0,2).toUpperCase();
-  }
+  document.getElementById('dpFoto').outerHTML =
+    avatarHtml(v, 'dp-foto').replace('class="dp-foto', 'id="dpFoto" class="dp-foto');
   const pos = d.time.posicao;
   document.getElementById('dpSub').textContent =
     `${pos}º de ${d.time.de} no mês · ${d.time.participacao}% do faturamento do time`;
