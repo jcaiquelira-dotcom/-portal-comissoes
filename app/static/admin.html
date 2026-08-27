@@ -141,6 +141,19 @@
   .aud-modo:hover{border-color:var(--accent);transform:translateY(-2px);}
   .aud-modo .t{font-size:15px;font-weight:700;color:var(--text);}
   .aud-modo .d{font-size:12.5px;color:var(--muted);line-height:1.5;}
+  .aud-modo.ativo{
+    border-color:var(--accent);
+    background:linear-gradient(180deg, rgba(232,116,58,.10), transparent);
+  }
+  .aud-modo.ativo .t{color:var(--accent);}
+  .dp-kpi.filtravel{cursor:pointer;transition:border-color .12s, transform .12s;}
+  .dp-kpi.filtravel:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .dp-kpi.ativo{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);}
+  .kpi-lupa{
+    display:block;margin-top:7px;font-size:10.5px;font-weight:700;
+    letter-spacing:.04em;text-transform:uppercase;color:var(--accent);opacity:.75;
+  }
+  .dp-kpi.ativo .kpi-lupa{opacity:1;}
   .aud-cabecalho{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
   .aud-conta{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
   .aud-cabecalho .btn{margin-left:auto;}
@@ -704,7 +717,7 @@
 
     <!-- ---------- COMISSÕES / AUDITORIA ---------- -->
     <section id="secAuditoria" class="oculto">
-      <div class="filtros oculto" id="audFiltros">
+      <div class="filtros" id="audFiltros">
         <div class="filtro-campo">
           <label class="campo-rotulo" for="audMes">Mês</label>
           <input type="month" id="audMes">
@@ -723,20 +736,17 @@
           </select>
         </div>
       </div>
-      <div id="audEscolha">
-        <p class="fechamento-nota" style="margin:0 0 14px;">Como você quer conferir este mês?</p>
-        <div class="aud-modos">
-          <button class="aud-modo" data-modo="amostra">
-            <span class="t">Por amostragem</span>
-            <span class="d">Um punhado de vendas por vez, metade delas escolhida por sinal de
-              atenção. Rápido, e você escolhe o tamanho da amostra.</span>
-          </button>
-          <button class="aud-modo" data-modo="total">
-            <span class="t">Conferência total</span>
-            <span class="d">A planilha inteira do mês, venda por venda. Pra fechar o mês de ponta
-              a ponta.</span>
-          </button>
-        </div>
+      <!-- Os dois modos ficam sempre na tela, com o ativo marcado: trocar de um
+           pro outro e um clique, sem passar por tela nenhuma. -->
+      <div class="aud-modos" id="audModos">
+        <button class="aud-modo" data-modo="amostra">
+          <span class="t">Por amostragem</span>
+          <span class="d">Um punhado por vez, metade escolhida por sinal de atenção.</span>
+        </button>
+        <button class="aud-modo" data-modo="total">
+          <span class="t">Conferência total</span>
+          <span class="d">A planilha inteira do mês, venda por venda.</span>
+        </button>
       </div>
       <div id="audCorpo"></div>
     </section>
@@ -1743,12 +1753,13 @@ function diaDaSemana(iso){
    veredito e mostrar quanto do faturamento já passou por conferência. */
 let audCarregado = false;
 let audDados = null;
-let audModo = null;   // null = ainda escolhendo entre amostragem e total
+let audModo = 'amostra';
+let audFoco = '';     // '' = nenhum numero do topo selecionado
 
 function audAbrirModo(modo){
   audModo = modo;
-  document.getElementById('audEscolha').classList.add('oculto');
-  document.getElementById('audFiltros').classList.remove('oculto');
+  audFoco = '';       // trocar de modo limpa o foco: sao duas perguntas diferentes
+  audMarcarModo();
   // O tamanho só existe na amostragem: no modo total ele não significa nada.
   document.getElementById('audCampoTamanho').classList.toggle('oculto', modo !== 'amostra');
   const m = document.getElementById('audMes');
@@ -1756,11 +1767,16 @@ function audAbrirModo(modo){
   carregarAuditoria();
 }
 
-function audVoltarEscolha(){
-  audModo = null;
-  document.getElementById('audEscolha').classList.remove('oculto');
-  document.getElementById('audFiltros').classList.add('oculto');
-  document.getElementById('audCorpo').innerHTML = '';
+function audMarcarModo(){
+  document.querySelectorAll('#audModos .aud-modo').forEach(b =>
+    b.classList.toggle('ativo', b.dataset.modo === audModo));
+}
+
+/* Clicar de novo no mesmo numero desliga o filtro — senao o unico jeito de
+   voltar pra lista inteira seria adivinhar qual botao faz isso. */
+function audAlternarFoco(foco){
+  audFoco = (audFoco === foco) ? '' : foco;
+  carregarAuditoria();
 }
 
 async function carregarAuditoria(){
@@ -1773,6 +1789,7 @@ async function carregarAuditoria(){
   const vend = document.getElementById('audVendedor').value;
   if(vend) q.set('vendedor', vend);
   if(audModo === 'total') q.set('modo', 'total');
+  if(audFoco) q.set('foco', audFoco);
   const res = await fetch('/api/admin/auditoria?' + q);
   if(!res.ok){ corpo.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
   audDados = await res.json();
@@ -1823,21 +1840,34 @@ function renderAuditoria(d){
   }
   const c = d.cobertura, q = d.qualidade || {};
 
-  const kpi = (rot, num, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot}</div>
-    <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${num}</div>
-    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+  // Cada numero do topo e um filtro: clicar mostra exatamente aquelas vendas.
+  const kpi = (rot, num, sub, cor, foco) => {
+    const clicavel = foco && num > 0;
+    return `<div class="dp-kpi${clicavel ? ' filtravel' : ''}${(foco && d.foco === foco) ? ' ativo' : ''}"
+      ${clicavel ? `data-foco="${foco}" role="button" tabindex="0"` : ''}>
+      <div class="rot">${rot}</div>
+      <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${num}</div>
+      ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}
+      ${clicavel ? '<span class="kpi-lupa">ver estas</span>' : ''}</div>`;
+  };
 
   const kpis = [
     kpi('Vendas no mês', d.total.vendas, fmtMoeda(d.total.valor)),
     kpi('Já conferidas', c.conferidas, `${c.pct_valor}% do faturamento`,
-        c.conferidas ? 'var(--good)' : null),
+        c.conferidas ? 'var(--good)' : null, 'conferidas'),
     kpi('Divergências', c.divergentes, c.divergentes ? 'precisam de retorno' : 'nenhuma até agora',
-        c.divergentes ? 'var(--bad)' : 'var(--good)'),
-    kpi('Com sinal de atenção', d.com_sinal, `de ${d.total.vendas} vendas`),
+        c.divergentes ? 'var(--bad)' : 'var(--good)', 'divergentes'),
+    kpi('Com sinal de atenção', d.com_sinal, `de ${d.total.vendas} vendas`, null, 'sinal'),
   ].join('');
 
   const ehTotal = d.modo === 'total';
-  const lista = ehTotal ? (d.total_lista || []) : d.amostra;
+  const ehFoco = !!d.foco;
+  const lista = (ehFoco || ehTotal) ? (d.total_lista || []) : d.amostra;
+  const TITULO_FOCO = {
+    conferidas: 'Vendas já conferidas',
+    divergentes: 'Vendas com divergência',
+    sinal: 'Vendas com sinal de atenção',
+  };
   const corpoLista = lista.length
     ? lista.map(v => audFicha(v, d, ehTotal)).join('')
     : `<div class="vazio">${ehTotal
@@ -1846,7 +1876,7 @@ function renderAuditoria(d){
 
   // No modo total a lista ja traz tudo, entao repetir as revisadas embaixo
   // seria mostrar a mesma venda duas vezes na mesma tela.
-  const revisadas = (!ehTotal && d.revisadas.length) ? `<div class="card" style="margin-top:14px;">
+  const revisadas = (!ehTotal && !ehFoco && d.revisadas.length) ? `<div class="card" style="margin-top:14px;">
     <details class="dobra">
       <summary><span class="card-titulo">Já revisadas</span>
         <span class="dobra-conta">${d.revisadas.length}</span></summary>
@@ -1858,16 +1888,19 @@ function renderAuditoria(d){
     <div class="dp-kpis">${kpis}</div>
     <div class="card" style="margin-bottom:14px;">
       <div class="aud-cabecalho">
-        <p class="card-titulo" style="margin:0;">${ehTotal
-          ? `Todas as vendas de ${d.mes.slice(5)}/${d.mes.slice(0,4)}`
-          : 'Amostra pra conferir'}</p>
+        <p class="card-titulo" style="margin:0;">${ehFoco
+          ? TITULO_FOCO[d.foco]
+          : (ehTotal ? `Todas as vendas de ${d.mes.slice(5)}/${d.mes.slice(0,4)}`
+                     : 'Amostra pra conferir')}</p>
         <span class="aud-conta">${lista.length} venda${lista.length === 1 ? '' : 's'}</span>
-        <button class="btn btn-neutro btn-pequeno" id="audTrocarModo">Trocar de modo</button>
+        ${ehFoco ? '<button class="btn btn-neutro btn-pequeno" id="audLimparFoco">← Voltar</button>' : ''}
       </div>
       <p class="fechamento-nota" style="margin:0 0 14px;">
-        ${ehTotal
-          ? 'A planilha inteira do mês, da venda mais antiga pra mais nova. O que você marcar fica gravado e conta na cobertura — igual à amostragem, é o mesmo registro.'
-          : 'Confira cada uma no extrato ou no caixa e marque o resultado. A amostra é sorteada de forma fixa: recarregar a tela devolve as mesmas vendas, e o que você marcar sai da lista e dá lugar à próxima.'}
+        ${ehFoco
+          ? 'Só as vendas desse número, do mês inteiro — independente do modo de conferência.'
+          : (ehTotal
+            ? 'A planilha inteira do mês, da venda mais antiga pra mais nova. O que você marcar fica gravado e conta na cobertura — igual à amostragem, é o mesmo registro.'
+            : 'Confira cada uma no extrato ou no caixa e marque o resultado. A amostra é sorteada de forma fixa: recarregar a tela devolve as mesmas vendas, e o que você marcar sai da lista e dá lugar à próxima.')}
       </p>
       ${corpoLista}
     </div>
@@ -1903,7 +1936,9 @@ async function audMarcar(id, status){
 document.addEventListener('click', ev => {
   const modo = ev.target.closest('[data-modo]');
   if(modo){ audAbrirModo(modo.dataset.modo); return; }
-  if(ev.target.id === 'audTrocarModo'){ audVoltarEscolha(); return; }
+  const foco = ev.target.closest('[data-foco]');
+  if(foco){ audAlternarFoco(foco.dataset.foco); return; }
+  if(ev.target.id === 'audLimparFoco'){ audAlternarFoco(audFoco); return; }
   const btn = ev.target.closest('[data-aud]');
   if(btn) audMarcar(btn.dataset.aud, btn.dataset.status);
 });
@@ -2643,7 +2678,12 @@ function irParaSecao(chave, sub){
   if(chave === 'desempenho') abrirEscolhaDesempenho();
   if(chave === 'carros' && !carrosCarregado) carregarCarros();
   if(chave === 'metabonus' && !mbCarregado) carregarMetaBonus();
-  if(chave === 'auditoria' && !audModo) audVoltarEscolha();
+  if(chave === 'auditoria' && !audCarregado){
+    audMarcarModo();
+    const m = document.getElementById('audMes');
+    if(!m.value) m.value = new Date().toISOString().slice(0,7);
+    carregarAuditoria();
+  }
   if(chave === 'marketing' && !mktDados){
     const p = mktPeriodoPadrao();
     document.getElementById('mktDe').value = p.de;

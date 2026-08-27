@@ -1763,14 +1763,29 @@ def api_admin_auditoria():
     # Modo total: a planilha inteira do mês, sem sorteio. Serve pra fechar o mês
     # de ponta a ponta; a amostra serve pra rodar rápido no meio do mês. Os dois
     # gravam no mesmo lugar, então o que for conferido num aparece no outro.
+    #
+    # `foco` é o clique num dos números do topo: mostra exatamente aquelas
+    # vendas. Vem do servidor e não da tela porque no modo amostra a tela só tem
+    # as vendas sorteadas — filtrar ali devolveria menos do que o número promete,
+    # e um contador que não bate com a lista é pior do que não ter contador.
+    FOCOS = {
+        "conferidas": lambda v: v["status"] == "conferida",
+        "divergentes": lambda v: v["status"] in ("divergente", "nao_achei"),
+        "sinal": lambda v: v["risco"] > 0,
+    }
+    foco = request.args.get("foco") or ""
     lista_total = None
-    if request.args.get("modo") == "total":
+    if foco in FOCOS:
+        lista_total = [enxuto(v) for v in sorted(
+            (x for x in vendas if FOCOS[foco](x)), key=lambda v: (v["data"], -v["valor"]))]
+    elif request.args.get("modo") == "total":
         lista_total = [enxuto(v) for v in sorted(
             vendas, key=lambda v: (v["data"], -v["valor"]))]
 
     return jsonify({
         "mes": mes,
         "modo": request.args.get("modo") or "amostra",
+        "foco": foco if foco in FOCOS else "",
         "total_lista": lista_total,
         "rotulos": STATUS_AUDITORIA,
         "sinais": {k: v[0] for k, v in SINAIS_AUDITORIA.items()},
