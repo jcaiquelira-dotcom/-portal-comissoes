@@ -1598,6 +1598,210 @@ def _nome_aba_excel(nome: str) -> str:
     return limpo[:31] or "Vendedor"
 
 
+@app.route("/api/admin/desempenho")
+def api_admin_desempenho():
+    """Tudo o que dá pra medir de um vendedor sozinho, num mês.
+
+    O que entra aqui é só o que existe em 100% das vendas (data, valor,
+    produto). `canal` está preenchido em 4% dos registros e com grafia
+    inconsistente, então não vira métrica — mostraria um mix falso. Leads,
+    conversas e taxa de conversão não vivem neste portal: a fila do follow-up
+    traz só quem não fechou, e sem o total de atendimentos não existe
+    denominador. Esse número tem que vir do vendas-insights.
+    """
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+
+    vendedores = carregar_vendedores()
+    vid = request.args.get("vendedor", "")
+    if vid not in vendedores:
+        return jsonify({"erro": "Vendedor não encontrado."}), 404
+
+    mes = request.args.get("mes") or hoje_br().isoformat()[:7]
+    vendas = carregar_vendas_todos(vendedores)
+    metas_todas = carregar_metas()
+
+    minhas = [v for v in vendas.values()
+              if v["vendedor_id"] == vid and v.get("tipo", "venda") == "venda"]
+    bonus = [v for v in vendas.values()
+             if v["vendedor_id"] == vid and v.get("tipo") == "bonus"]
+
+    def do_mes(lista, alvo):
+        return [v for v in lista if v["data"][:7] == alvo]
+
+    def mes_anterior(alvo):
+        ano, m = int(alvo[:4]), int(alvo[5:7])
+        return f"{ano - 1}-12" if m == 1 else f"{ano}-{m - 1:02d}"
+
+    def bloco(alvo):
+        """Os números de um mês. Serve pro mês escolhido e pro anterior, que é
+        o que dá sentido à variação."""
+        itens = do_mes(minhas, alvo)
+        total = round(sum(valor_liquido(v) for v in itens), 2)
+        qtd = len(itens)
+        dias = {v["data"] for v in itens}
+        return {
+            "mes": alvo,
+            "total": total,
+            "qtd": qtd,
+            "ticket": round(total / qtd, 2) if qtd else 0.0,
+            "dias_ativos": len(dias),
+            "media_dia_ativo": round(total / len(dias), 2) if dias else 0.0,
+        }
+
+    atual = bloco(mes)
+    anterior = bloco(mes_anterior(mes))
+
+    def variacao(agora, antes):
+        if not antes:
+            return None          # sem base de comparação: não inventa 100%
+        return round(100 * (agora - antes) / antes, 1)
+
+    # ---- ritmo do mês ----
+    dias_no_mes = calendar.monthrange(int(mes[:4]), int(mes[5:7]))[1]
+    hoje = hoje_br()
+    dias_corridos = hoje.day if mes == hoje.isoformat()[:7] else dias_no_mes
+    meta_mensal = float(metas_vendedor(vid, metas_todas).get("mensal", 0) or 0)
+
+    # ---- histórico: evolução e metas batidas ----
+    por_mes = {}
+    for v in minhas:
+        chave = v["data"][:7]
+        d = por_mes.setdefault(chave, {"total": 0.0, "qtd": 0})
+        d["total"] += valor_liquido(v)
+        d["qtd"] += 1
+    historico = [{
+        "mes": k,
+        "total": round(d["total"], 2),
+        "qtd": d["qtd"],
+        "ticket": round(d["total"] / d["qtd"], 2) if d["qtd"] else 0.0,
+        # Meta é a de hoje aplicada a todo o histórico: o portal não guarda a
+        # meta que valia em cada mês passado. Serve pra tendência, não pra
+        # cobrar mês fechado.
+        "bateu": bool(meta_mensal) and d["total"] >= meta_mensal,
+    } for k, d in sorted(por_mes.items())]
+
+    # ---- dentro do mês ----
+    por_dia = {}
+    for v in do_mes(minhas, mes):
+        por_dia[v["data"]] = por_dia.get(v["data"], 0.0) + valor_liquido(v)
+    serie_dia = [{"data": k, "total": round(x, 2)} for k, x in sorted(por_dia.items())]
+    melhor_dia = max(serie_dia, key=lambda x: x["total"], default=None)
+
+    itens_mes = do_mes(minhas, mes)
+    maior_venda = max(itens_mes, key=lambda v: valor_liquido(v), default=None)
+
+    # Faixas de valor: mostram se o mês veio de muita peça barata ou de poucas
+    # caras — duas rotas bem diferentes pro mesmo faturamento.
+    FAIXAS = [(0, 200, "até R$ 200"), (200, 500, "R$ 200–500"),
+              (500, 1000, "R$ 500–1 mil"), (1000, 3000, "R$ 1–3 mil"),
+              (3000, float("inf"), "acima de R$ 3 mil")]
+    faixas = []
+    for piso, teto, rotulo in FAIXAS:
+        dentro = [v for v in itens_mes if piso <= valor_liquido(v) < teto]
+        faixas.append({"rotulo": rotulo, "qtd": len(dentro),
+                       "total": round(sum(valor_liquido(v) for v in dentro), 2)})
+
+    # Nao existe "top produto" util aqui: produto e texto livre digitado a cada
+    # venda e quase nunca se repete igual, entao agrupar por nome so devolveria
+    # a maior venda com quantidade 1. O que informa de verdade e a lista das
+    # maiores vendas do mes.
+    maiores_vendas = [{"produto": (v.get("produto") or "Sem descrição").strip(),
+                       "valor": valor_liquido(v), "data": v["data"]}
+                      for v in sorted(itens_mes, key=valor_liquido, reverse=True)[:8]]
+
+    # ---- posição no time ----
+    totais_time = sorted(
+        ((outro, round(sum(valor_liquido(v) for v in vendas.values()
+                           if v["vendedor_id"] == outro
+                           and v.get("tipo", "venda") == "venda"
+                           and v["data"][:7] == mes), 2))
+         for outro in vendedores),
+        key=lambda kv: kv[1], reverse=True)
+    posicao = next((i + 1 for i, (outro, _) in enumerate(totais_time) if outro == vid), None)
+    total_time = round(sum(t for _, t in totais_time), 2)
+
+    # ---- follow-up ----
+    fila = carregar_fila_retomada(vid)
+    followup = None
+    if fila:
+        itens_fila = fila.get("itens", [])
+        st = carregar_status_retomada(vid)
+        resumo = _resumo_retomada(itens_fila, st)
+        trabalhados = resumo["trabalhados"]
+        followup = {
+            **resumo,
+            "pct_trabalhado": round(100 * trabalhados / len(itens_fila)) if itens_fila else 0,
+            "pct_resposta": (round(100 * (resumo["respondeu"] + resumo["vendeu"]) / trabalhados)
+                             if trabalhados else 0),
+        }
+
+    # ---- atendimento (vem do vendas-insights, espelho do Totalk) ----
+    # O portal so sabe o que virou venda. Quantos clientes ele atendeu, de que
+    # canal vieram e quanto demorou a primeira resposta vive no outro projeto e
+    # chega aqui agregado, pela chave insights_<vendedor>.
+    insights = ler_json(resolver_pasta_dados() / f"insights_{vid}.json", None)
+    atendimento = None
+    if insights:
+        do_mes_ins = (insights.get("meses") or {}).get(mes)
+        if do_mes_ins:
+            atend = do_mes_ins.get("atendimentos", 0)
+            atendimento = {
+                **do_mes_ins,
+                "gerado_em": insights.get("gerado_em"),
+                # Conversao de verdade: venda lancada no portal dividida pelos
+                # clientes que ele atendeu. Nao usamos o "virou_venda" da IA
+                # porque o fechamento acontece fora do chat — ela enxerga so uma
+                # fracao, e o numero sairia baixo demais.
+                "taxa_conversao": (round(100 * atual["qtd"] / atend, 1)
+                                   if atend else None),
+                "vendas_no_mes": atual["qtd"],
+            }
+
+    de_mes, ate_mes = f"{mes}-01", f"{mes}-{dias_no_mes:02d}"
+    comissao = calcular_comissao(vid, de_mes, ate_mes, vendedores, vendas)
+
+    return jsonify({
+        "vendedor": {"id": vid, "nome": vendedores[vid]["nome"],
+                     "foto": vendedores[vid].get("foto"),
+                     "percentual": float(vendedores[vid].get("percentual", 0))},
+        "mes": mes,
+        "atual": atual,
+        "anterior": anterior,
+        "variacao": {
+            "total": variacao(atual["total"], anterior["total"]),
+            "qtd": variacao(atual["qtd"], anterior["qtd"]),
+            "ticket": variacao(atual["ticket"], anterior["ticket"]),
+        },
+        "meta": {
+            "mensal": meta_mensal,
+            "pct": round(100 * atual["total"] / meta_mensal, 1) if meta_mensal else None,
+            "falta": round(max(0.0, meta_mensal - atual["total"]), 2) if meta_mensal else None,
+            "batidas": sum(1 for h in historico if h["bateu"]),
+            "meses_com_venda": len(historico),
+        },
+        "ritmo": {"dias_no_mes": dias_no_mes, "dias_corridos": dias_corridos,
+                  "pct_do_mes": round(100 * dias_corridos / dias_no_mes),
+                  "projecao": round(atual["total"] / dias_corridos * dias_no_mes, 2)
+                              if dias_corridos else 0.0},
+        "comissao": {"valor": comissao["comissao"], "bonus": round(
+            sum(v["valor"] for v in do_mes(bonus, mes)), 2)},
+        "historico": historico,
+        "serie_dia": serie_dia,
+        "melhor_dia": melhor_dia,
+        "maior_venda": ({"produto": maior_venda.get("produto"),
+                         "valor": valor_liquido(maior_venda),
+                         "data": maior_venda["data"]} if maior_venda else None),
+        "faixas": faixas,
+        "maiores_vendas": maiores_vendas,
+        "time": {"posicao": posicao, "de": len(totais_time),
+                 "total_time": total_time,
+                 "participacao": round(100 * atual["total"] / total_time, 1) if total_time else 0},
+        "followup": followup,
+        "atendimento": atendimento,
+    })
+
+
 @app.route("/api/admin/exportar-mes-xlsx")
 def api_admin_exportar_mes_xlsx():
     if not exigir_admin():
