@@ -21,6 +21,7 @@ const ICONES = {
   trocar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L3 8l4 4"/><path d="M3 8h13a4 4 0 0 1 0 8h-1"/><path d="M17 20l4-4-4-4"/></svg>',
   sol: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
   lua: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  recolher: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
   menu: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
 };
 
@@ -60,6 +61,15 @@ function urlExpedicao(){
     : 'http://' + location.hostname + ':8000';
 }
 
+/* ---------- menu guardado ---------- */
+function menuRecolhido(){
+  return localStorage.getItem('portalMenuRecolhido') === '1';
+}
+function aplicarMenuRecolhido(recolhido){
+  document.body.classList.toggle('menu-recolhido', recolhido);
+  localStorage.setItem('portalMenuRecolhido', recolhido ? '1' : '0');
+}
+
 /* ---------- tema ---------- */
 function temaAtual(){
   return localStorage.getItem('portalTema') || 'claro';
@@ -96,6 +106,7 @@ function montarSidebar(ativo, opcoes){
     '<div class="sidebar-marca">'
     + '<img src="/logo-mark.png" alt="" onerror="this.style.display=\'none\'">'
     + '<div class="nome">' + cfg.titulo + '</div>'
+    + '<button class="sidebar-recolher" id="recolherBtn" title="Guardar menu">' + ICONES.recolher + '</button>'
     + '</div>'
     + '<nav class="nav-lista">'
     + cfg.itens.map(linkItem).join('')
@@ -111,6 +122,9 @@ function montarSidebar(ativo, opcoes){
     + '<div><div class="perfil-nome" id="perfilNome">—</div>'
     + '<button class="perfil-sair" id="sairBtn">Sair</button></div>'
     + '</div></div>';
+
+  aplicarMenuRecolhido(menuRecolhido());
+  document.getElementById('recolherBtn').addEventListener('click', () => aplicarMenuRecolhido(true));
 
   aplicarTema(temaAtual());
   document.getElementById('temaBtn').addEventListener('click', () => {
@@ -133,6 +147,7 @@ function montarSidebar(ativo, opcoes){
 }
 
 function abrirMenu(){
+  if(menuRecolhido()){ aplicarMenuRecolhido(false); return; }
   document.getElementById('sidebar').classList.add('aberto');
   document.getElementById('sidebarFundo').classList.add('ativo');
 }

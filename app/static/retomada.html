@@ -167,6 +167,8 @@
     .sep{flex-basis:100%;height:0;}
     .peca{font-size:13.5px;}
   }
+  header .menu-abrir{margin-right:12px;}
+  header{gap:10px;}
 </style>
 </head>
 <body>
@@ -176,6 +178,7 @@
 
   <div id="app" class="hidden">
     <header>
+      <button class="menu-abrir" id="menuAbrirBtn" title="Menu"></button>
       <h1>Follow-up</h1>
       <div class="top-actions">
         <span id="nomeVendedor" class="mono" style="font-size:11.5px;color:var(--muted);"></span>
@@ -385,6 +388,8 @@ document.getElementById('busca').addEventListener('input', render);
   document.getElementById('app').classList.remove('hidden');
 })();
 montarSidebar('retomada');
+document.getElementById('menuAbrirBtn').innerHTML = ICONES.menu;
+document.getElementById('menuAbrirBtn').addEventListener('click', abrirMenu);
 </script>
 </main></div>
 </body>

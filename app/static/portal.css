@@ -98,7 +98,20 @@ a{color:inherit;}
   align-items:center;
   gap:10px;
   padding:2px 8px 20px;
+  position:relative;
 }
+/* Botao de guardar o menu. Serve pra tela cheia (o painel de expedicao
+   fica numa TV, onde a barra so rouba espaco) e fica guardado por
+   navegador, entao a TV nao volta a mostrar o menu a cada atualizacao. */
+.sidebar-recolher{
+  position:absolute;top:-2px;right:-4px;
+  width:26px;height:26px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface-2);border:1px solid var(--line);
+  color:var(--muted);cursor:pointer;padding:0;
+}
+.sidebar-recolher:hover{border-color:var(--accent);color:var(--accent);}
+.sidebar-recolher svg{width:14px;height:14px;stroke-width:2.4;}
 .sidebar-marca img{height:38px;width:auto;display:block;}
 .sidebar-marca .nome{
   font-family:'Oswald',sans-serif;
@@ -200,6 +213,11 @@ a{color:inherit;}
   padding:0;cursor:pointer;text-decoration:underline;font-family:inherit;
 }
 .perfil-sair:hover{color:var(--bad);}
+
+/* menu guardado: vale em qualquer largura de tela */
+body.menu-recolhido .sidebar{transform:translateX(-100%);}
+body.menu-recolhido .conteudo{margin-left:0;}
+body.menu-recolhido .menu-abrir{display:flex;}
 
 /* menu fora da tela no celular */
 .menu-abrir{

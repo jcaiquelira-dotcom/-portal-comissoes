@@ -139,6 +139,8 @@
     background:rgba(224,91,91,.12);border:1px solid var(--bad);border-radius:6px;
     padding:14px 18px;font-size:13px;
   }
+  header .menu-abrir{margin-right:12px;}
+  header{gap:10px;}
 </style>
 </head>
 <body>
@@ -147,6 +149,7 @@
 <main class="conteudo"><div class="wrap">
   <div id="appArea" class="hidden">
     <header>
+      <button class="menu-abrir" id="menuAbrirBtn" title="Menu"></button>
       <h1>Simulador de Desconto</h1>
       <div class="top-actions">
         <span id="nomeVendedor" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);"></span>
@@ -414,6 +417,8 @@ $('btnSimularRapido').addEventListener('click', () => simularRapido());
 
 iniciar();
 montarSidebar('simulador');
+document.getElementById('menuAbrirBtn').innerHTML = ICONES.menu;
+document.getElementById('menuAbrirBtn').addEventListener('click', abrirMenu);
 </script>
 </main></div>
 </body>
