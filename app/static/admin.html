@@ -67,7 +67,18 @@
   .evo-val{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--accent);text-align:center;}
 
   /* ---- Tabela resumo ---- */
+  /* As vendas do vendedor ficam fechadas: a tabela e um resumo, e com quatro
+     vendedores abertos ela deixa de caber na tela. Clicar na linha abre. */
+  .detalhe-row{display:none;}
+  .detalhe-row.show{display:table-row;}
   .detalhe-row td{background:var(--surface-2);}
+  .vendedor-row{cursor:pointer;}
+  .vendedor-row:hover td{background:var(--surface-2);}
+  .vendedor-row .nome-col:before{
+    content:'▸';color:var(--muted);display:inline-block;
+    width:14px;font-size:11px;transition:transform .12s;
+  }
+  .vendedor-row.aberta .nome-col:before{transform:rotate(90deg);}
   .detalhe-wrap{padding:6px 2px 10px;}
   .expandir-btn{
     background:none;border:1px solid var(--line);color:var(--muted);
@@ -1057,8 +1068,15 @@ async function carregarResumo(){
       }
 
       detalheTr.innerHTML = `<td colspan="7" class="valor-money">${overridesHtml}${vendasHtml}${bonusHtml}</td>`;
-      tr.addEventListener('click', () => detalheTr.classList.toggle('show'));
-      if(resumoAtual.vendedores.length === 1) detalheTr.classList.add('show');
+      tr.addEventListener('click', () => {
+        const aberta = detalheTr.classList.toggle('show');
+        tr.classList.toggle('aberta', aberta);
+      });
+      // Com um vendedor so filtrado, esconder as vendas nao economiza nada.
+      if(resumoAtual.vendedores.length === 1){
+        detalheTr.classList.add('show');
+        tr.classList.add('aberta');
+      }
       body.appendChild(tr);
       body.appendChild(detalheTr);
     });
