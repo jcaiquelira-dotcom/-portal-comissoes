@@ -2052,37 +2052,6 @@ def _janela_comparavel(de, ate, cobertura):
     return max(de, cobertura["de"]), min(ate, cobertura["ate"])
 
 
-@app.route("/api/marketing")
-def api_marketing_vendedor():
-    """A visão do vendedor: só o que passou pela mão dele, sem investimento."""
-    vendedor_id = exigir_vendedor()
-    if not vendedor_id:
-        return jsonify({"erro": "Não autenticado."}), 401
-    de, ate = _periodo_pedido()
-    leads, _ = _marketing_bruto()
-    minhas = [l for l in _recortar(leads.get("linhas", []), de, ate)
-              if l["vendedor"] == vendedor_id]
-    if not leads.get("linhas"):
-        return jsonify({"sem_dados": True, "de": de, "ate": ate})
-
-    vendedores = carregar_vendedores()
-    cobertura = _cobertura(leads.get("linhas", []))
-    ef_de, ef_ate = _janela_comparavel(de, ate, cobertura)
-    minhas = [l for l in minhas if ef_de <= l["data"] <= ef_ate]
-    agregado = _agregar_marketing(minhas)
-    vendas = _vendas_no_periodo(vendedores, ef_de, ef_ate, so_vendedor=vendedor_id)
-    total_leads = agregado["total"]["leads"]
-    return jsonify({
-        "de": de, "ate": ate,
-        "periodo_efetivo": {"de": ef_de, "ate": ef_ate},
-        "gerado_em": leads.get("gerado_em"),
-        "cobertura": cobertura,
-        **agregado,
-        "vendas": vendas,
-        "conversao": round(100 * vendas["qtd"] / total_leads, 1) if total_leads else None,
-    })
-
-
 def _cobertura(linhas):
     """Até quando o espelho do Totalk foi sincronizado. Sem isso, um período
     que passa dessa data mostra queda de leads que é só falta de dado."""
@@ -2211,6 +2180,32 @@ def api_marketing_gestor():
 
 @app.route("/api/admin/desempenho")
 def api_admin_desempenho():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    vendedores = carregar_vendedores()
+    vid = request.args.get("vendedor", "")
+    if vid not in vendedores:
+        return jsonify({"erro": "Vendedor não encontrado."}), 404
+    return jsonify(montar_desempenho(vid, request.args.get("mes"), vendedores))
+
+
+@app.route("/api/desempenho")
+def api_desempenho_vendedor():
+    """O mesmo painel, do ponto de vista de quem está logado.
+
+    Uma diferença de propósito: sai a participação no faturamento do time. Com
+    ela e o próprio total, o vendedor deduziria quanto a equipe inteira vendeu —
+    e o gestor acabou de tirar o ranking do menu dele justamente pra isso não
+    ficar exposto. A posição fica: motiva sem entregar número de ninguém."""
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    dados = montar_desempenho(vendedor_id, request.args.get("mes"), carregar_vendedores())
+    dados["time"] = {"posicao": dados["time"]["posicao"], "de": dados["time"]["de"]}
+    return jsonify(dados)
+
+
+def montar_desempenho(vid, mes, vendedores):
     """Tudo o que dá pra medir de um vendedor sozinho, num mês.
 
     O que entra aqui é só o que existe em 100% das vendas (data, valor,
@@ -2220,15 +2215,7 @@ def api_admin_desempenho():
     traz só quem não fechou, e sem o total de atendimentos não existe
     denominador. Esse número tem que vir do vendas-insights.
     """
-    if not exigir_admin():
-        return jsonify({"erro": "Não autenticado."}), 401
-
-    vendedores = carregar_vendedores()
-    vid = request.args.get("vendedor", "")
-    if vid not in vendedores:
-        return jsonify({"erro": "Vendedor não encontrado."}), 404
-
-    mes = request.args.get("mes") or hoje_br().isoformat()[:7]
+    mes = mes or hoje_br().isoformat()[:7]
     vendas = carregar_vendas_todos(vendedores)
     metas_todas = carregar_metas()
 
@@ -2372,7 +2359,7 @@ def api_admin_desempenho():
     de_mes, ate_mes = f"{mes}-01", f"{mes}-{dias_no_mes:02d}"
     comissao = calcular_comissao(vid, de_mes, ate_mes, vendedores, vendas)
 
-    return jsonify({
+    return {
         "vendedor": {"id": vid, "nome": vendedores[vid]["nome"],
                      "foto": vendedores[vid].get("foto"),
                      "avatar": vendedores[vid].get("avatar", ""),
@@ -2411,7 +2398,7 @@ def api_admin_desempenho():
                  "participacao": round(100 * atual["total"] / total_time, 1) if total_time else 0},
         "followup": followup,
         "atendimento": atendimento,
-    })
+    }
 
 
 @app.route("/api/admin/exportar-mes-xlsx")

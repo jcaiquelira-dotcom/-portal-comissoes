@@ -99,7 +99,7 @@ const PORTAIS = {
       {chave: 'vendas',    texto: 'Minhas vendas',         href: '/#vendas', icone: 'vendas'},
       {chave: 'simulador', texto: 'Simulador de desconto', href: '/simulador', icone: 'simulador'},
       {chave: 'retomada',  texto: 'Follow-up',              href: '/follow-up', icone: 'retomada'},
-      {chave: 'marketing', texto: 'Meus números',           href: '/#marketing', icone: 'marketing'},
+      {chave: 'performance', texto: 'Performance',          href: '/#performance', icone: 'desempenho'},
     ],
     // Vendedor nao ve ranking nem expedicao: o painel dele ja mostra a
     // posicao no time, e expedicao e tela de outro setor.
@@ -110,15 +110,13 @@ const PORTAIS = {
     titulo: 'Área do<br><span>Gestor</span>',
     itens: [
       {chave: 'painel',      texto: 'Painel',            href: '#painel',      icone: 'painel'},
-      {chave: 'fechamento',  texto: 'Fechamento de mês', href: '#fechamento',  icone: 'fechamento'},
-      {chave: 'retomada',    texto: 'Follow-up do time',  href: '#retomada',    icone: 'retomada'},
-      {chave: 'desempenho',  texto: 'Desempenho',        href: '#desempenho',  icone: 'desempenho'},
       {chave: 'marketing',   texto: 'Marketing',         href: '#marketing',   icone: 'marketing'},
-      {chave: 'carros',      texto: 'Carros pra chegar', href: '#carros',      icone: 'carro'},
-      {chave: 'metabonus',   texto: 'Meta Bônus',        href: '#metabonus',   icone: 'bonus'},
       {chave: 'auditoria',   texto: 'Comissões',         href: '#auditoria',   icone: 'lupa'},
-      // Metas, Registros e o simulador viraram topicos dentro de Configuracoes:
-      // sao telas de ajuste, nao de acompanhamento do dia.
+      {chave: 'metabonus',   texto: 'Meta Bônus',        href: '#metabonus',   icone: 'bonus'},
+      {chave: 'desempenho',  texto: 'Desempenho',        href: '#desempenho',  icone: 'desempenho'},
+      {chave: 'carros',      texto: 'Carros pra chegar', href: '#carros',      icone: 'carro'},
+      {chave: 'retomada',    texto: 'Follow-up do time', href: '#retomada',    icone: 'retomada'},
+      {chave: 'fechamento',  texto: 'Fechamento de mês', href: '#fechamento',  icone: 'fechamento'},
       {chave: 'configuracoes', texto: 'Configurações',   href: '#configuracoes', icone: 'config'},
     ],
     externos: ['ranking', 'expedicao'],

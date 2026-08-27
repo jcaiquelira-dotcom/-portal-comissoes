@@ -86,24 +86,6 @@
   }
   .cli-todos:hover{color:var(--accent);}
 
-  .mk-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;}
-  .mk-kpi{padding:15px;border-radius:12px;background:var(--surface);border:1px solid var(--line);}
-  .mk-kpi .rot{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
-  .mk-kpi .num{font-family:'IBM Plex Mono',monospace;font-size:21px;font-weight:600;margin:7px 0 3px;}
-  .mk-kpi .sub{font-size:11.5px;color:var(--muted);}
-  .mk-linha{display:grid;grid-template-columns:1fr auto;gap:4px;font-size:12.5px;margin-bottom:9px;}
-  .mk-linha .v{font-family:'IBM Plex Mono',monospace;color:var(--muted);font-size:12px;}
-  .mk-linha .t{grid-column:1/-1;height:6px;border-radius:20px;background:var(--surface-2);overflow:hidden;}
-  .mk-linha .f{height:100%;border-radius:20px;background:var(--accent);}
-  .mk-aviso{font-size:11.5px;color:var(--muted);margin-top:10px;padding-top:9px;
-            border-top:1px solid var(--line);line-height:1.5;}
-
-  .sheet-dica{
-    font-size:11.5px;color:var(--muted);line-height:1.5;
-    margin:9px 0 0;padding:8px 10px;border-radius:8px;
-    background:var(--surface-2);border:1px solid var(--line);
-  }
-
   .toast{
     position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
     background:var(--text);color:var(--surface);
@@ -413,23 +395,26 @@
       <button class="btn btn-principal" id="devolucaoConfirmarBtn">Confirmar</button>
     </div>
   </div>
-    <!-- ---------- MEUS NÚMEROS (marketing) ---------- -->
-    <section id="secaoMarketing" class="oculto">
-      <div class="filtros" style="margin-bottom:14px;">
-        <div class="filtro-campo">
-          <label class="campo-rotulo" for="mkDe">De</label>
-          <input type="date" id="mkDe">
+    <!-- ---------- PERFORMANCE ---------- -->
+    <!-- Mesma estrutura da area do gestor de proposito: o desenho vem de
+         desempenho.js, que procura estes ids. -->
+    <section id="secaoPerformance" class="oculto">
+      <div class="dp-topo">
+        <div class="dp-quem">
+          <div class="dp-foto" id="dpFoto">--</div>
+          <div>
+            <div class="dp-nome" id="dpNome">—</div>
+            <div class="dp-sub" id="dpSub">—</div>
+          </div>
         </div>
-        <div class="filtro-campo">
-          <label class="campo-rotulo" for="mkAte">Até</label>
-          <input type="date" id="mkAte">
-        </div>
+        <input type="month" id="dpMes" class="dp-mes">
       </div>
-      <div id="mkCorpo"></div>
+      <div id="dpCorpo"></div>
     </section>
 </div>
 
 <script src="/portal-nav.js"></script>
+<script src="/desempenho.js"></script>
 <script>
 function fmtMoeda(v){
   return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
@@ -1518,100 +1503,42 @@ document.addEventListener('click', () => {
   if(n) n.classList.remove('aberto');
 });
 
-/* ---------- Meus números ----------
-   A metade da conta que o vendedor nunca viu: quantos clientes chegaram pra
-   ele, de que canal, e quanto disso virou venda. Investimento de mídia não
-   aparece aqui — é número de conta, não da pessoa. */
-let mkCarregado = false;
-
-async function carregarMeusNumeros(){
-  const corpo = document.getElementById('mkCorpo');
-  const de = document.getElementById('mkDe');
-  const ate = document.getElementById('mkAte');
-  if(!de.value || !ate.value){
-    const hoje = todayStr();
-    de.value = hoje.slice(0, 8) + '01';
-    ate.value = hoje;
-  }
+/* ---------- Performance ----------
+   Mesmo painel que o gestor vê deste vendedor, desenhado por desempenho.js.
+   O servidor é que decide o que ele pode ver: /api/desempenho devolve tudo
+   menos a participação no faturamento do time. */
+async function carregarPerformance(){
+  const campoMes = document.getElementById('dpMes');
+  if(!campoMes.value) campoMes.value = todayStr().slice(0, 7);
+  const corpo = document.getElementById('dpCorpo');
   corpo.innerHTML = '<div class="vazio">Carregando…</div>';
-  const res = await fetch(`/api/marketing?de=${de.value}&ate=${ate.value}`);
+  const res = await fetch('/api/desempenho?mes=' + campoMes.value);
   if(res.status === 401){ logout(); return; }
-  if(!res.ok){ corpo.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
-  mkCarregado = true;
-  renderMeusNumeros(await res.json());
-}
-
-function renderMeusNumeros(d){
-  const corpo = document.getElementById('mkCorpo');
-  if(d.sem_dados || !d.total){
-    corpo.innerHTML = '<div class="vazio">Ainda não há dados de atendimento sincronizados.</div>';
+  if(!res.ok){
+    corpo.innerHTML = '<div class="vazio">Não consegui carregar seus números.</div>';
     return;
   }
-  const t = d.total, ef = d.periodo_efetivo || {};
-  const kpi = (rot, num, sub) => `<div class="mk-kpi"><div class="rot">${rot}</div>
-    <div class="num valor-money">${num}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
-
-  const kpis = [
-    kpi('Clientes atendidos', t.leads, 'conversas que chegaram pra você'),
-    kpi('Deram sinal de compra', t.sinal, t.leads ? (100 * t.sinal / t.leads).toFixed(1) + '% dos atendidos' : ''),
-    kpi('Vendas fechadas', d.vendas.qtd, fmtMoeda(d.vendas.total)),
-    kpi('Sua conversão', (d.conversao ?? 0) + '%', 'venda a cada ' +
-        (d.conversao ? Math.round(100 / d.conversao) : '—') + ' atendimentos'),
-    kpi('Ticket médio', fmtMoeda(d.vendas.ticket)),
-  ].join('');
-
-  const maxCanal = Math.max(...d.por_canal.map(c => c.leads), 1);
-  const canais = d.por_canal.map(c => `
-    <div class="mk-linha">
-      <span>${c.canal}</span>
-      <span class="v">${c.leads} · ${c.sinal} com sinal</span>
-      <span class="t"><span class="f" style="width:${(c.leads / maxCanal * 100).toFixed(1)}%"></span></span>
-    </div>`).join('');
-
-  const maxDia = Math.max(...d.por_dia.map(x => x.leads), 1);
-  const larg = Math.max(320, d.por_dia.length * 24), alt = 130;
-  const passo = larg / Math.max(1, d.por_dia.length);
-  const barras = d.por_dia.map((x, i) => {
-    const h = (x.leads / maxDia) * (alt - 30);
-    return `<rect x="${(passo * i + passo * 0.18).toFixed(1)}" y="${(alt - 18 - h).toFixed(1)}"
-      width="${(passo * 0.64).toFixed(1)}" height="${Math.max(2, h).toFixed(1)}" rx="3"
-      fill="var(--accent)" opacity=".8"><title>${x.data.slice(8)}/${x.data.slice(5,7)}: ${x.leads}</title></rect>
-      <text x="${(passo * i + passo / 2).toFixed(1)}" y="${alt - 5}" text-anchor="middle"
-        font-size="8.5" fill="var(--muted)">${x.data.slice(8)}</text>`;
-  }).join('');
-
-  const janelaCurta = ef.ate && d.ate && ef.ate < d.ate;
-  corpo.innerHTML = `
-    <div class="mk-kpis">${kpis}</div>
-    <div class="card" style="margin-bottom:14px;">
-      <p class="card-titulo">De onde vieram seus clientes</p>
-      ${canais || '<div class="vazio">Sem atendimento no período.</div>'}
-    </div>
-    <div class="card">
-      <p class="card-titulo">Clientes por dia</p>
-      ${d.por_dia.length
-        ? `<div style="overflow-x:auto"><svg style="display:block;width:100%"
-             viewBox="0 0 ${larg} ${alt}" height="${alt}">${barras}</svg></div>`
-        : '<div class="vazio">Sem atendimento no período.</div>'}
-      ${janelaCurta ? `<div class="mk-aviso">Os dados de atendimento vão até
-        ${ef.ate.slice(8)}/${ef.ate.slice(5,7)}. O que veio depois ainda não foi sincronizado.</div>` : ''}
-    </div>`;
+  const d = await res.json();
+  // Sem participação no time, o subtítulo do painel compartilhado precisa de
+  // outro texto — o resto do desenho é idêntico.
+  renderDesempenho(d);
+  document.getElementById('dpSub').textContent =
+    d.time && d.time.posicao ? `${d.time.posicao}º lugar entre ${d.time.de} no mês` : '';
 }
 
-document.addEventListener('change', ev => {
-  if(ev.target.id === 'mkDe' || ev.target.id === 'mkAte') carregarMeusNumeros();
-});
+document.getElementById('dpMes').addEventListener('change', carregarPerformance);
 
 /* ---------- troca de seção ---------- */
-const TITULOS = {painel: 'Painel', vendas: 'Minhas vendas', marketing: 'Meus números'};
-const SECOES_VENDEDOR = {painel: 'secaoPainel', vendas: 'secaoVendas', marketing: 'secaoMarketing'};
+const TITULOS = {painel: 'Painel', vendas: 'Minhas vendas', performance: 'Performance'};
+const SECOES_VENDEDOR = {painel: 'secaoPainel', vendas: 'secaoVendas',
+                         performance: 'secaoPerformance'};
 
 function irParaSecao(chave){
   secaoAtual = SECOES_VENDEDOR[chave] ? chave : 'painel';
   Object.entries(SECOES_VENDEDOR).forEach(([k, el]) => {
     document.getElementById(el).classList.toggle('oculto', k !== secaoAtual);
   });
-  if(secaoAtual === 'marketing' && !mkCarregado) carregarMeusNumeros();
+  if(secaoAtual === 'performance') carregarPerformance();
   document.getElementById('tituloSecao').textContent = TITULOS[secaoAtual];
   document.querySelectorAll('.nav-item[data-nav]').forEach(a => {
     a.classList.toggle('ativo', a.dataset.nav === secaoAtual);

@@ -401,3 +401,102 @@ tr.dia-novo:first-child > td{border-top:none;padding-top:8px;}
    entao o mesmo desenho serve em 32px e em 44px sem virar duas regras. */
 .avatar-svg{padding:0 !important;overflow:hidden;}
 .avatar-svg svg{width:100%;height:100%;display:block;}
+
+/* ============================================================
+   Painel de desempenho — usado pela área do gestor e pelo portal do vendedor.
+   Mora aqui, e não em cada tela, porque o mesmo desenho serve os dois.
+   ============================================================ */
+/* ---- Desempenho por vendedor ---- */
+.dp-escolha{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;}
+.dp-card{
+  display:flex;align-items:center;gap:12px;text-align:left;
+  padding:15px;border-radius:12px;cursor:pointer;
+  background:var(--surface);border:1px solid var(--line);font-family:inherit;
+  transition:border-color .12s, transform .12s;
+}
+.dp-card:hover{border-color:var(--accent);transform:translateY(-2px);}
+.dp-card .av{
+  width:42px;height:42px;border-radius:50%;flex-shrink:0;object-fit:cover;
+  background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:14px;
+}
+.dp-card .n{font-size:14px;font-weight:600;}
+.dp-card .s{font-size:11.5px;color:var(--muted);margin-top:2px;}
+
+.dp-topo{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap;}
+.dp-quem{display:flex;align-items:center;gap:11px;}
+.dp-foto{
+  width:44px;height:44px;border-radius:50%;object-fit:cover;
+  background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:15px;
+}
+.dp-nome{font-size:17px;font-weight:700;}
+.dp-sub{font-size:12px;color:var(--muted);}
+.dp-mes{
+  margin-left:auto;background:var(--surface);color:var(--text);
+  border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-family:inherit;font-size:13px;
+}
+
+.dp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-bottom:14px;}
+.dp-grid.duas{grid-template-columns:repeat(auto-fit,minmax(330px,1fr));}
+
+.dp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:12px;margin-bottom:14px;}
+.dp-kpi{padding:15px;border-radius:12px;background:var(--surface);border:1px solid var(--line);}
+.dp-kpi .rot{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+.dp-kpi .num{
+  font-family:'IBM Plex Mono',monospace;font-size:21px;font-weight:600;
+  margin:7px 0 4px;line-height:1.1;
+}
+.dp-var{font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;gap:3px;}
+.dp-var.sobe{color:var(--good);}
+.dp-var.desce{color:var(--bad);}
+.dp-var.neutro{color:var(--muted);font-weight:400;}
+
+/* funil de atendimento: leads -> sinal -> venda */
+.funil{display:flex;flex-direction:column;gap:8px;}
+.funil-passo{position:relative;}
+.funil-barra{
+  height:38px;border-radius:8px;display:flex;align-items:center;
+  padding:0 13px;color:#fff;font-weight:600;font-size:13.5px;
+  background:linear-gradient(90deg,#F0A868,var(--accent));min-width:98px;
+}
+.funil-passo:nth-child(2) .funil-barra{background:linear-gradient(90deg,#8FB8D8,var(--info));}
+.funil-passo:nth-child(3) .funil-barra{background:linear-gradient(90deg,#7ED6A5,var(--good));}
+.funil-rot{font-size:11.5px;color:var(--muted);margin-bottom:3px;}
+.funil-taxa{
+  position:absolute;right:0;top:50%;font-size:12px;color:var(--muted);
+  font-family:'IBM Plex Mono',monospace;
+}
+
+.dp-lista{display:flex;flex-direction:column;gap:9px;}
+.dp-linha{display:grid;grid-template-columns:1fr auto;gap:4px;font-size:12.5px;}
+.dp-linha .v{font-family:'IBM Plex Mono',monospace;color:var(--muted);font-size:12px;white-space:nowrap;}
+.dp-linha .t{grid-column:1/-1;height:6px;border-radius:20px;background:var(--surface-2);overflow:hidden;}
+.dp-linha .f{height:100%;border-radius:20px;background:var(--accent);}
+.dp-linha .nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+.dp-destaque{
+  display:flex;align-items:baseline;gap:8px;padding:11px 0;
+  border-bottom:1px solid var(--line);font-size:12.5px;
+}
+.dp-destaque:last-child{border-bottom:none;}
+.dp-destaque .rot{color:var(--muted);}
+.dp-destaque .val{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-weight:600;white-space:nowrap;}
+
+.dp-aviso{
+  font-size:11.5px;color:var(--muted);margin-top:10px;
+  padding-top:9px;border-top:1px solid var(--line);line-height:1.5;
+}
+.dp-svg{display:block;width:100%;overflow:visible;}
+.dp-selo{
+  font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:2px 7px;border-radius:20px;border:1px solid currentColor;
+}
+.dp-selo.bom{color:var(--good);}
+.dp-selo.ruim{color:var(--bad);}
+.dp-selo.neutro{color:var(--muted);}
+
+@media (max-width: 560px){
+  .dp-topo{gap:10px;}
+  .dp-mes{margin-left:0;width:100%;}
+}
