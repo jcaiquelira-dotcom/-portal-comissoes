@@ -52,13 +52,33 @@
     font-size:30px;
     margin:0;
   }
-  .top-actions{display:flex;align-items:center;gap:14px;}
+  .top-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .vendedor-tag{
     font-family:'IBM Plex Mono',monospace;
     font-size:13px;
     color:var(--muted);
   }
   .vendedor-tag strong{color:var(--text);}
+  .usuario-grupo{display:inline-flex;align-items:center;gap:12px;margin-left:6px;}
+  /* Atalhos do topo em forma de card, com fonte normal (sem monoespaçada nem
+     sublinhado) — ficam mais discretos e mais faceis de acertar no toque. */
+  .nav-card{
+    display:inline-flex;
+    align-items:center;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--muted);
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    font-weight:500;
+    text-decoration:none;
+    padding:7px 12px;
+    cursor:pointer;
+    white-space:nowrap;
+    line-height:1;
+  }
+  .nav-card:hover{border-color:var(--accent);color:var(--text);}
   .link-btn{
     background:none;
     border:none;
@@ -83,6 +103,12 @@
     gap:8px;
   }
   .section-title::after{content:'';flex:1;height:1px;background:var(--line);}
+  /* A lista de vendas e o que o vendedor mais usa, entao o titulo dela vem
+     maior e em destaque, ao contrario do resumo de valores la em cima. */
+  .section-title.destaque{
+    font-size:17px;
+    color:var(--text);
+  }
 
   .card{
     background:var(--surface);
@@ -165,32 +191,36 @@
 
   /* ---- App ---- */
   #appSection{display:none;}
+  /* Resumo do mês: proposital discreto. Os vendedores nao se sentem a
+     vontade com o quanto venderam/vao receber em destaque na tela, entao o
+     numero fica pequeno e sem cor chamativa — o foco da pagina e a lista de
+     vendas, nao o valor. */
   .summary-row{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:12px;
-    margin-bottom:18px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom:16px;
   }
   .stat-card{
     background:var(--surface);
     border:1px solid var(--line);
-    border-left:3px solid var(--accent);
-    border-radius:8px;
-    padding:14px 16px;
+    border-radius:6px;
+    padding:8px 12px;
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+    flex-wrap:wrap;
   }
   .stat-card .label{
-    font-family:'IBM Plex Mono',monospace;
-    font-size:11px;
-    letter-spacing:.1em;
-    text-transform:uppercase;
+    font-family:'Inter',sans-serif;
+    font-size:12px;
     color:var(--muted);
-    margin-bottom:6px;
   }
   .stat-card .value{
     font-family:'IBM Plex Mono',monospace;
-    font-weight:700;
-    font-size:26px;
-    color:var(--accent-2);
+    font-weight:600;
+    font-size:14px;
+    color:var(--text);
   }
 
   .form-grid{
@@ -382,9 +412,11 @@
     font-family:'IBM Plex Mono',monospace;
     font-size:11px;
     color:var(--muted);
-    margin:6px 0 0;
+    margin:4px 0 0;
+    flex-basis:100%;   /* quebra linha dentro do card, abaixo do valor */
   }
   .override-note div{padding:1px 0;}
+  .override-note:empty{display:none;}
 
   .sheet-toggle-row{margin-bottom:18px;}
   .sheet-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;}
@@ -589,7 +621,7 @@
     </div>
 
     <div style="display:flex;align-items:center;gap:10px;">
-      <p class="section-title" style="flex:1;margin:0;">Minhas vendas do mês</p>
+      <p class="section-title destaque" style="flex:1;margin:0;">Minhas vendas do mês</p>
       <button class="small-btn" id="exportMinhasVendasBtn">Exportar CSV</button>
     </div>
     <div class="busca-row">
@@ -691,17 +723,23 @@ async function carregarVendedores(){
 
 function renderTopActions(){
   const el = document.getElementById('topActions');
-  const painelLink = `<a class="link-btn" href="/painel.html" target="_blank">Painel de ranking</a>`;
   const expedicaoUrl = location.hostname.endsWith('.onrender.com')
     ? 'https://nevada-expedicao.onrender.com'
     : `http://${location.hostname}:8000`;
-  const expedicaoLink = `<a class="link-btn" href="${expedicaoUrl}" target="_blank" style="margin-left:14px;">Painel de expedição</a>`;
+  const card = (href, texto, novaAba = true) =>
+    `<a class="nav-card" href="${href}"${novaAba ? ' target="_blank"' : ''}>${texto}</a>`;
+  const painelLink = card('/painel.html', 'Painel de ranking');
+  const expedicaoLink = card(expedicaoUrl, 'Painel de expedição');
   if(eu){
-    const simuladorLink = `<a class="link-btn" href="/simulador" target="_blank" style="margin-left:14px;">Simulador de desconto</a>`;
-    el.innerHTML = `${painelLink}${expedicaoLink}${simuladorLink}<span class="vendedor-tag" style="margin-left:14px;">Olá, <strong>${eu.nome}</strong></span><button class="link-btn" id="logoutBtn" style="margin-left:14px;">Sair</button>`;
+    const atalhos = painelLink + expedicaoLink
+      + card('/simulador', 'Simulador de desconto')
+      + card('/retomada', 'Retomada');
+    // "Olá, fulano" e "Sair" ficam juntos num grupo pra nao se separarem
+    // quando a barra quebra linha em tela estreita.
+    el.innerHTML = `${atalhos}<span class="usuario-grupo"><span class="vendedor-tag">Olá, <strong>${eu.nome}</strong></span><button class="link-btn" id="logoutBtn">Sair</button></span>`;
     document.getElementById('logoutBtn').addEventListener('click', logout);
   }else{
-    el.innerHTML = `${painelLink}${expedicaoLink}<a class="link-btn" href="/admin.html" style="margin-left:14px;">Área do gestor</a>`;
+    el.innerHTML = `${painelLink}${expedicaoLink}${card('/admin.html', 'Área do gestor', false)}`;
   }
 }
 
