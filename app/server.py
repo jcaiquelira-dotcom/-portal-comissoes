@@ -1600,6 +1600,67 @@ def _nome_aba_excel(nome: str) -> str:
 
 
 # ============================================================
+# Meta Bônus
+# ============================================================
+# Vem do painel-metas (scripts/sincronizar_metas_bonus.py), onde o time lança a
+# producao diaria. Aqui e so leitura: o lancamento continua acontecendo la, e
+# duplicar a entrada nos dois lugares so criaria divergencia.
+
+SETORES_META = {"anunciante": "Anunciantes", "cadastrador": "Cadastradores"}
+
+
+@app.route("/api/admin/metas-bonus")
+def api_admin_metas_bonus():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+
+    bruto = ler_json(resolver_pasta_dados() / "metas_bonus.json", None) or {}
+    meses = bruto.get("meses") or {}
+    if not meses:
+        return jsonify({"sem_dados": True})
+
+    disponiveis = sorted(meses)
+    mes = request.args.get("mes") or disponiveis[-1]
+    if mes not in meses:
+        mes = disponiveis[-1]
+    atual = meses[mes]
+
+    # Quantos bateram bonus mes a mes — e a serie que mostra se a meta esta
+    # calibrada. Ninguem batendo nunca, ou todo mundo batendo sempre, sao os
+    # dois jeitos de uma meta nao significar nada.
+    historico = []
+    for m in disponiveis:
+        d = meses[m]
+        pessoas = [p for linhas in d["setores"].values() for p in linhas]
+        historico.append({
+            "mes": m,
+            "pessoas": len(pessoas),
+            "na_meta": sum(1 for p in pessoas if p["bateu_meta"]),
+            "no_bonus": sum(1 for p in pessoas if p["bateu_bonus"]),
+            "pecas": d["veiculos"]["pecas"],
+            "carros": d["veiculos"]["carros"],
+        })
+
+    ritmo = None
+    hoje = hoje_br()
+    if mes == hoje.isoformat()[:7]:
+        dias = calendar.monthrange(hoje.year, hoje.month)[1]
+        ritmo = {"dias_no_mes": dias, "dias_corridos": hoje.day,
+                 "pct_do_mes": round(100 * hoje.day / dias)}
+
+    return jsonify({
+        "gerado_em": bruto.get("gerado_em"),
+        "mes": mes,
+        "meses": disponiveis,
+        "rotulos": SETORES_META,
+        "setores": atual["setores"],
+        "veiculos": atual["veiculos"],
+        "historico": historico,
+        "ritmo": ritmo,
+    })
+
+
+# ============================================================
 # Carros pra chegar
 # ============================================================
 # Vem da planilha "Carros para chegar" (scripts/sincronizar_carros.py).

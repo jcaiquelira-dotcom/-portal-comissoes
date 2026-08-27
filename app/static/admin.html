@@ -130,6 +130,25 @@
   @media (max-width:700px){.grid-2{grid-template-columns:1fr;}}
   .tabela-rolante{overflow-x:auto;}
 
+  /* ---- Meta Bônus ---- */
+  .mb-linha{margin-bottom:15px;}
+  .mb-linha:last-of-type{margin-bottom:0;}
+  .mb-cab{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
+  .mb-nome{font-size:13.5px;font-weight:600;}
+  .mb-num{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;}
+  .mb-alvo{margin-left:auto;font-size:11px;color:var(--muted);
+           font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+  .mb-trilha{position:relative;height:10px;border-radius:20px;
+             background:var(--surface-2);border:1px solid var(--line);}
+  .mb-fill{height:100%;border-radius:20px;transition:width .3s ease;}
+  /* Duas marcas na mesma trilha: a meta e o bonus. Sem elas a barra so diz
+     "quanto ele fez", e o que interessa e a distancia pro proximo degrau. */
+  .mb-marca{position:absolute;top:-3px;width:2.5px;height:16px;border-radius:2px;
+            background:var(--text);opacity:.6;}
+  .mb-marca.bonus{width:2px;background:var(--good);opacity:.9;}
+  .mb-ritmo{position:absolute;top:-1px;width:1px;height:12px;background:var(--info);opacity:.8;}
+  .mb-rodape{font-size:11px;color:var(--muted);margin-top:5px;}
+
   /* ---- Desempenho por vendedor ---- */
   .dp-escolha{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;}
   .dp-card{
@@ -715,6 +734,17 @@
         </div>
       </div>
       <div id="carrosCorpo"></div>
+    </section>
+
+    <!-- ---------- META BÔNUS ---------- -->
+    <section id="secMetaBonus" class="oculto">
+      <div class="filtros">
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="mbMes">Mês</label>
+          <select id="mbMes"></select>
+        </div>
+      </div>
+      <div id="mbCorpo"></div>
     </section>
 
     <!-- ---------- CONFIGURAÇÕES ---------- -->
@@ -1712,6 +1742,160 @@ function diaDaSemana(iso){
   return DIAS_SEMANA[new Date(y, m - 1, d).getDay()];
 }
 
+/* ---------- Meta Bônus ----------
+   Produção do time contra a meta e o bônus de cada um. Os lançamentos são
+   feitos no painel-metas; aqui é só leitura, pra o gestor não precisar abrir
+   dois sistemas — e pra não existirem duas portas de entrada do mesmo dado. */
+let mbCarregado = false;
+
+async function carregarMetaBonus(mes){
+  const corpo = document.getElementById('mbCorpo');
+  corpo.innerHTML = '<div class="vazio">Carregando…</div>';
+  const res = await fetch('/api/admin/metas-bonus' + (mes ? '?mes=' + mes : ''));
+  if(!res.ok){ corpo.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  const d = await res.json();
+  if(d.sem_dados){
+    corpo.innerHTML = '<div class="vazio">O painel de metas ainda não foi sincronizado. '
+      + 'Rode <code>scripts/sincronizar_metas_bonus.py</code>.</div>';
+    return;
+  }
+  mbCarregado = true;
+  const sel = document.getElementById('mbMes');
+  if(sel.dataset.pronto !== '1'){
+    sel.innerHTML = d.meses.slice().reverse()
+      .map(m => `<option value="${m}">${mbMesNome(m)}</option>`).join('');
+    sel.dataset.pronto = '1';
+  }
+  sel.value = d.mes;
+  renderMetaBonus(d);
+}
+
+const MB_MESES = ['janeiro','fevereiro','março','abril','maio','junho',
+                  'julho','agosto','setembro','outubro','novembro','dezembro'];
+function mbMesNome(m){
+  return MB_MESES[+m.slice(5,7) - 1] + ' de ' + m.slice(0,4);
+}
+
+/* Barra com duas marcas: onde fica a meta e onde fica o bônus. Uma barra
+   simples de "% da meta" esconde justamente a distância que importa pra quem
+   está entre os dois. */
+function mbBarra(p, ritmo){
+  const escala = Math.max(p.meta_bonus || 0, p.meta || 0, p.total) * 1.02 || 1;
+  const larg = (v) => Math.min(100, (v / escala) * 100);
+  const cor = p.bateu_bonus ? 'var(--good)'
+            : p.bateu_meta ? 'var(--accent)' : 'var(--muted)';
+  const selo = p.bateu_bonus ? '<span class="dp-selo bom">Bônus</span>'
+             : p.bateu_meta ? '<span class="dp-selo neutro">Meta</span>' : '';
+  const falta = p.bateu_bonus ? 0 : (p.bateu_meta ? p.meta_bonus - p.total : p.meta - p.total);
+  return `<div class="mb-linha">
+    <div class="mb-cab">
+      <span class="mb-nome">${p.nome}</span>
+      ${selo}
+      <span class="mb-num">${p.total.toLocaleString('pt-BR')}</span>
+      <span class="mb-alvo">meta ${p.meta.toLocaleString('pt-BR')} · bônus ${p.meta_bonus.toLocaleString('pt-BR')}</span>
+    </div>
+    <div class="mb-trilha">
+      <div class="mb-fill" style="width:${larg(p.total)}%;background:${cor}"></div>
+      <div class="mb-marca" style="left:${larg(p.meta)}%" title="meta"></div>
+      <div class="mb-marca bonus" style="left:${larg(p.meta_bonus)}%" title="bônus"></div>
+      ${ritmo ? `<div class="mb-ritmo" style="left:${Math.min(100, larg(p.meta) * ritmo.pct_do_mes / 100)}%"
+          title="onde a meta estaria em dia"></div>` : ''}
+    </div>
+    <div class="mb-rodape">${falta > 0
+      ? `faltam <b>${Math.round(falta).toLocaleString('pt-BR')}</b> pro ${p.bateu_meta ? 'bônus' : 'mínimo'}`
+      : 'bônus garantido'}</div>
+  </div>`;
+}
+
+function renderMetaBonus(d){
+  const r = d.ritmo;
+  const todas = Object.values(d.setores).flat();
+  const noBonus = todas.filter(p => p.bateu_bonus).length;
+  const naMeta = todas.filter(p => p.bateu_meta).length;
+  const v = d.veiculos;
+
+  const kpi = (rot, num, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${num}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+
+  const kpis = [
+    kpi('No bônus', noBonus, `de ${todas.length} pessoas`, noBonus ? 'var(--good)' : null),
+    kpi('Na meta', naMeta, `de ${todas.length} pessoas`),
+    kpi('Carros desmontados', v.carros),
+    kpi('Peças no mês', v.pecas.toLocaleString('pt-BR'),
+        `meta ${v.meta.toLocaleString('pt-BR')} · bônus ${v.meta_bonus.toLocaleString('pt-BR')}`,
+        v.pecas >= v.meta_bonus ? 'var(--good)' : (v.pecas >= v.meta ? 'var(--accent)' : 'var(--bad)')),
+  ].join('');
+
+  const setores = Object.entries(d.setores).map(([chave, linhas]) => `
+    <div class="card" style="margin-bottom:14px;">
+      <p class="card-titulo">${d.rotulos[chave] || chave}</p>
+      ${linhas.map(p => mbBarra(p, r)).join('')}
+      ${r ? `<div class="dp-aviso">Traço fino = onde a meta estaria em dia
+        (dia ${r.dias_corridos} de ${r.dias_no_mes}). Traço grosso = meta; traço claro = bônus.</div>`
+        : '<div class="dp-aviso">Traço grosso = meta; traço claro = bônus.</div>'}
+    </div>`).join('') || '<div class="vazio">Ninguém lançou produção neste mês.</div>';
+
+  // histórico: quantos bateram bônus mês a mês
+  const h = d.historico.slice(-14);
+  const alt = 150, larg = Math.max(320, h.length * 46), B = 26;
+  const maxP = Math.max(...h.map(x => x.pessoas), 1);
+  const barras = h.map((x, i) => {
+    const passo = larg / h.length;
+    const hp = (x.pessoas / maxP) * (alt - B - 10);
+    const hb = (x.no_bonus / maxP) * (alt - B - 10);
+    const x0 = passo * i + passo * 0.2;
+    const w = passo * 0.6;
+    return `<rect x="${x0.toFixed(1)}" y="${(alt - B - hp).toFixed(1)}" width="${w.toFixed(1)}"
+        height="${Math.max(2, hp).toFixed(1)}" rx="3" fill="var(--surface-2)" stroke="var(--line)">
+        <title>${x.mes}: ${x.pessoas} pessoas</title></rect>
+      <rect x="${x0.toFixed(1)}" y="${(alt - B - hb).toFixed(1)}" width="${w.toFixed(1)}"
+        height="${Math.max(0, hb).toFixed(1)}" rx="3" fill="var(--good)">
+        <title>${x.no_bonus} no bônus</title></rect>
+      <text x="${(x0 + w / 2).toFixed(1)}" y="${alt - 8}" text-anchor="middle"
+        font-size="9" fill="var(--muted)">${x.mes.slice(5)}/${x.mes.slice(2,4)}</text>`;
+  }).join('');
+
+  const cardVeiculos = `<div class="card">
+    <p class="card-titulo">Veículos desmontados no mês</p>
+    ${v.lista.length ? `<div class="tabela-rolante"><table>
+      <thead><tr><th>Data</th><th>Carro</th><th>Código</th><th>Peças</th></tr></thead>
+      <tbody>${v.lista.map(c => `<tr>
+        <td>${c.data ? c.data.slice(8) + '/' + c.data.slice(5,7) : '—'}</td>
+        <td>${c.carro || '—'}</td><td>${c.codigo || '—'}</td>
+        <td>${(c.pecas || 0).toLocaleString('pt-BR')}</td>
+      </tr>`).join('')}</tbody></table></div>`
+      : '<div class="vazio">Nenhum veículo neste mês.</div>'}
+  </div>`;
+
+  document.getElementById('mbCorpo').innerHTML = `
+    <div class="dp-kpis">${kpis}</div>
+    ${setores}
+    <div class="card" style="margin-bottom:14px;">
+      <p class="card-titulo">Quem bateu o bônus, mês a mês</p>
+      <div style="overflow-x:auto"><svg class="dp-svg" viewBox="0 0 ${larg} ${alt}" height="${alt}">${barras}</svg></div>
+      <div class="dp-aviso">Barra clara = pessoas que lançaram produção no mês. Barra verde = quantas
+        bateram o bônus. Ninguém batendo nunca, ou todo mundo batendo sempre, são os dois jeitos de
+        uma meta deixar de significar alguma coisa.</div>
+    </div>
+    ${cardVeiculos}
+    <div class="card" style="margin-top:14px;">
+      <p class="card-titulo">De onde vêm estes números</p>
+      <div class="dp-destaque"><span class="rot" style="margin:0">
+        Do <b>painel-metas</b>, onde o time lança a produção. Aqui é só leitura — lançar nos dois
+        lugares criaria divergência. Última leitura:
+        <b>${(d.gerado_em || '').slice(8,10)}/${(d.gerado_em || '').slice(5,7)} às ${(d.gerado_em || '').slice(11,16)}</b>.
+        Rode <code>scripts/sincronizar_metas_bonus.py</code> pra atualizar.</span></div>
+      <div class="dp-destaque"><span class="rot" style="margin:0">
+        Quem não lançou nada no mês não aparece: entraria como 0% e pareceria alguém que trabalhou
+        e não produziu, quando pode simplesmente não estar no time naquele mês.</span></div>
+    </div>`;
+}
+
+document.addEventListener('change', ev => {
+  if(ev.target.id === 'mbMes') carregarMetaBonus(ev.target.value);
+});
+
 /* ---------- Carros pra chegar ----------
    A pergunta que o painel responde: qual carro já foi comprado e ainda não
    entrou no pátio, e há quanto tempo. Tudo o mais é contexto. */
@@ -2472,6 +2656,7 @@ const SECOES = {
   desempenho: {titulo: 'Desempenho',        el: 'secDesempenho'},
   marketing:  {titulo: 'Marketing',         el: 'secMarketing'},
   carros:     {titulo: 'Carros pra chegar', el: 'secCarros'},
+  metabonus:  {titulo: 'Meta Bônus',        el: 'secMetaBonus'},
   configuracoes: {titulo: 'Configurações',  el: null},
 };
 
@@ -2535,6 +2720,7 @@ function irParaSecao(chave, sub){
   // Entrar em Desempenho sempre comeca pela escolha do vendedor.
   if(chave === 'desempenho') abrirEscolhaDesempenho();
   if(chave === 'carros' && !carrosCarregado) carregarCarros();
+  if(chave === 'metabonus' && !mbCarregado) carregarMetaBonus();
   if(chave === 'marketing' && !mktDados){
     const p = mktPeriodoPadrao();
     document.getElementById('mktDe').value = p.de;
