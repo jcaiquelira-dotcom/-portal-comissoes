@@ -23,8 +23,7 @@
   .top-actions{display:flex;align-items:center;gap:12px;}
   .link-btn{
     background:none;border:none;color:var(--muted);
-    font-family:'IBM Plex Mono',monospace;font-size:11.5px;
-    text-decoration:underline;cursor:pointer;padding:0;
+    font-size:12.5px;text-decoration:underline;cursor:pointer;padding:0;
   }
   .link-btn:hover{color:var(--text);}
 
@@ -46,8 +45,7 @@
     display:flex;align-items:baseline;justify-content:center;gap:6px;
   }
   .placar .n{font-family:'Oswald',sans-serif;font-weight:700;font-size:15px;line-height:1;}
-  .placar .r{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.04em;
-    text-transform:uppercase;color:var(--muted);margin:0;}
+  .placar .r{font-size:10.5px;letter-spacing:.02em;color:var(--muted);margin:0;}
   .n-pendente{color:var(--accent-2);} .n-chamei{color:var(--info);}
   .n-respondeu{color:var(--gold);} .n-vendeu{color:var(--good);} .n-perdido{color:var(--muted);}
 
@@ -58,10 +56,10 @@
   .filtros{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;}
   .chip{
     background:var(--surface);border:1px solid var(--line);color:var(--muted);
-    font-family:'IBM Plex Mono',monospace;font-size:10.5px;
-    padding:5px 10px;border-radius:20px;cursor:pointer;white-space:nowrap;
+    font-size:12px;padding:6px 12px;border-radius:20px;cursor:pointer;white-space:nowrap;
+    font-family:inherit;
   }
-  .chip.active{background:var(--accent);border-color:var(--accent);color:#151719;font-weight:600;}
+  .chip.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
   #busca{
     width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;
     color:var(--text);font-family:'Inter',sans-serif;font-size:13.5px;padding:7px 9px;
@@ -84,16 +82,16 @@
   .baixo > .meta{flex-shrink:0;margin:0;}
   .baixo > details.ctx{flex:1;min-width:140px;margin:0;}
   .gancho{
-    font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;
+    font-size:11px;letter-spacing:.02em;font-weight:600;
     text-transform:uppercase;color:var(--gold);
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
   .cliente.alta .gancho{color:var(--bad);}
-  .quando{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);white-space:nowrap;}
+  .quando{font-size:11.5px;color:var(--muted);white-space:nowrap;}
 
-  .peca{flex:1;min-width:0;font-size:13.5px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .peca{flex:1;min-width:0;font-size:14.5px;font-weight:600;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .meta{
-    font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted);
+    font-size:12px;color:var(--muted);
     margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
   .meta b{color:var(--text);font-weight:600;}
@@ -103,7 +101,7 @@
      o resumo do atendimento) fica dobrado, pra lista continuar sendo lista. */
   details.ctx{margin-bottom:6px;}
   details.ctx summary{
-    display:block;cursor:pointer;font-size:11.5px;line-height:1.35;
+    display:block;cursor:pointer;font-size:12.5px;line-height:1.4;
     color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
     list-style:none;
   }
@@ -121,35 +119,35 @@
     padding:5px 8px;margin-top:5px;
   }
   .corpo .cab{
-    font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.07em;
+    font-size:10px;letter-spacing:.04em;
     text-transform:uppercase;color:var(--muted);margin:0 0 2px;
   }
   .corpo p.fala{
-    margin:0;font-size:11.5px;line-height:1.35;color:var(--text);
+    margin:0;font-size:12.5px;line-height:1.45;color:var(--text);
   }
   .corpo p.fala:before{content:'“';color:var(--muted);}
   .corpo p.fala:after{content:'”';color:var(--muted);}
   .corpo p.midia:before,.corpo p.midia:after{content:'';}
   .corpo p.midia{color:var(--muted);font-style:italic;}
-  .corpo p.res{margin:6px 0 0;font-size:11.5px;line-height:1.4;color:var(--muted);}
+  .corpo p.res{margin:6px 0 0;font-size:12.5px;line-height:1.5;color:var(--muted);}
 
   .acoes{display:flex;gap:4px;align-items:center;flex-shrink:0;}
   .btn-chamar{
     background:var(--accent);color:#fff;border:none;
-    font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.04em;
-    font-weight:600;font-size:11px;padding:5px 11px;border-radius:5px;
+    font-weight:600;font-size:12px;padding:5px 12px;border-radius:5px;
+    font-family:inherit;
     cursor:pointer;text-decoration:none;white-space:nowrap;
   }
   .btn-chamar:hover{background:#ff7f52;}
   .sem-link{
-    font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--bad);
+    font-size:11.5px;color:var(--bad);
     border:1px solid var(--bad);border-radius:5px;padding:6px 10px;
   }
   .sep{flex:1;}
   .sbtn{
     background:var(--surface-2);border:1px solid var(--line);color:var(--muted);
-    font-family:'Inter',sans-serif;font-size:11.5px;
-    padding:4px 8px;border-radius:4px;cursor:pointer;white-space:nowrap;
+    font-size:12px;padding:5px 9px;border-radius:4px;cursor:pointer;white-space:nowrap;
+    font-family:inherit;
   }
   .sbtn:hover{border-color:var(--accent);color:var(--text);}
   .sbtn.on{font-weight:600;}
@@ -190,11 +188,33 @@
   details.intro summary:hover .como-funciona{color:var(--accent);}
   details.intro[open] .como-funciona:after{content:'';}
   .intro-texto{margin-top:7px;color:var(--muted);}
-  #periodo{font-size:11.5px;color:var(--text);}
+  #periodo{font-size:12.5px;color:var(--text);}
   /* a fala do cliente fica um tom mais suave que o texto normal */
   details.ctx summary, .corpo p.fala{opacity:.88;}
   html[data-tema="escuro"] details.ctx summary,
   html[data-tema="escuro"] .corpo p.fala{color:#C9CFD8;opacity:1;}
+  /* Meta de contatos do dia: fila grande so anda com alvo. */
+  .meta-dia{
+    background:var(--surface);border:1px solid var(--line);border-radius:6px;
+    padding:8px 12px;margin-bottom:8px;
+  }
+  .meta-dia .cab{
+    display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px;
+    font-size:12px;color:var(--muted);
+  }
+  .meta-dia .feitos{font-family:'Oswald',sans-serif;font-weight:700;font-size:17px;color:var(--text);line-height:1;}
+  .meta-dia .recado{margin-left:auto;font-weight:600;}
+  .meta-dia .recado.minimo{color:var(--muted);}
+  .meta-dia .recado.bom{color:var(--info);}
+  .meta-dia .recado.otimo{color:var(--gold);}
+  .meta-dia .recado.batida{color:var(--good);}
+  .trilha-meta{position:relative;height:9px;background:var(--surface-2);
+    border:1px solid var(--line);border-radius:20px;overflow:hidden;}
+  .trilha-meta .preenchido{height:100%;border-radius:20px;
+    background:linear-gradient(90deg,var(--accent),#F0A868);transition:width .4s ease;}
+  .trilha-meta .preenchido.batida{background:linear-gradient(90deg,var(--good),#7FD3AE);}
+  .marcas{position:relative;height:14px;margin-top:4px;font-size:10.5px;color:var(--muted);}
+  .marcas span{position:absolute;transform:translateX(-50%);white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -213,7 +233,7 @@
     </header>
 
     <details class="intro">
-      <summary><span class="mono" id="periodo"></span> <span class="como-funciona">como funciona ▾</span></summary>
+      <summary><span id="periodo"></span> <span class="como-funciona">como funciona ▾</span></summary>
       <div class="intro-texto">
         Seus atendimentos que <strong>não fecharam</strong> e ainda dá pra recuperar: a peça
         existia no estoque e o motivo da perda tem volta. Os de
@@ -221,6 +241,8 @@
         lado, ninguém disse não pra você.
       </div>
     </details>
+
+    <div class="meta-dia" id="metaDia"></div>
 
     <div class="placar" id="placar"></div>
 
@@ -259,7 +281,7 @@
 // numa linha sem cortar o botao de acao.
 const CURTO = {chamei:'Chamei', respondeu:'Respondeu', vendeu:'Fechou', perdido:'Não rola'};
 const ORDEM_BTN = ['chamei','respondeu','vendeu','perdido'];
-let eu = null, itens = [], rotulos = {}, filtro = 'pendentes';
+let eu = null, itens = [], rotulos = {}, filtro = 'pendentes', metaContatos = null;
 
 function esc(t){
   return String(t == null ? '' : t)
@@ -271,6 +293,29 @@ async function api(path, opts){
   const res = await fetch(path, Object.assign({headers:{'Content-Type':'application/json'}}, opts || {}));
   if (res.status === 401){ location.href = '/'; return null; }
   return res;
+}
+
+function renderMetaDia(feitos, meta){
+  const el = document.getElementById('metaDia');
+  if(!el || !meta) return;
+  const alvo = meta.meta;
+  const pct = Math.min(100, (feitos / alvo) * 100);
+
+  let recado, classe;
+  if(feitos >= alvo){ recado = 'Meta do dia batida'; classe = 'batida'; }
+  else if(feitos >= meta.bom){ recado = 'Quase lá — faltam ' + (alvo - feitos); classe = 'otimo'; }
+  else if(feitos >= meta.minimo){ recado = 'No caminho — faltam ' + (alvo - feitos); classe = 'bom'; }
+  else { recado = 'Mínimo do dia: ' + meta.minimo; classe = 'minimo'; }
+
+  const marca = (v, rot) => '<span style="left:' + Math.min(100,(v/alvo)*100) + '%">' + rot + '</span>';
+  el.innerHTML =
+      '<div class="cab"><span class="feitos">' + feitos + '</span>'
+    + '<span>de ' + alvo + ' contatos hoje</span>'
+    + '<span class="recado ' + classe + '">' + recado + '</span></div>'
+    + '<div class="trilha-meta"><div class="preenchido' + (feitos >= alvo ? ' batida' : '')
+    + '" style="width:' + pct + '%"></div></div>'
+    + '<div class="marcas">' + marca(meta.minimo, meta.minimo + ' mínimo')
+    + marca(meta.bom, meta.bom + ' bom') + marca(alvo, alvo + ' meta') + '</div>';
 }
 
 function placar(r){
@@ -370,6 +415,8 @@ async function marcar(sid, status){
   const it = itens.find(x => x.sid === sid);
   if (it) it.status = status;
   placar(dados.resumo);
+  // a barra da meta anda na hora, sem precisar recarregar
+  if (dados.contatos_hoje !== undefined) renderMetaDia(dados.contatos_hoje, metaContatos);
   render();
 }
 
@@ -413,9 +460,15 @@ document.getElementById('busca').addEventListener('input', render);
   itens = dados.itens;
   rotulos = dados.rotulos || {};
   const dt = (s) => s ? s.slice(8,10) + '/' + s.slice(5,7) : '';
+  // Quando a fila e maior que o limite, deixa claro que tem mais esperando —
+  // senao o vendedor acha que acabou e para de trabalhar.
+  const sobra = dados.fora_do_corte || 0;
   document.getElementById('periodo').textContent =
-    itens.length + ' clientes · atendimentos seus de ' + dt(dados.de) + ' a ' + dt(dados.ate);
+    itens.length + ' clientes · atendimentos seus de ' + dt(dados.de) + ' a ' + dt(dados.ate)
+    + (sobra ? ' · os ' + dados.limite_fila + ' mais quentes primeiro (+' + sobra + ' na espera)' : '');
   placar(dados.resumo);
+  metaContatos = dados.meta_contatos;
+  renderMetaDia(dados.contatos_hoje || 0, metaContatos);
   render();
   document.getElementById('app').classList.remove('hidden');
 })();

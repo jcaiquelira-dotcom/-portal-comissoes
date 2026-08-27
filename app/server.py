@@ -1945,6 +1945,14 @@ STATUS_RETOMADA = {
 }
 STATUS_TRABALHADO = ("chamei", "respondeu", "vendeu", "perdido")
 
+# Quantos clientes a chamar aparecem por vez. O resto fica de fora da tela
+# (nao e apagado) — fila gigante desanima e ninguem trabalha.
+MAX_FILA_PENDENTES = 50
+
+# Meta de contatos por dia. Fila grande so anda com alvo diario: o vendedor
+# precisa saber quando pode parar. Chamou 10 fez o minimo, 20 bateu a meta.
+META_CONTATOS_DIA = {"minimo": 10, "bom": 15, "meta": 20}
+
 
 def _caminho_crm(prefixo: str, vendedor_id: str) -> Path:
     return resolver_pasta_dados() / f"crm_{prefixo}_{vendedor_id}.json"
@@ -1958,6 +1966,13 @@ def carregar_fila_retomada(vendedor_id: str):
 
 def carregar_status_retomada(vendedor_id: str) -> dict:
     return ler_json(_caminho_crm("status", vendedor_id), None) or {}
+
+
+def _contatos_de_hoje(status: dict) -> int:
+    """Quantos clientes o vendedor trabalhou hoje. Conta a marcacao, nao o
+    cliente: se ele marcou e depois corrigiu, continua sendo um contato feito."""
+    hoje = hoje_br().isoformat()
+    return sum(1 for m in status.values() if (m.get("em") or "").startswith(hoje))
 
 
 def _resumo_retomada(itens: list, status: dict) -> dict:
@@ -1996,6 +2011,18 @@ def api_retomada_fila():
     # trabalhado desce mas continua na tela, pra ele corrigir a marcação ou
     # voltar num cliente que pediu pra chamar depois.
     itens.sort(key=lambda x: (x["status"] != "pendente", x["prio"] != "ALTA", -x["nota"]))
+
+    # Uma fila de 98 nomes ninguem trabalha — vira lista morta. Entao a tela
+    # mostra so os MAX_FILA_PENDENTES mais quentes: prioridade ALTA primeiro,
+    # depois os mais recentes (conversa de 5 dias converte mais que a de 30) e
+    # a nota da IA desempata. Quem ja foi trabalhado nunca some, pra ele poder
+    # corrigir a marcacao. A fila inteira continua guardada; o corte e so aqui.
+    pendentes = [i for i in itens if i["status"] == "pendente"]
+    trabalhados = [i for i in itens if i["status"] != "pendente"]
+    pendentes.sort(key=lambda x: (x["prio"] != "ALTA", x.get("dias", 999), -x["nota"]))
+    cortados = max(0, len(pendentes) - MAX_FILA_PENDENTES)
+    itens = pendentes[:MAX_FILA_PENDENTES] + trabalhados
+
     return jsonify({
         "gerado_em": fila.get("gerado_em"),
         "de": fila.get("de"),
@@ -2003,6 +2030,10 @@ def api_retomada_fila():
         "itens": itens,
         "resumo": _resumo_retomada(fila.get("itens", []), status),
         "rotulos": STATUS_RETOMADA,
+        "limite_fila": MAX_FILA_PENDENTES,
+        "fora_do_corte": cortados,
+        "contatos_hoje": _contatos_de_hoje(status),
+        "meta_contatos": META_CONTATOS_DIA,
     })
 
 
@@ -2027,7 +2058,8 @@ def api_retomada_status(sid):
     else:
         status[sid] = {"status": novo, "em": agora_br().isoformat()}
     escrever_json(_caminho_crm("status", vendedor_id), status)
-    return jsonify({"ok": True, "resumo": _resumo_retomada(itens, status)})
+    return jsonify({"ok": True, "resumo": _resumo_retomada(itens, status),
+                    "contatos_hoje": _contatos_de_hoje(status)})
 
 
 @app.route("/api/admin/retomada/resumo")
