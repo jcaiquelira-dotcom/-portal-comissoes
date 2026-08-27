@@ -160,6 +160,24 @@ function aplicarTema(tema){
 // Aplica antes de pintar a tela, senao pisca branco pra quem usa o escuro.
 aplicarTema(temaAtual());
 
+/* ---------- aviso de copia local ----------
+   O portal local e o de producao sao identicos na tela, e ja aconteceu de
+   alguem olhar o local — com dados congelados e sem os arquivos de
+   atendimento — e concluir que producao estava fora. A faixa some sozinha em
+   producao, entao ninguem ve nada no dia a dia. */
+fetch('/api/ambiente')
+  .then(r => r.ok ? r.json() : null)
+  .then(d => {
+    if(!d || !d.local) return;
+    const faixa = document.createElement('div');
+    faixa.className = 'faixa-local';
+    faixa.innerHTML = '<b>Cópia local</b> — dados de teste, congelados. '
+      + 'O portal de verdade é <a href="https://nevadaecopecas.onrender.com">nevadaecopecas.onrender.com</a>';
+    document.body.appendChild(faixa);
+    document.body.classList.add('com-faixa-local');
+  })
+  .catch(() => {});
+
 function montarSidebar(ativo, opcoes){
   opcoes = opcoes || {};
   const portal = PORTAIS[opcoes.portal] ? opcoes.portal : 'vendedor';

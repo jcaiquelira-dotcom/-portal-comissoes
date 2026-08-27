@@ -500,3 +500,14 @@ tr.dia-novo:first-child > td{border-top:none;padding-top:8px;}
   .dp-topo{gap:10px;}
   .dp-mes{margin-left:0;width:100%;}
 }
+
+/* Faixa de "copia local" — fixa no rodape, discreta mas impossivel de nao ver.
+   So aparece quando o servidor roda sem banco de producao. */
+.faixa-local{
+  position:fixed;left:0;right:0;bottom:0;z-index:200;
+  background:#8A4B12;color:#fff;
+  font-size:12.5px;text-align:center;padding:7px 14px;
+  box-shadow:0 -2px 10px rgba(0,0,0,.2);
+}
+.faixa-local a{color:#FFD9B0;}
+body.com-faixa-local{padding-bottom:34px;}

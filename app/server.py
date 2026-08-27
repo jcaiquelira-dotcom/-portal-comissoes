@@ -739,6 +739,17 @@ def api_logout():
     return jsonify({"ok": True})
 
 
+@app.route("/api/ambiente")
+def api_ambiente():
+    """Diz se este servidor é o de produção ou uma cópia local.
+
+    Sem isso as duas telas são idênticas, e já aconteceu três vezes de alguém
+    olhar o portal local — com dados congelados e sem os arquivos de
+    atendimento — e concluir que produção estava quebrada. Público de propósito:
+    o aviso precisa aparecer antes do login, que é onde a confusão começa."""
+    return jsonify({"local": not bool(DATABASE_URL)})
+
+
 @app.route("/api/me")
 def api_me():
     vendedor_id = session.get("vendedor_id")
@@ -1727,18 +1738,28 @@ def api_admin_auditoria():
     amostra = com_sinal[:metade] + sem_sinal[:tamanho - min(metade, len(com_sinal))]
     amostra.sort(key=lambda v: (-v["risco"], v["data"]))
 
-    conferidas = [v for v in vendas if v["status"] == "conferida"]
-    divergentes = [v for v in vendas if v["status"] in ("divergente", "nao_achei")]
-    total_mes = round(sum(v["valor"] for v in vendas), 2)
-    valor_conferido = round(sum(v["valor"] for v in conferidas), 2)
-
     def enxuto(v):
         return {k: v.get(k) for k in ("id", "data", "produto", "valor", "canal", "sku",
                                       "vendedor_id", "criado_em", "sinais", "risco",
                                       "status", "obs", "conferida_em")}
 
+    conferidas = [v for v in vendas if v["status"] == "conferida"]
+    divergentes = [v for v in vendas if v["status"] in ("divergente", "nao_achei")]
+    total_mes = round(sum(v["valor"] for v in vendas), 2)
+    valor_conferido = round(sum(v["valor"] for v in conferidas), 2)
+
+    # Modo total: a planilha inteira do mês, sem sorteio. Serve pra fechar o mês
+    # de ponta a ponta; a amostra serve pra rodar rápido no meio do mês. Os dois
+    # gravam no mesmo lugar, então o que for conferido num aparece no outro.
+    lista_total = None
+    if request.args.get("modo") == "total":
+        lista_total = [enxuto(v) for v in sorted(
+            vendas, key=lambda v: (v["data"], -v["valor"]))]
+
     return jsonify({
         "mes": mes,
+        "modo": request.args.get("modo") or "amostra",
+        "total_lista": lista_total,
         "rotulos": STATUS_AUDITORIA,
         "sinais": {k: v[0] for k, v in SINAIS_AUDITORIA.items()},
         "vendedores": [{"id": k, "nome": v["nome"]}

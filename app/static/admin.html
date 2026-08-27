@@ -131,6 +131,20 @@
   .tabela-rolante{overflow-x:auto;}
 
   /* ---- Auditoria de comissões ---- */
+  .aud-modos{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;}
+  .aud-modo{
+    display:flex;flex-direction:column;gap:7px;text-align:left;
+    padding:18px;border-radius:12px;cursor:pointer;font-family:inherit;
+    background:var(--surface);border:1px solid var(--line);
+    transition:border-color .12s, transform .12s;
+  }
+  .aud-modo:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .aud-modo .t{font-size:15px;font-weight:700;color:var(--text);}
+  .aud-modo .d{font-size:12.5px;color:var(--muted);line-height:1.5;}
+  .aud-cabecalho{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+  .aud-conta{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+  .aud-cabecalho .btn{margin-left:auto;}
+
   .aud-ficha{
     padding:12px 13px;border-radius:10px;margin-bottom:9px;
     background:var(--surface-2);border:1px solid var(--line);
@@ -690,7 +704,7 @@
 
     <!-- ---------- COMISSÕES / AUDITORIA ---------- -->
     <section id="secAuditoria" class="oculto">
-      <div class="filtros">
+      <div class="filtros oculto" id="audFiltros">
         <div class="filtro-campo">
           <label class="campo-rotulo" for="audMes">Mês</label>
           <input type="month" id="audMes">
@@ -699,7 +713,7 @@
           <label class="campo-rotulo" for="audVendedor">Vendedor</label>
           <select id="audVendedor"><option value="">Todos os vendedores</option></select>
         </div>
-        <div class="filtro-campo">
+        <div class="filtro-campo" id="audCampoTamanho">
           <label class="campo-rotulo" for="audTamanho">Tamanho da amostra</label>
           <select id="audTamanho">
             <option value="10">10 vendas</option>
@@ -707,6 +721,21 @@
             <option value="40">40 vendas</option>
             <option value="80">80 vendas</option>
           </select>
+        </div>
+      </div>
+      <div id="audEscolha">
+        <p class="fechamento-nota" style="margin:0 0 14px;">Como você quer conferir este mês?</p>
+        <div class="aud-modos">
+          <button class="aud-modo" data-modo="amostra">
+            <span class="t">Por amostragem</span>
+            <span class="d">Um punhado de vendas por vez, metade delas escolhida por sinal de
+              atenção. Rápido, e você escolhe o tamanho da amostra.</span>
+          </button>
+          <button class="aud-modo" data-modo="total">
+            <span class="t">Conferência total</span>
+            <span class="d">A planilha inteira do mês, venda por venda. Pra fechar o mês de ponta
+              a ponta.</span>
+          </button>
         </div>
       </div>
       <div id="audCorpo"></div>
@@ -1714,6 +1743,25 @@ function diaDaSemana(iso){
    veredito e mostrar quanto do faturamento já passou por conferência. */
 let audCarregado = false;
 let audDados = null;
+let audModo = null;   // null = ainda escolhendo entre amostragem e total
+
+function audAbrirModo(modo){
+  audModo = modo;
+  document.getElementById('audEscolha').classList.add('oculto');
+  document.getElementById('audFiltros').classList.remove('oculto');
+  // O tamanho só existe na amostragem: no modo total ele não significa nada.
+  document.getElementById('audCampoTamanho').classList.toggle('oculto', modo !== 'amostra');
+  const m = document.getElementById('audMes');
+  if(!m.value) m.value = new Date().toISOString().slice(0,7);
+  carregarAuditoria();
+}
+
+function audVoltarEscolha(){
+  audModo = null;
+  document.getElementById('audEscolha').classList.remove('oculto');
+  document.getElementById('audFiltros').classList.add('oculto');
+  document.getElementById('audCorpo').innerHTML = '';
+}
 
 async function carregarAuditoria(){
   const corpo = document.getElementById('audCorpo');
@@ -1724,6 +1772,7 @@ async function carregarAuditoria(){
   });
   const vend = document.getElementById('audVendedor').value;
   if(vend) q.set('vendedor', vend);
+  if(audModo === 'total') q.set('modo', 'total');
   const res = await fetch('/api/admin/auditoria?' + q);
   if(!res.ok){ corpo.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
   audDados = await res.json();
@@ -1787,11 +1836,17 @@ function renderAuditoria(d){
     kpi('Com sinal de atenção', d.com_sinal, `de ${d.total.vendas} vendas`),
   ].join('');
 
-  const amostra = d.amostra.length
-    ? d.amostra.map(v => audFicha(v, d, false)).join('')
-    : '<div class="vazio">Tudo desta rodada já foi marcado. Aumente a amostra pra continuar.</div>';
+  const ehTotal = d.modo === 'total';
+  const lista = ehTotal ? (d.total_lista || []) : d.amostra;
+  const corpoLista = lista.length
+    ? lista.map(v => audFicha(v, d, ehTotal)).join('')
+    : `<div class="vazio">${ehTotal
+        ? 'Nenhuma venda neste mês.'
+        : 'Tudo desta rodada já foi marcado. Aumente a amostra pra continuar.'}</div>`;
 
-  const revisadas = d.revisadas.length ? `<div class="card" style="margin-top:14px;">
+  // No modo total a lista ja traz tudo, entao repetir as revisadas embaixo
+  // seria mostrar a mesma venda duas vezes na mesma tela.
+  const revisadas = (!ehTotal && d.revisadas.length) ? `<div class="card" style="margin-top:14px;">
     <details class="dobra">
       <summary><span class="card-titulo">Já revisadas</span>
         <span class="dobra-conta">${d.revisadas.length}</span></summary>
@@ -1802,13 +1857,19 @@ function renderAuditoria(d){
   corpo.innerHTML = `
     <div class="dp-kpis">${kpis}</div>
     <div class="card" style="margin-bottom:14px;">
-      <p class="card-titulo">Amostra pra conferir</p>
+      <div class="aud-cabecalho">
+        <p class="card-titulo" style="margin:0;">${ehTotal
+          ? `Todas as vendas de ${d.mes.slice(5)}/${d.mes.slice(0,4)}`
+          : 'Amostra pra conferir'}</p>
+        <span class="aud-conta">${lista.length} venda${lista.length === 1 ? '' : 's'}</span>
+        <button class="btn btn-neutro btn-pequeno" id="audTrocarModo">Trocar de modo</button>
+      </div>
       <p class="fechamento-nota" style="margin:0 0 14px;">
-        Confira cada uma no extrato ou no caixa e marque o resultado. A amostra é sorteada de
-        forma fixa: recarregar a tela devolve as mesmas vendas, e o que você marcar sai da lista
-        e dá lugar à próxima.
+        ${ehTotal
+          ? 'A planilha inteira do mês, da venda mais antiga pra mais nova. O que você marcar fica gravado e conta na cobertura — igual à amostragem, é o mesmo registro.'
+          : 'Confira cada uma no extrato ou no caixa e marque o resultado. A amostra é sorteada de forma fixa: recarregar a tela devolve as mesmas vendas, e o que você marcar sai da lista e dá lugar à próxima.'}
       </p>
-      ${amostra}
+      ${corpoLista}
     </div>
     ${revisadas}
     <div class="card">
@@ -1840,6 +1901,9 @@ async function audMarcar(id, status){
 }
 
 document.addEventListener('click', ev => {
+  const modo = ev.target.closest('[data-modo]');
+  if(modo){ audAbrirModo(modo.dataset.modo); return; }
+  if(ev.target.id === 'audTrocarModo'){ audVoltarEscolha(); return; }
   const btn = ev.target.closest('[data-aud]');
   if(btn) audMarcar(btn.dataset.aud, btn.dataset.status);
 });
@@ -2579,11 +2643,7 @@ function irParaSecao(chave, sub){
   if(chave === 'desempenho') abrirEscolhaDesempenho();
   if(chave === 'carros' && !carrosCarregado) carregarCarros();
   if(chave === 'metabonus' && !mbCarregado) carregarMetaBonus();
-  if(chave === 'auditoria' && !audCarregado){
-    const m = document.getElementById('audMes');
-    if(!m.value) m.value = new Date().toISOString().slice(0,7);
-    carregarAuditoria();
-  }
+  if(chave === 'auditoria' && !audModo) audVoltarEscolha();
   if(chave === 'marketing' && !mktDados){
     const p = mktPeriodoPadrao();
     document.getElementById('mktDe').value = p.de;
