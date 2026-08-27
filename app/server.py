@@ -1600,6 +1600,109 @@ def _nome_aba_excel(nome: str) -> str:
 
 
 # ============================================================
+# Carros pra chegar
+# ============================================================
+# Vem da planilha "Carros para chegar" (scripts/sincronizar_carros.py).
+#
+# Um cuidado que muda a leitura inteira: a coluna "Data de Chegada" só começou a
+# ser preenchida em maio/2026. Carro comprado antes disso e sem chegada não está
+# parado — está sem registro. Tratar os dois como a mesma coisa mostraria
+# milhões "travados" que na verdade chegaram e ninguém anotou, e o gestor
+# tomaria decisão em cima de um número falso. Por isso o painel separa a janela
+# em que o acompanhamento existe do histórico anterior.
+
+def _carros_bruto():
+    return ler_json(resolver_pasta_dados() / "carros_chegar.json", None) or {}
+
+
+def _inicio_acompanhamento(carros):
+    """Primeiro dia em que alguém registrou chegada ou agendamento. Antes disso
+    a ausência de chegada não significa nada."""
+    marcos = [c[campo] for c in carros for campo in ("chegada", "agendamento") if c.get(campo)]
+    return min(marcos) if marcos else None
+
+
+@app.route("/api/admin/carros")
+def api_admin_carros():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+
+    bruto = _carros_bruto()
+    carros = bruto.get("carros", [])
+    if not carros:
+        return jsonify({"sem_dados": True})
+
+    inicio = _inicio_acompanhamento(carros)
+    filtro_estado = request.args.get("estado") or ""
+    filtro_leilao = request.args.get("leilao") or ""
+    de = request.args.get("de") or ""
+    ate = request.args.get("ate") or ""
+
+    def dentro(c):
+        if de and (not c["data"] or c["data"] < de):
+            return False
+        if ate and (not c["data"] or c["data"] > ate):
+            return False
+        if filtro_leilao and c["leilao"] != filtro_leilao:
+            return False
+        if filtro_estado and c["estado"] != filtro_estado:
+            return False
+        return True
+
+    visiveis = [c for c in carros if dentro(c)]
+
+    # Acompanhados = comprados depois que o controle de chegada passou a existir.
+    acompanhados = [c for c in visiveis
+                    if inicio and c["data"] and c["data"] >= inicio]
+    antigos = [c for c in visiveis
+               if not (inicio and c["data"] and c["data"] >= inicio)]
+
+    def somar(lista):
+        return {"qtd": len(lista),
+                "valor": round(sum(c["valor"] or 0 for c in lista), 2)}
+
+    pendentes = [c for c in acompanhados if c["estado"] != "chegou"]
+    pendentes.sort(key=lambda c: -(c["dias_parado"] or 0))
+    chegaram = [c for c in acompanhados if c["estado"] == "chegou"]
+
+    tempos = sorted(c["dias_ate_chegar"] for c in chegaram
+                    if c["dias_ate_chegar"] is not None)
+    mediana = tempos[len(tempos) // 2] if tempos else None
+
+    def agrupar(lista, campo):
+        d = {}
+        for c in lista:
+            chave = c.get(campo) or "—"
+            item = d.setdefault(chave, {"qtd": 0, "valor": 0.0, "pendentes": 0})
+            item["qtd"] += 1
+            item["valor"] += c["valor"] or 0
+            if c["estado"] != "chegou":
+                item["pendentes"] += 1
+        return sorted(({campo: k, "qtd": v["qtd"], "valor": round(v["valor"], 2),
+                        "pendentes": v["pendentes"]} for k, v in d.items()),
+                      key=lambda x: -x["qtd"])
+
+    return jsonify({
+        "gerado_em": bruto.get("gerado_em"),
+        "inicio_acompanhamento": inicio,
+        "filtro": {"estado": filtro_estado, "leilao": filtro_leilao, "de": de, "ate": ate},
+        "leiloes": sorted({c["leilao"] for c in carros if c["leilao"]}),
+        "estados": ["comprado", "agendado", "chegou", "sem_situacao"],
+        "acompanhados": {
+            **somar(acompanhados),
+            "pendentes": somar(pendentes),
+            "chegaram": somar(chegaram),
+            "mediana_dias": mediana,
+        },
+        "historico_sem_registro": somar([c for c in antigos if c["estado"] != "chegou"]),
+        "lista_pendentes": pendentes,
+        "por_leilao": agrupar(acompanhados, "leilao"),
+        "por_estado": agrupar(acompanhados, "estado"),
+        "total_geral": somar(visiveis),
+    })
+
+
+# ============================================================
 # Marketing
 # ============================================================
 # Os números vêm do vendas-insights (espelho do Totalk + investimento de mídia
@@ -1790,6 +1893,16 @@ def api_marketing_gestor():
     for g in gasto_linhas:
         gasto_dia[g["data"]] = round(gasto_dia.get(g["data"], 0.0) + g["spend"], 2)
 
+    # O Meta vem agregado do periodo inteiro do relatorio, nao por dia. So entra
+    # na soma quando a janela pedida cobre esse periodo todo — num recorte menor
+    # nao da pra saber que fatia do gasto caiu ali, e somar o total inflaria o
+    # investimento e derrubaria o custo por lead.
+    meta = gasto_bruto.get("meta")
+    meta_no_periodo = bool(meta and de <= meta["de"] and ate >= meta["ate"])
+    if meta_no_periodo:
+        investimento = round(investimento + meta["spend"], 2)
+        impressoes += meta.get("impressions", 0)
+
     vendas = _vendas_no_periodo(vendedores, ef_de, ef_ate,
                                 so_vendedor=filtro_vendedor or None,
                                 universo=universo)
@@ -1816,8 +1929,12 @@ def api_marketing_gestor():
             "investimento": investimento,
             "clicks": cliques,
             "impressions": impressoes,
-            "cpc": round(investimento / cliques, 2) if cliques else None,
-            "ctr": round(100 * cliques / impressoes, 2) if impressoes else None,
+            # CPC e CTR ficam so no Google: este export do Meta traz conversa
+            # iniciada, nao clique, e dividir um pelo outro nao significa nada.
+            "cpc": (round(sum(g["spend"] for g in gasto_linhas) / cliques, 2)
+                    if cliques else None),
+            "ctr": (round(100 * cliques / sum(g["impressions"] for g in gasto_linhas), 2)
+                    if sum(g["impressions"] for g in gasto_linhas) else None),
             # Custo por lead e por venda usam o total de leads/vendas do período,
             # não só os que vieram de anúncio: é o custo de mídia por resultado
             # do negócio. Com o gasto do Meta faltando, o número real é maior.
@@ -1831,6 +1948,10 @@ def api_marketing_gestor():
             "campanhas": campanhas,
             "por_dia": [{"data": k, "spend": v} for k, v in sorted(gasto_dia.items())],
             "fontes_ausentes": gasto_bruto.get("fontes_ausentes", []),
+            "google": {"investimento": round(sum(g["spend"] for g in gasto_linhas), 2),
+                       "clicks": cliques},
+            "meta": meta,
+            "meta_no_periodo": meta_no_periodo,
         },
     })
 

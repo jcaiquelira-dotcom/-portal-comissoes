@@ -688,6 +688,35 @@
       <div id="mktCorpo"></div>
     </section>
 
+    <!-- ---------- CARROS PRA CHEGAR ---------- -->
+    <section id="secCarros" class="oculto">
+      <div class="filtros">
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="carrosDe">De</label>
+          <input type="date" id="carrosDe">
+        </div>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="carrosAte">Até</label>
+          <input type="date" id="carrosAte">
+        </div>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="carrosLeilao">Leilão</label>
+          <select id="carrosLeilao"><option value="">Todos os leilões</option></select>
+        </div>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="carrosEstado">Situação</label>
+          <select id="carrosEstado">
+            <option value="">Todas</option>
+            <option value="comprado">Comprado</option>
+            <option value="agendado">Agendado</option>
+            <option value="chegou">Chegou</option>
+            <option value="sem_situacao">Sem situação</option>
+          </select>
+        </div>
+      </div>
+      <div id="carrosCorpo"></div>
+    </section>
+
     <!-- ---------- CONFIGURAÇÕES ---------- -->
     <section id="secConfiguracoes" class="oculto">
       <div class="card" style="margin-bottom:14px;">
@@ -1683,6 +1712,123 @@ function diaDaSemana(iso){
   return DIAS_SEMANA[new Date(y, m - 1, d).getDay()];
 }
 
+/* ---------- Carros pra chegar ----------
+   A pergunta que o painel responde: qual carro já foi comprado e ainda não
+   entrou no pátio, e há quanto tempo. Tudo o mais é contexto. */
+let carrosCarregado = false;
+
+const CARRO_ESTADOS = {
+  comprado: 'Comprado', agendado: 'Agendado',
+  chegou: 'Chegou', sem_situacao: 'Sem situação',
+};
+
+async function carregarCarros(){
+  const corpo = document.getElementById('carrosCorpo');
+  corpo.innerHTML = '<div class="vazio">Carregando…</div>';
+  const q = new URLSearchParams();
+  ['carrosEstado', 'carrosLeilao', 'carrosDe', 'carrosAte'].forEach(id => {
+    const v = document.getElementById(id).value;
+    if(v) q.set(id.replace('carros', '').toLowerCase(), v);
+  });
+  const res = await fetch('/api/admin/carros?' + q);
+  if(!res.ok){ corpo.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  const d = await res.json();
+  if(d.sem_dados){
+    corpo.innerHTML = '<div class="vazio">A planilha ainda não foi sincronizada. '
+      + 'Rode <code>scripts/sincronizar_carros.py</code>.</div>';
+    return;
+  }
+  carrosCarregado = true;
+  const sel = document.getElementById('carrosLeilao');
+  if(sel.dataset.pronto !== '1'){
+    sel.innerHTML = '<option value="">Todos os leilões</option>'
+      + d.leiloes.map(l => `<option value="${l}">${l}</option>`).join('');
+    sel.value = d.filtro.leilao || '';
+    sel.dataset.pronto = '1';
+  }
+  renderCarros(d);
+}
+
+function renderCarros(d){
+  const a = d.acompanhados, h = d.historico_sem_registro;
+  const dt = (iso) => iso ? iso.slice(8) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '—';
+
+  const kpi = (rot, num, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${num}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+
+  const kpis = [
+    kpi('Ainda não chegaram', a.pendentes.qtd, fmtMoeda(a.pendentes.valor),
+        a.pendentes.qtd ? 'var(--bad)' : 'var(--good)'),
+    kpi('Já chegaram', a.chegaram.qtd, fmtMoeda(a.chegaram.valor)),
+    kpi('Tempo até chegar', a.mediana_dias === null ? '—' : a.mediana_dias + ' dias', 'mediana'),
+    kpi('Comprados no período', a.qtd, fmtMoeda(a.valor)),
+  ].join('');
+
+  const pend = d.lista_pendentes;
+  const cardPendentes = `<div class="card" style="margin-bottom:14px;">
+    <p class="card-titulo">Carros a cobrar</p>
+    ${pend.length ? `<div class="tabela-rolante"><table>
+      <thead><tr><th>Parado</th><th>Veículo</th><th>Leilão</th><th>Comprado</th>
+        <th>Valor</th><th>Situação</th><th>Guincho / contato</th></tr></thead>
+      <tbody>${pend.map(c => `<tr${c.dias_parado > 30 ? ' class="venda-suspeita"' : ''}>
+        <td><b>${c.dias_parado === null ? '—' : c.dias_parado + 'd'}</b></td>
+        <td>${c.veiculo}${c.placa ? ` <span class="dp-var neutro">${c.placa}</span>` : ''}</td>
+        <td>${c.leilao || '—'}${c.lote ? ` · lote ${c.lote}` : ''}</td>
+        <td>${dt(c.data)}</td>
+        <td class="valor-money">${c.valor ? fmtMoeda(c.valor) : '—'}</td>
+        <td>${c.situacao || '—'}${c.agendamento ? `<br><span class="dp-var neutro">agendado ${dt(c.agendamento)}</span>` : ''}</td>
+        <td>${[c.guincho, c.contato].filter(Boolean).join(' · ') || '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div class="dp-aviso">Linha destacada = parado há mais de 30 dias.</div>`
+    : '<div class="vazio">Nenhum carro pendente. Todos os comprados no período já chegaram. 👏</div>'}
+  </div>`;
+
+  const maxLeilao = Math.max(...d.por_leilao.map(l => l.qtd), 1);
+  const cardLeiloes = `<div class="card">
+    <p class="card-titulo">Por leilão</p>
+    ${d.por_leilao.length ? `<div class="dp-lista">${d.por_leilao.map(l => `
+      <div class="dp-linha">
+        <span class="nome">${l.leilao}</span>
+        <span class="v">${l.qtd} · ${fmtMoeda(l.valor)}${l.pendentes ? ` · ${l.pendentes} a chegar` : ''}</span>
+        <span class="t"><span class="f" style="width:${(l.qtd / maxLeilao * 100).toFixed(1)}%"></span></span>
+      </div>`).join('')}</div>` : '<div class="vazio">Nada no período.</div>'}
+  </div>`;
+
+  const cardEstados = `<div class="card">
+    <p class="card-titulo">Situação</p>
+    ${d.por_estado.map(e => `<div class="dp-destaque">
+      <span class="rot">${CARRO_ESTADOS[e.estado] || e.estado}</span>
+      <span class="val">${e.qtd} · ${fmtMoeda(e.valor)}</span></div>`).join('')
+      || '<div class="vazio">Nada no período.</div>'}
+  </div>`;
+
+  document.getElementById('carrosCorpo').innerHTML = `
+    <div class="dp-kpis">${kpis}</div>
+    ${cardPendentes}
+    <div class="dp-grid duas">${cardLeiloes}${cardEstados}</div>
+    <div class="card" style="margin-top:14px;">
+      <p class="card-titulo">Como ler estes números</p>
+      <div class="dp-destaque"><span class="rot" style="margin:0">
+        A coluna “Data de Chegada” da planilha só começou a ser preenchida em
+        <b>${dt(d.inicio_acompanhamento)}</b>. Os números acima cobrem só de lá pra cá — é o
+        período em que dá pra afirmar que um carro chegou ou não.</span></div>
+      <div class="dp-destaque"><span class="rot" style="margin:0">
+        Antes disso são <b>${h.qtd} carros</b> (${fmtMoeda(h.valor)}) sem registro de chegada.
+        Quase certamente chegaram e ninguém anotou — por isso não entram como “parados”.
+        Se contassem, o painel mostraria milhões travados que não existem.</span></div>
+      <div class="dp-destaque"><span class="rot" style="margin:0">
+        A planilha é lida por <code>scripts/sincronizar_carros.py</code>. Última leitura:
+        <b>${(d.gerado_em || '').slice(8,10)}/${(d.gerado_em || '').slice(5,7)} às ${(d.gerado_em || '').slice(11,16)}</b>.
+        Editou a planilha? Rode de novo pra atualizar aqui.</span></div>
+    </div>`;
+}
+
+document.addEventListener('change', ev => {
+  if(['carrosEstado','carrosLeilao','carrosDe','carrosAte'].includes(ev.target.id)) carregarCarros();
+});
+
 /* ---------- Marketing ----------
    Junta o que a midia trouxe (leads, canal, investimento) com o que virou
    venda no portal. Os dois lados vem de bases diferentes e param em datas
@@ -1781,7 +1927,8 @@ function renderMarketing(d){
     kpi('Com sinal de compra', t.sinal, t.leads ? (100 * t.sinal / t.leads).toFixed(1) + '% dos leads' : ''),
     kpi('Vendas', d.vendas.qtd, fmtMoeda(d.vendas.total)),
     kpi('Conversão', (d.conversao ?? 0) + '%', 'venda ÷ lead'),
-    kpi('Investimento', fmtMoeda(m.investimento), 'só Google Ads'),
+    kpi('Investimento', fmtMoeda(m.investimento),
+        m.meta_no_periodo ? 'Google + Meta' : 'só Google Ads'),
     kpi('Custo por lead', m.custo_por_lead === null ? '—' : fmtMoeda(m.custo_por_lead)),
     kpi('Custo por venda', m.custo_por_venda === null ? '—' : fmtMoeda(m.custo_por_venda)),
     kpi('CPC', m.cpc === null ? '—' : fmtMoeda(m.cpc), m.ctr === null ? '' : `CTR ${m.ctr}%`),
@@ -1816,8 +1963,39 @@ function renderMarketing(d){
       As vendas dessa pessoa também ficam de fora, senão a conversão sairia inflada.</div>` : ''}
   </div>`;
 
+  const mt = m.meta;
+  const cardMeta = mt ? `<div class="card" style="margin-bottom:14px;">
+    <p class="card-titulo">Meta Ads — anúncios</p>
+    <div class="dp-kpis" style="margin-bottom:12px;">
+      <div class="dp-kpi"><div class="rot">Investido</div>
+        <div class="num valor-money">${fmtMoeda(mt.spend)}</div></div>
+      <div class="dp-kpi"><div class="rot">Conversas iniciadas</div>
+        <div class="num valor-money">${mt.conversas}</div></div>
+      <div class="dp-kpi"><div class="rot">Custo por conversa</div>
+        <div class="num valor-money">${mt.custo_por_conversa === null ? '—' : fmtMoeda(mt.custo_por_conversa)}</div></div>
+      <div class="dp-kpi"><div class="rot">Alcance</div>
+        <div class="num valor-money">${mt.alcance.toLocaleString('pt-BR')}</div></div>
+    </div>
+    <div class="tabela-rolante"><table>
+      <thead><tr><th>Anúncio</th><th>Investido</th><th>Conversas</th><th>Custo/conversa</th><th>Impressões</th></tr></thead>
+      <tbody>${mt.anuncios.map(a => `<tr>
+        <td>${a.anuncio}</td>
+        <td class="valor-money">${fmtMoeda(a.spend)}</td>
+        <td>${a.conversas}</td>
+        <td class="valor-money">${a.conversas ? fmtMoeda(a.spend / a.conversas) : '—'}</td>
+        <td>${a.impressions.toLocaleString('pt-BR')}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div class="dp-aviso">O relatório do Meta vem fechado de <b>${mt.de.slice(8)}/${mt.de.slice(5,7)}</b>
+      a <b>${mt.ate.slice(8)}/${mt.ate.slice(5,7)}</b>, sem quebra por dia.
+      ${m.meta_no_periodo
+        ? 'Como o período que você escolheu cobre essa janela inteira, o valor está somado no investimento acima.'
+        : '<b>Não está somado no investimento acima</b>: o período escolhido não cobre a janela inteira do relatório, e não dá pra saber que fatia do gasto caiu no seu recorte.'}
+      As colunas “Compras” e “ROAS” vêm vazias do Meta — ele não enxerga a venda, que fecha no WhatsApp.</div>
+  </div>` : '';
+
   const cardCampanhas = m.campanhas.length ? `<div class="card">
-    <p class="card-titulo">Campanhas</p>
+    <p class="card-titulo">Google Ads — campanhas</p>
     <div class="tabela-rolante"><table>
       <thead><tr><th>Campanha</th><th>Investido</th><th>Cliques</th><th>Impressões</th><th>CPC</th><th>CTR</th></tr></thead>
       <tbody>${m.campanhas.map(c => `<tr>
@@ -1839,10 +2017,11 @@ function renderMarketing(d){
       O investimento segue o período cheio que você pediu.`);
   }
   if((m.fontes_ausentes || []).length){
-    avisos.push(`Falta o gasto de <b>${m.fontes_ausentes.join(', ')}</b>: o CSV não está mais no
-      computador e o conector não está ligado no Windsor. Investimento, custo por lead e custo por
-      venda estão <b>menores do que a realidade</b> — cobrem só o Google Ads.`);
+    avisos.push(`Falta o gasto de <b>${m.fontes_ausentes.join(', ')}</b>. Investimento, custo por
+      lead e custo por venda estão <b>menores do que a realidade</b>.`);
   }
+  avisos.push(`CPC e CTR são <b>só do Google Ads</b>. O export do Meta traz conversa iniciada,
+    não clique — dividir um pelo outro não significaria nada.`);
   avisos.push(`Faturamento por real de mídia no período: <b>${m.faturamento_por_real ?? '—'}×</b>.
     Não é ROAS: o faturamento é o total do período, não o atribuído a anúncio.`);
 
@@ -1853,7 +2032,7 @@ function renderMarketing(d){
       ${mktGraficoDia(d.por_dia, m.por_dia)}
     </div>
     <div class="dp-grid duas">${cardCanais}${cardVendedores}</div>
-    ${cardCampanhas}
+    ${cardMeta}${cardCampanhas}
     <div class="card" style="margin-top:14px;">
       <p class="card-titulo">Como ler estes números</p>
       ${avisos.map(a => `<div class="dp-destaque"><span class="rot" style="margin:0">${a}</span></div>`).join('')}
@@ -2292,6 +2471,7 @@ const SECOES = {
   retomada:   {titulo: 'Follow-up do time',  el: 'secRetomada'},
   desempenho: {titulo: 'Desempenho',        el: 'secDesempenho'},
   marketing:  {titulo: 'Marketing',         el: 'secMarketing'},
+  carros:     {titulo: 'Carros pra chegar', el: 'secCarros'},
   configuracoes: {titulo: 'Configurações',  el: null},
 };
 
@@ -2354,6 +2534,7 @@ function irParaSecao(chave, sub){
   });
   // Entrar em Desempenho sempre comeca pela escolha do vendedor.
   if(chave === 'desempenho') abrirEscolhaDesempenho();
+  if(chave === 'carros' && !carrosCarregado) carregarCarros();
   if(chave === 'marketing' && !mktDados){
     const p = mktPeriodoPadrao();
     document.getElementById('mktDe').value = p.de;
