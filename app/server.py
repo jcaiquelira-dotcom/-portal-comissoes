@@ -6,6 +6,8 @@ import os
 import re
 import secrets
 import sqlite3
+import subprocess
+import sys
 import urllib.error
 import urllib.request
 import uuid
@@ -231,15 +233,13 @@ else:
 # ============================================================
 # Simulador de desconto e parcelamento
 # ============================================================
-# O catálogo (ERP) e as regras de desconto são preparados pelo gestor no
-# projeto irmão portal-simulador, rodado localmente (edição de regras,
-# reimportação do ERP), e sincronizados pra cá com
-# portal-simulador/scripts/sincronizar_supabase.py. Aqui só existe a
-# consulta/simulação pros vendedores — sem tela de administração.
-#
-# Em modo local (sem DATABASE_URL), lê direto o simulador.db do projeto
-# irmão, só pra facilitar teste — em produção é sempre via Postgres.
-_SIMULADOR_DB_LOCAL = ROOT.parent / "portal-simulador" / "data" / "simulador.db"
+# Auto-contido aqui dentro (antigo projeto irmão portal-simulador,
+# incorporado): o catálogo ERP e as regras vivem em data/simulador/, geridos
+# pela área do gestor em Configurações. scripts/etl_simulador.py reimporta
+# as planilhas do ERP — grava em SQLite local sem DATABASE_URL, ou direto no
+# Postgres de produção quando DATABASE_URL está setada (mesmo rodando local,
+# pra empurrar uma atualização pra produção).
+_SIMULADOR_DB_LOCAL = ROOT / "data" / "simulador" / "simulador.db"
 _unaccent_disponivel_simulador = {"valor": False}
 
 if DATABASE_URL:
@@ -395,13 +395,58 @@ def definir_data_entrada_simulador(cod_peca: str, data_entrada_str: str, definid
     return True
 
 
+_REGRAS_SIMULADOR_FILE = ROOT / "data" / "simulador" / "regras.json"
+
+
 def carregar_regras_simulador():
     if DATABASE_URL:
         return _db_ler("simulador_regras", None)
-    caminho = ROOT.parent / "portal-simulador" / "data" / "regras.json"
-    if not caminho.exists():
+    if not _REGRAS_SIMULADOR_FILE.exists():
         return None
-    return json.loads(caminho.read_text(encoding="utf-8"))
+    return json.loads(_REGRAS_SIMULADOR_FILE.read_text(encoding="utf-8"))
+
+
+def salvar_regras_simulador(regras) -> None:
+    if DATABASE_URL:
+        _db_escrever("simulador_regras", regras)
+        return
+    _REGRAS_SIMULADOR_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _REGRAS_SIMULADOR_FILE.write_text(json.dumps(regras, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def status_simulador() -> dict:
+    if DATABASE_URL:
+        with _db_conectar() as conn, conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM catalogo_erp")
+            total = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM catalogo_erp WHERE qtd_disponivel > 0")
+            disponiveis = cur.fetchone()[0]
+            cur.execute(
+                "SELECT executado_em, linhas_catalogo, linhas_disponiveis, linhas_com_tempo_estoque, duracao_seg "
+                "FROM etl_execucoes ORDER BY id DESC LIMIT 1"
+            )
+            linha = cur.fetchone()
+            ultima = None
+            if linha:
+                ultima = {
+                    "executado_em": linha[0], "linhas_catalogo": linha[1],
+                    "linhas_disponiveis": linha[2], "linhas_com_tempo_estoque": linha[3],
+                    "duracao_seg": linha[4],
+                }
+        return {"total_pecas": total, "pecas_disponiveis": disponiveis, "ultima_importacao": ultima}
+
+    conn = _simulador_db_local()
+    total = conn.execute("SELECT COUNT(*) FROM catalogo_erp").fetchone()[0]
+    disponiveis = conn.execute("SELECT COUNT(*) FROM catalogo_erp WHERE qtd_disponivel > 0").fetchone()[0]
+    linha = conn.execute(
+        "SELECT executado_em, linhas_catalogo, linhas_disponiveis, linhas_com_tempo_estoque, duracao_seg "
+        "FROM etl_execucoes ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    conn.close()
+    return {
+        "total_pecas": total, "pecas_disponiveis": disponiveis,
+        "ultima_importacao": dict(linha) if linha else None,
+    }
 
 
 def _faixa_tempo_de_simulador(dias, regras):
@@ -1819,6 +1864,44 @@ def servir_foto(filename):
 @app.route("/simulador")
 def pagina_simulador():
     return send_from_directory(STATIC_DIR, "simulador.html")
+
+
+@app.route("/api/admin/simulador/regras", methods=["PUT"])
+def api_admin_simulador_regras_put():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    regras_atuais = carregar_regras_simulador() or {}
+    for chave in ("desconto_max_pct", "nivel_flexibilidade", "parcelas_max",
+                  "valor_minimo_parcelamento", "faixas_tempo", "faixas_valor"):
+        if chave in corpo:
+            regras_atuais[chave] = corpo[chave]
+    regras_atuais["atualizado_em"] = agora_br().isoformat()
+    regras_atuais["atualizado_por"] = "gestor"
+    salvar_regras_simulador(regras_atuais)
+    return jsonify(regras_atuais)
+
+
+@app.route("/api/admin/simulador/status")
+def api_admin_simulador_status():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    return jsonify(status_simulador())
+
+
+@app.route("/api/admin/simulador/reimportar", methods=["POST"])
+def api_admin_simulador_reimportar():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    script = ROOT / "scripts" / "etl_simulador.py"
+    resultado = subprocess.run(
+        [sys.executable, str(script)],
+        capture_output=True, text=True, cwd=str(ROOT), timeout=900,
+    )
+    if resultado.returncode != 0:
+        log = (resultado.stdout[-4000:] + "\n" + resultado.stderr[-4000:])
+        return jsonify({"ok": False, "log": log}), 500
+    return jsonify({"ok": True, "log": resultado.stdout[-4000:]})
 
 
 @app.route("/api/simulador/regras")
