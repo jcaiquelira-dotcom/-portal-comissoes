@@ -117,6 +117,7 @@ const PORTAIS = {
       {chave: 'desempenho',  texto: 'Desempenho',        href: '#desempenho',  icone: 'desempenho'},
       {chave: 'carros',      texto: 'Carros pra chegar', href: '#carros',      icone: 'carro'},
       {chave: 'rh',          texto: 'Gestão de pessoas', href: '#rh',          icone: 'equipe'},
+      {chave: 'atendimento', texto: 'Atendimento agora', href: '#atendimento', icone: 'retomada'},
       {chave: 'retomada',    texto: 'Follow-up do time', href: '#retomada',    icone: 'retomada'},
       {chave: 'fechamento',  texto: 'Fechamento de mês', href: '#fechamento',  icone: 'fechamento'},
       {chave: 'configuracoes', texto: 'Configurações',   href: '#configuracoes', icone: 'config'},

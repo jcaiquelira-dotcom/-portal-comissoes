@@ -2523,6 +2523,19 @@ def api_admin_site_conta():
     return jsonify(d)
 
 
+@app.route("/api/admin/atendimento-alerta")
+def api_admin_atendimento_alerta():
+    """Quem esta esperando a loja responder agora. Alimentado de poucos em
+    poucos minutos por scripts/monitorar_sem_resposta.py — nao depende da
+    bolinha de nao-lida do Totalk, que o bot zera sozinho."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    d = ler_json(resolver_pasta_dados() / "atendimento_alerta.json", None)
+    if not d:
+        return jsonify({"sem_dados": True})
+    return jsonify(d)
+
+
 @app.route("/api/admin/shopee-conta")
 def api_admin_shopee_conta():
     """Serie mensal da Shopee (importar_shopee_stats). Endpoint separado do

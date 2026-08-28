@@ -1,0 +1,189 @@
+"""
+Alerta de atendimento sem resposta — quem esta esperando a loja falar.
+
+Por que existe: em 28/08/2026 o time notou que a bolinha de "nao lida" do
+Totalk zera sozinha, porque o bot atende primeiro e ja marca a conversa como
+vista (499 de 500 conversas do dia tinham bot). Com isso a bolinha parou de
+servir como controle, e o medo do gestor e justamente passar atendimento sem
+resposta. Este monitor nao depende dela: olha quem falou por ultimo.
+
+A conta e simples e nao precisa baixar mensagem nenhuma — a propria listagem
+de sessoes traz lastMessageIn (ultima do cliente) e lastMessageOut (ultima da
+loja). Se a do cliente e mais recente, ninguem respondeu ainda, e o tempo de
+espera e "agora menos lastMessageIn".
+
+Grava a chave `atendimento_alerta` no mesmo banco do portal. Roda de poucos em
+poucos minutos — e leitura pura, nao escreve nada no Totalk.
+
+Uso:
+    set DATABASE_URL=postgresql://...
+    python scripts/monitorar_sem_resposta.py
+    python scripts/monitorar_sem_resposta.py --seco
+"""
+
+import io
+import json
+import os
+import sys
+import urllib.parse
+import time
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+BASE = "https://api.wts.chat"
+FUSO = timezone(timedelta(hours=-3))
+RAIZ_INSIGHTS = Path(r"C:\Users\José Caique\Desktop\ARQUIVOS IA\vendas-insights")
+
+# Faixas de urgencia, em minutos. O verde some da tela: alerta que mostra tudo
+# nao e alerta. So aparece quem passou de ATENCAO.
+ATENCAO, URGENTE, CRITICO = 15, 30, 60
+# Teto de 24h: conversa aberta ha dias nao e "atendimento sem resposta agora",
+# e sessao que ninguem encerrou — outro problema, contado a parte como
+# `paradas_antigas`. Sem esse corte o alerta virava 355 linhas de 10 dias
+# atras e ninguem olharia.
+TETO_MINUTOS = 24 * 60
+
+# userId do Totalk -> nome que o portal usa. Mesmo mapa do vendas-insights.
+ATENDENTES = {
+    "75f20108-887e-47c1-b245-b1c12565e484": "Flávia",
+    "1d6778d5-d482-43bc-9d5b-dcbb4ed0528d": "Matheus",
+    "26ccb5d3-df37-429b-b509-7a122a2deb2d": "Gustavo",
+}
+
+
+def token() -> str:
+    """Le o TOTALK_TOKEN do .env do vendas-insights, que ja e a fonte dele."""
+    env = RAIZ_INSIGHTS / ".env"
+    if env.exists():
+        for linha in env.read_text(encoding="utf-8").splitlines():
+            if linha.strip().startswith("TOTALK_TOKEN"):
+                return linha.split("=", 1)[1].strip().strip('"').strip("'")
+    valor = os.environ.get("TOTALK_TOKEN") or os.environ.get("TOTALK_API_TOKEN")
+    if not valor:
+        raise SystemExit("TOTALK_TOKEN não encontrado (.env do vendas-insights).")
+    return valor
+
+
+TOK = token()
+
+
+def get(path: str, params: dict = None):
+    url = f"{BASE}{path}"
+    if params:
+        url += "?" + urllib.parse.urlencode(params, doseq=True)
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {TOK}"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.loads(r.read())
+
+
+def quando(txt: str):
+    """"2026-08-28T14:48:23.38Z" -> datetime com fuso. A API varia o numero de
+    casas decimais, entao corta em 26 caracteres antes de converter."""
+    if not txt:
+        return None
+    try:
+        return datetime.fromisoformat(txt[:26].rstrip("Z") + "+00:00")
+    except ValueError:
+        return None
+
+
+def coletar():
+    agora = datetime.now(timezone.utc)
+    esperando, antigas = [], []
+
+    # PENDING = ainda na fila; IN_PROGRESS = com atendente. As duas contam:
+    # cliente esperando na fila e cliente esperando resposta pesam igual.
+    for status in ("PENDING", "IN_PROGRESS"):
+        pagina = 1
+        while pagina <= 20:
+            d = get("/chat/v2/session", {
+                "Status": status, "PageNumber": pagina, "PageSize": 100,
+                "OrderBy": "createdat", "OrderDirection": "DESCENDING",
+            })
+            itens = d.get("items") or []
+            for s in itens:
+                entrada, saida = quando(s.get("lastMessageIn")), quando(s.get("lastMessageOut"))
+                if not entrada:
+                    continue
+                # A loja ja respondeu depois da ultima do cliente: nada a fazer.
+                if saida and saida >= entrada:
+                    continue
+                minutos = int((agora - entrada).total_seconds() // 60)
+                if minutos < ATENCAO:
+                    continue
+                if minutos > TETO_MINUTOS:
+                    antigas.append(minutos)
+                    continue
+                esperando.append({
+                    "id": s["id"],
+                    "contato_id": s.get("contactId"),
+                    "minutos": minutos,
+                    "desde": entrada.astimezone(FUSO).isoformat(timespec="minutes"),
+                    "status": status,
+                    "atendente": ATENDENTES.get(s.get("userId")) or ("—" if s.get("userId") else "sem atendente"),
+                    "ultima_msg": (s.get("lastMessageText") or "")[:120],
+                    "nunca_respondida": saida is None,
+                    "nivel": ("critico" if minutos >= CRITICO
+                              else "urgente" if minutos >= URGENTE else "atencao"),
+                })
+            if not d.get("hasMorePages"):
+                break
+            pagina += 1
+
+    # Mais tempo esperando primeiro, e so entao busca o nome — assim o limite
+    # de chamadas cai sobre quem realmente vai aparecer na tela.
+    esperando.sort(key=lambda e: -e["minutos"])
+    for e in esperando[:40]:
+        try:
+            e["cliente"] = get(f"/core/v1/contact/{e['contato_id']}").get("name") or "?"
+        except Exception:
+            e["cliente"] = "?"
+        time.sleep(0.25)   # a API corta rajada; 4 por segundo passa tranquilo
+    return esperando, antigas
+
+
+def main():
+    esperando, antigas = coletar()
+    agora = datetime.now(FUSO)
+    contagem = {n: sum(1 for e in esperando if e["nivel"] == n)
+                for n in ("critico", "urgente", "atencao")}
+    print(f"{len(esperando)} conversas esperando resposta há {ATENCAO}min ou mais")
+    if antigas:
+        print(f"  (+{len(antigas)} sessões abertas há mais de 24h — provavelmente "
+              f"esquecidas em aberto, contadas à parte)")
+    print(f"  crítico (>{CRITICO}min): {contagem['critico']} | "
+          f"urgente (>{URGENTE}min): {contagem['urgente']} | "
+          f"atenção (>{ATENCAO}min): {contagem['atencao']}")
+    for e in esperando[:10]:
+        print(f"  {e['minutos']:>4}min | {e['nivel']:<8} | {e['atendente']:<14} | "
+              f"{e.get('cliente','?')[:24]}")
+
+    pacote = {
+        "gerado_em": agora.isoformat(timespec="seconds"),
+        "limites": {"atencao": ATENCAO, "urgente": URGENTE, "critico": CRITICO},
+        "contagem": contagem,
+        "total": len(esperando),
+        "paradas_antigas": len(antigas),
+        "conversas": esperando[:40],
+    }
+    if "--seco" in sys.argv:
+        print("\n(--seco: nada gravado)")
+        return
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise SystemExit("DATABASE_URL não definida.")
+    import psycopg2
+    from psycopg2.extras import Json
+    conn = psycopg2.connect(url)
+    with conn, conn.cursor() as cur:
+        cur.execute("INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
+                    "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
+                    ("atendimento_alerta", Json(pacote)))
+    conn.close()
+    print("\n  gravado atendimento_alerta")
+
+
+if __name__ == "__main__":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    main()

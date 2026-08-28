@@ -150,6 +150,8 @@
     font-size:11px;color:var(--muted);margin:8px 2px 0;line-height:1.5;
   }
   .kpi-nota:empty{display:none;}
+  .atd-msg{max-width:340px;color:var(--muted);font-size:12px;
+           overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .carros-busca{
     background:var(--surface-2);border:1px solid var(--line);color:var(--text);
     border-radius:8px;padding:6px 10px;font-family:inherit;font-size:12.5px;
@@ -671,6 +673,13 @@
         </div>
         <p class="fechamento-nota">Depois de fechado, nenhum vendedor consegue lançar, editar ou excluir vendas desse mês. Só você pode reabrir.</p>
       </div>
+    </section>
+
+    <!-- ---------- ATENDIMENTO AGORA ---------- -->
+    <!-- Separado do Follow-up de proposito: aquele e repescagem de dias
+         atras, este e quem esta esperando resposta NESTE momento. -->
+    <section id="secAtendimento" class="oculto">
+      <div id="atdCorpo"><div class="vazio">Carregando…</div></div>
     </section>
 
     <!-- ---------- RETOMADA ---------- -->
@@ -3704,6 +3713,63 @@ async function carregarSiteConta(){
   </div>`;
 }
 
+async function carregarAtendimento(){
+  const el = document.getElementById('atdCorpo');
+  const res = await fetch('/api/admin/atendimento-alerta');
+  if(!res.ok){ el.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  const d = await res.json();
+  if(d.sem_dados){
+    el.innerHTML = `<div class="card"><div class="vazio">O monitor ainda não rodou.
+      Ele roda de 10 em 10 minutos no computador da loja.</div></div>`;
+    return;
+  }
+  const c = d.contagem || {};
+  const NIVEL = {critico: 'var(--bad)', urgente: 'var(--warn)', atencao: 'var(--muted)'};
+  const kpi = (rot, num, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${num}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+
+  const linhas = (d.conversas || []).map(x => `
+    <tr>
+      <td><b style="color:${NIVEL[x.nivel]}">${x.minutos >= 60
+        ? Math.floor(x.minutos / 60) + 'h' + String(x.minutos % 60).padStart(2, '0')
+        : x.minutos + 'min'}</b></td>
+      <td>${x.cliente || '?'}</td>
+      <td>${x.atendente}</td>
+      <td>${x.nunca_respondida
+        ? '<span class="rh-tag bad">nunca respondida</span>'
+        : '<span class="rh-tag">aguardando retorno</span>'}</td>
+      <td class="atd-msg">${(x.ultima_msg || '').replace(/</g, '&lt;')}</td>
+      <td>${x.desde.slice(11)}</td>
+    </tr>`).join('');
+
+  el.innerHTML = `
+    <div class="dp-kpis">
+      ${kpi('Esperando agora', d.total, `há mais de ${d.limites.atencao} min`,
+            d.total ? 'var(--warn)' : 'var(--good)')}
+      ${kpi('Crítico', c.critico || 0, `mais de ${d.limites.critico} min`,
+            c.critico ? 'var(--bad)' : 'var(--good)')}
+      ${kpi('Urgente', c.urgente || 0, `mais de ${d.limites.urgente} min`,
+            c.urgente ? 'var(--warn)' : 'var(--good)')}
+      ${kpi('Abertas há +24h', d.paradas_antigas || 0, 'sessões esquecidas em aberto')}
+    </div>
+    <div class="card">
+      <div class="aud-cabecalho">
+        <p class="card-titulo" style="margin:0;">Clientes esperando a loja responder</p>
+        <span class="aud-conta">atualizado ${(d.gerado_em || '').slice(11, 16)}</span>
+      </div>
+      ${linhas ? `<div class="tabela-rolante"><table>
+        <thead><tr><th>Esperando</th><th>Cliente</th><th>Atendente</th><th>Situação</th>
+          <th>Última mensagem do cliente</th><th>Desde</th></tr></thead>
+        <tbody>${linhas}</tbody></table></div>`
+        : '<div class="vazio">Ninguém esperando. Todo mundo foi respondido. 👏</div>'}
+      <div class="dp-aviso">Quem falou por último é o cliente e a loja ainda não respondeu.
+        <b>Não usa a bolinha de "não lida" do Totalk</b> — ela é zerada pelo bot antes de
+        alguém ver, e foi por isso que este painel existe. Sessões abertas há mais de 24h
+        ficam de fora da lista (são conversas esquecidas em aberto, não atendimento de hoje).</div>
+    </div>`;
+}
+
 async function carregarShopeeConta(){
   const el = document.getElementById('shopeeConta');
   if(!el) return;
@@ -3956,6 +4022,7 @@ function renderMetasPainel(d){
 const SECOES = {
   painel:     {titulo: 'Painel',            el: 'secPainel'},
   fechamento: {titulo: 'Fechamento de mês', el: 'secFechamento'},
+  atendimento: {titulo: 'Atendimento agora', el: 'secAtendimento'},
   retomada:   {titulo: 'Follow-up do time',  el: 'secRetomada'},
   desempenho: {titulo: 'Desempenho',        el: 'secDesempenho'},
   marketing:  {titulo: 'Marketing',         el: 'secMarketing'},
@@ -4026,6 +4093,7 @@ function irParaSecao(chave, sub){
   // Entrar em Desempenho sempre comeca pela escolha do vendedor.
   if(chave === 'desempenho') abrirEscolhaDesempenho();
   if(chave === 'carros' && !carrosCarregado) carregarCarros();
+  if(chave === 'atendimento') carregarAtendimento();
   if(chave === 'rh' && !rhDados) carregarRh();
   if(chave === 'metabonus' && !mbCarregado) carregarMetaBonus();
   if(chave === 'auditoria' && !audCarregado){
