@@ -3467,6 +3467,7 @@ async function carregarMlConta(){
   const m30 = pos.dias30 || {};
   const motivos = (m30.motivos || []).slice(0, 3)
     .map(x => `${x.motivo} (${x.qtd})`).join(' · ');
+  const vm = d.vendas?.mes_atual, v30 = d.vendas?.dias30;
 
   el.innerHTML = `<div class="card" style="margin-bottom:14px;">
     <div class="aud-cabecalho">
@@ -3475,6 +3476,10 @@ async function carregarMlConta(){
       <span class="aud-conta">${rep.vendas_60d ? rep.vendas_60d.toLocaleString('pt-BR') + ' vendas em 60 dias' : ''}</span>
     </div>
     <div class="dp-kpis" style="margin-bottom:0;">
+      ${vm ? tile('Faturamento no mês', fmtMoeda(vm.total),
+             `${vm.pagamentos} pagamentos · ticket ${fmtMoeda(vm.ticket)}`) : ''}
+      ${v30 ? tile('Faturamento 30 dias', fmtMoeda(v30.total),
+             `${v30.pagamentos} pagamentos aprovados`) : ''}
       ${tile('Reclamações 60d', pct(rep.reclamacoes_60d), qtd(rep.reclamacoes_60d) + ' casos · limite 1%',
              cor(rep.reclamacoes_60d, 0.01))}
       ${tile('Cancelamentos 60d', pct(rep.cancelamentos_60d), qtd(rep.cancelamentos_60d) + ' casos · limite 2,5%',
@@ -3491,7 +3496,8 @@ async function carregarMlConta(){
              (ads.acos ? ` · ACOS ${String(ads.acos).replace('.', ',')}%` : '')) : ''}
     </div>
     ${motivos ? `<div class="dp-aviso" style="margin-top:10px;">Principais motivos de reclamação (30d):
-      ${motivos}. Percentuais e limites são os oficiais do ML para manter a medalha.
+      ${motivos}. Faturamento = pagamentos aprovados no Mercado Pago com origem no ML — valor real.
+      Percentuais e limites são os oficiais do ML para manter a medalha.
       Sincronizado às ${(d.gerado_em || '').slice(11, 16)} de ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>` : ''}
   </div>`;
 }
