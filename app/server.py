@@ -1696,6 +1696,19 @@ def api_admin_resumo():
                 "cobre_periodo": desde_ml <= de,
             })
 
+        # Site proprio: serie diaria, mesmo tratamento do ML. Venda direta,
+        # sem passar por vendedor — por isso nao ha o que descontar aqui.
+        st = ler_json(resolver_pasta_dados() / "site_conta.json", None) or {}
+        serie_st = (st.get("vendas") or {}).get("serie_dia") or {}
+        soma_t = round(sum(x.get("total", 0) for d, x in serie_st.items() if de <= d <= ate), 2)
+        qtd_t = sum(x.get("qtd", 0) for d, x in serie_st.items() if de <= d <= ate)
+        if qtd_t:
+            marketplaces.append({
+                "id": "site", "nome": "Site próprio",
+                "total": soma_t, "qtd": qtd_t,
+                "cobre_periodo": ((st.get("vendas") or {}).get("serie_desde") or "9999") <= de,
+            })
+
         # Shopee vem do relatorio mensal do Seller Centre (importar_shopee_stats):
         # mes cheio dentro do filtro soma exato; mes cortado no meio rateia por
         # dia, o mesmo criterio do Meta e da agencia. Quando a API entrar com
@@ -2426,6 +2439,50 @@ def api_admin_ml_conta():
         return jsonify({"erro": "Não autenticado."}), 401
     d = ler_json(resolver_pasta_dados() / "ml_conta.json", None)
     if not d:
+        return jsonify({"sem_dados": True})
+    return jsonify(d)
+
+
+@app.route("/api/admin/site-conta", methods=["POST"])
+def api_admin_site_gravar():
+    """Recebe a serie diaria do site proprio (vaapt). O painel de la so filtra
+    um dia por vez e nao expoe API de pedidos, entao a leitura das paginas e
+    feita no navegador do gestor, ja logado, e o resultado chega aqui.
+    Merge por dia: releitura atualiza os dias lidos e preserva os antigos."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    serie = corpo.get("serie_dia")
+    if not isinstance(serie, dict) or not serie:
+        return jsonify({"erro": "Série vazia."}), 400
+
+    limpa = {}
+    for dia, val in serie.items():
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(dia)):
+            return jsonify({"erro": f"Data inválida: {dia}"}), 400
+        try:
+            limpa[dia] = {"total": round(float(val.get("total") or 0), 2),
+                          "qtd": int(val.get("qtd") or 0)}
+        except (TypeError, ValueError, AttributeError):
+            return jsonify({"erro": f"Valor inválido em {dia}"}), 400
+
+    atual = ler_json(resolver_pasta_dados() / "site_conta.json", None) or {}
+    antiga = (atual.get("vendas") or {}).get("serie_dia") or {}
+    juntas = {**antiga, **limpa}
+    escrever_json(resolver_pasta_dados() / "site_conta.json", {
+        "gerado_em": agora_br().isoformat(timespec="seconds"),
+        "fonte": corpo.get("fonte") or "painel do site (pedidos pagos)",
+        "vendas": {"serie_dia": juntas, "serie_desde": min(juntas)},
+    })
+    return jsonify({"ok": True, "dias": len(juntas)})
+
+
+@app.route("/api/admin/site-conta")
+def api_admin_site_conta():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    d = ler_json(resolver_pasta_dados() / "site_conta.json", None)
+    if not d or not (d.get("vendas") or {}).get("serie_dia"):
         return jsonify({"sem_dados": True})
     return jsonify(d)
 

@@ -624,6 +624,7 @@
       <!-- Saúde da conta Mercado Livre: reputação e pós-venda ao lado das
            vendas, porque a medalha caindo derruba o funil inteiro. -->
       <div id="mlConta"></div>
+      <div id="siteConta"></div>
       <div id="shopeeConta"></div>
       </div>
 
@@ -1158,6 +1159,7 @@ function mostrarApp(){
   carregarResumo();
   carregarMlConta();
 carregarShopeeConta();
+carregarSiteConta();
   carregarMesesFechados();
   carregarLogAcessos();
   carregarLogAcoes();
@@ -1666,7 +1668,7 @@ async function carregarResumo(){
   const consTotal = resumoAtual.total_geral + mktTotal;
   const consQtd = resumoAtual.qtd_vendas_geral + mktQtd;
   const sub = (id, txt) => { document.getElementById(id).innerHTML = txt || ''; };
-  const nomeCurto = {mercado_livre: 'ML', shopee: 'Shopee'};
+  const nomeCurto = {mercado_livre: 'ML', shopee: 'Shopee', site: 'Site'};
 
   document.getElementById('totalGeralValue').textContent = fmtMoeda(consTotal);
   sub('totalGeralValueSub', mkts.length
@@ -3574,6 +3576,66 @@ async function carregarMlConta(){
       ${motivos}. Faturamento = pagamentos aprovados no Mercado Pago com origem no ML — valor real.
       Percentuais e limites são os oficiais do ML para manter a medalha.
       Sincronizado às ${(d.gerado_em || '').slice(11, 16)} de ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>` : ''}
+  </div>`;
+}
+
+async function carregarSiteConta(){
+  const el = document.getElementById('siteConta');
+  if(!el) return;
+  const res = await fetch('/api/admin/site-conta');
+  if(!res.ok) return;
+  const d = await res.json();
+  if(d.sem_dados){ el.innerHTML = ''; return; }
+
+  const serie = d.vendas.serie_dia;
+  const meses = {};
+  Object.entries(serie).forEach(([dia, v]) => {
+    const m = dia.slice(0, 7);
+    meses[m] = meses[m] || {total: 0, qtd: 0};
+    meses[m].total = Math.round((meses[m].total + v.total) * 100) / 100;
+    meses[m].qtd += v.qtd;
+  });
+  const chaves = Object.keys(meses).sort();
+  const total = chaves.reduce((t, m) => t + meses[m].total, 0);
+  const pedidos = chaves.reduce((t, m) => t + meses[m].qtd, 0);
+  const ult = chaves[chaves.length - 1], pen = chaves[chaves.length - 2];
+  const max = Math.max(...chaves.map(m => meses[m].total), 1);
+  const NOMES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const nm = m => NOMES[Number(m.slice(5, 7)) - 1] + '/' + m.slice(2, 4);
+  const varUlt = pen && meses[pen].total
+    ? Math.round(100 * (meses[ult].total - meses[pen].total) / meses[pen].total) : null;
+  const ultimos = chaves.slice(-8);
+
+  const tile = (rot, valor, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money">${valor}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+
+  el.innerHTML = `<div class="card" style="margin-bottom:14px;">
+    <div class="aud-cabecalho">
+      <p class="card-titulo" style="margin:0;">Site próprio</p>
+      <span class="ml-selo ok">venda direta</span>
+      <span class="aud-conta">sem passar por vendedor</span>
+    </div>
+    <div class="shopee-corpo">
+      <div class="dp-kpis" style="margin-bottom:0;">
+        ${tile('Vendas pagas', fmtMoeda(total), `${pedidos} pedidos · ${nm(chaves[0])} a ${nm(ult)}`)}
+        ${tile('Ticket médio', fmtMoeda(pedidos ? total / pedidos : 0), 'por pedido pago')}
+        ${tile('Mês atual (' + nm(ult) + ')', fmtMoeda(meses[ult].total),
+               `${meses[ult].qtd} pedidos` + (varUlt !== null
+                 ? ` · ${varUlt >= 0 ? '▲ +' : '▼ '}${varUlt}% vs ${nm(pen)}` : ''))}
+        ${tile('Média por mês', fmtMoeda(total / chaves.length), `${chaves.length} meses de histórico`)}
+      </div>
+      <div class="dp-lista shopee-meses">
+        ${ultimos.map(m => `<div class="dp-linha">
+          <span class="nome">${nm(m)}</span>
+          <span class="v valor-money">${fmtMoeda(meses[m].total)}</span>
+          <span class="t"><span class="f" style="width:${(meses[m].total / max * 100).toFixed(1)}%"></span></span>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="dp-aviso" style="margin-top:10px;">Só pedidos pagos — cancelados e reembolsados
+      ficam de fora, mesmo critério do ML e da Shopee. Lido do painel do site em
+      ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)} às ${(d.gerado_em || '').slice(11, 16)}.</div>
   </div>`;
 }
 
