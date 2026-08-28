@@ -3020,11 +3020,19 @@ document.addEventListener('change', ev => {
    problema e falta de cliente, demora pra responder ou fechamento. */
 let dpVendedorAtual = null;
 
-function abrirEscolhaDesempenho(){
+async function abrirEscolhaDesempenho(){
   document.getElementById('desempenhoPainel').classList.add('oculto');
   document.getElementById('desempenhoEscolha').classList.remove('oculto');
   const el = document.getElementById('dpCards');
-  const lista = vendedoresAtuais.length ? vendedoresAtuais : (resumoAtual?.vendedores || []);
+  let lista = vendedoresAtuais.length ? vendedoresAtuais : (resumoAtual?.vendedores || []);
+  if(!lista.length){
+    // Entrada direta por #desempenho: o painel ainda nao carregou a lista.
+    el.innerHTML = '<div class="vazio">Carregando…</div>';
+    try{
+      lista = await fetch('/api/admin/vendedores').then(r => r.ok ? r.json() : []);
+      vendedoresAtuais = lista;
+    }catch(e){ lista = []; }
+  }
   if(!lista.length){
     el.innerHTML = '<div class="vazio">Nenhum vendedor cadastrado.</div>';
     return;
