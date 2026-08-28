@@ -3778,7 +3778,7 @@ async function carregarAtendimento(){
             c.urgente ? 'var(--warn)' : 'var(--good)')}
       ${kpi('Abertas há +24h', d.paradas_antigas || 0, 'sessões esquecidas em aberto')}
       ${kpi('Só agradeceram', d.so_agradeceram || 0, 'fora do alerta: não pedem resposta')}
-      ${kpi('Marcadas resolvidas', d.resolvidas || 0, 'voltam se o cliente falar de novo')}
+      ${kpi('Resolvidas hoje', d.resolvidas || 0, 'voltam amanhã se continuarem sem resposta')}
     </div>
     <div class="card">
       <div class="aud-cabecalho">
@@ -3794,7 +3794,9 @@ async function carregarAtendimento(){
         <b>Não usa a bolinha de "não lida" do Totalk</b> — ela é zerada pelo bot antes de
         alguém ver, e foi por isso que este painel existe. Sessões abertas há mais de 24h
         ficam de fora da lista (são conversas esquecidas em aberto, não atendimento de hoje),
-        e também sai quem só mandou "ok"/"obrigado" — encerramento não pede resposta.</div>
+        e também sai quem só mandou "ok"/"obrigado" — encerramento não pede resposta.
+        O "Resolvido" vale apenas para o dia: no dia seguinte, quem continuar sem resposta
+        volta para a lista.</div>
     </div>`;
 }
 

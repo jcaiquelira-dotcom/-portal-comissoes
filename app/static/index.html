@@ -1604,7 +1604,7 @@ document.addEventListener('click', async ev => {
     const cartao = botao.closest('.atd-item');
     cartao.style.opacity = '.35';
     cartao.querySelector('.atd-acoes').innerHTML =
-      '<span class="atd-ok">✓ marcado como resolvido</span>';
+      '<span class="atd-ok">✓ resolvido por hoje</span>';
     setTimeout(() => { cartao.remove(); carregarMeuAtendimento(); }, 900);
   }else{
     botao.disabled = false;
@@ -1660,13 +1660,16 @@ async function carregarMeuAtendimento(){
           ${c.url ? `<a class="btn btn-principal btn-pequeno" href="${c.url}"
              target="_blank" rel="noopener">Abrir conversa</a>` : ''}
           <button class="btn btn-neutro btn-pequeno" data-resolver="${c.id}"
-            data-ultima="${c.ultima_em || ''}">Já resolvi</button>
+            data-ultima="${c.ultima_em || ''}"
+            title="Some da lista hoje. Volta amanhã se continuar sem resposta, ou na hora se o cliente falar de novo.">Já resolvi</button>
         </div>
       </div>`;
     }).join('')}
     <div class="dp-aviso">Atualiza sozinho a cada 10 minutos. Quem aparece aqui mandou
       mensagem e ainda não teve resposta — não depende da bolinha de "não lida" do Totalk,
-      que some sozinha quando o bot atende primeiro.</div>`;
+      que some sozinha quando o bot atende primeiro.<br>
+      <b>"Já resolvi" vale só para hoje:</b> se amanhecer e o cliente continuar sem
+      resposta, ele volta para esta lista. E volta na hora se ele mandar mensagem nova.</div>`;
 }
 
 async function carregarPerformance(){

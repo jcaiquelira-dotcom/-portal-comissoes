@@ -865,13 +865,24 @@ def _atd_resolvidos() -> dict:
 
 
 def _atd_pendentes(conversas, resolvidos):
-    """Tira da lista o que ja foi resolvido — mas SO enquanto o cliente nao
-    falar de novo. Se ele mandar mensagem nova depois da marcacao, a conversa
-    volta: esconder cliente que voltou a falar seria pior que nao ter alerta."""
+    """Tira da lista o que foi resolvido, com DUAS validades:
+
+    1. O cliente nao pode ter falado depois. Se mandou mensagem nova, a
+       conversa volta — esconder quem voltou a falar seria pior que nao ter
+       alerta nenhum.
+    2. A marcacao vale so pelo dia em que foi feita. "Ja resolvi" quer dizer
+       "estou tratando isso agora", nao "esquece pra sempre": se amanhecer e a
+       conversa continuar sem resposta da loja, ela volta pra fila. Foi o que o
+       gestor pediu em 28/08/2026 — nada pode cair no esquecimento.
+    """
+    hoje = hoje_br().isoformat()
     saida = []
     for c in conversas:
-        marcado = resolvidos.get(c["id"])
-        if marcado and c.get("ultima_em") and c["ultima_em"] <= marcado:
+        marca = resolvidos.get(c["id"])
+        if isinstance(marca, str):        # formato antigo: so o carimbo
+            marca = {"ultima_em": marca, "em": marca[:10]}
+        if (marca and marca.get("em") == hoje
+                and c.get("ultima_em") and c["ultima_em"] <= marca.get("ultima_em", "")):
             continue
         saida.append(c)
     return saida
@@ -894,11 +905,16 @@ def api_atendimento_resolver():
     else:
         # Guarda o carimbo da ultima fala do cliente, nao a hora do clique:
         # e assim que a conversa reaparece se ele voltar a falar.
-        resolvidos[sessao] = (corpo.get("ultima_em")
-                              or agora_br().isoformat(timespec="seconds"))
-    # Marcacao velha nao serve pra nada e so faria o arquivo crescer.
-    corte = (agora_br() - timedelta(days=7)).isoformat(timespec="seconds")
-    resolvidos = {k: v for k, v in resolvidos.items() if v >= corte}
+        resolvidos[sessao] = {
+            "ultima_em": (corpo.get("ultima_em")
+                          or agora_br().isoformat(timespec="seconds")),
+            # A data do clique e o que faz a marcacao expirar amanha.
+            "em": hoje_br().isoformat(),
+        }
+    # Marcacao de ontem pra tras ja nao vale — nao precisa ficar no arquivo.
+    hoje = hoje_br().isoformat()
+    resolvidos = {k: v for k, v in resolvidos.items()
+                  if (v.get("em") if isinstance(v, dict) else str(v)[:10]) == hoje}
     escrever_json(resolver_pasta_dados() / "atendimento_resolvido.json", resolvidos)
     return jsonify({"ok": True, "resolvidas": len(resolvidos)})
 
