@@ -150,6 +150,12 @@
     font-size:11px;color:var(--muted);margin:8px 2px 0;line-height:1.5;
   }
   .kpi-nota:empty{display:none;}
+  .carros-busca{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:6px 10px;font-family:inherit;font-size:12.5px;
+    margin-left:auto;min-width:230px;
+  }
+  .carros-busca:focus{outline:none;border-color:var(--accent);}
   .shopee-corpo{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,340px);gap:8px 26px;align-items:start;}
   .shopee-meses .dp-linha .nome{width:52px;}
   @media (max-width: 900px){ .shopee-corpo{grid-template-columns:1fr;} }
@@ -3150,6 +3156,31 @@ function renderCarros(d){
   ].join('');
 
   const pend = d.lista_pendentes;
+  window.__carrosLista = d.lista || [];
+  // Definida antes do innerHTML: o listener e ligado logo depois dele.
+  window.__renderCarrosLista = (termo) => {
+    const corpo = document.getElementById('carrosTabela');
+    if(!corpo) return;
+    const limpar = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const t = limpar(termo);
+    const lista = window.__carrosLista || [];
+    const filtrados = !t ? lista : lista.filter(c =>
+      t.split(/\s+/).every(p => limpar([c.veiculo, c.placa, c.leilao, c.lote,
+        c.situacao, c.endereco, c.guincho, c.data, c.chegada, String(c.valor || '')]
+        .filter(Boolean).join(' ')).includes(p)));
+    document.getElementById('carrosConta').textContent =
+      filtrados.length + (t ? ' de ' + lista.length : '');
+    corpo.innerHTML = filtrados.map(c => `<tr${c.estado !== 'chegou' && c.dias_parado > 30
+        ? ' class="venda-suspeita"' : ''}>
+      <td>${dt(c.data)}</td>
+      <td><b>${c.veiculo || '—'}</b>${c.placa ? ` <span class="dp-var neutro">${c.placa}</span>` : ''}</td>
+      <td>${c.leilao || '—'}${c.lote ? ` · lote ${c.lote}` : ''}</td>
+      <td class="valor-money">${c.valor ? fmtMoeda(c.valor) : '—'}</td>
+      <td>${c.situacao || '—'}</td>
+      <td>${c.chegada ? dt(c.chegada) : (c.estado === 'chegou' ? 'chegou' : '—')}</td>
+      <td>${c.endereco || '—'}</td>
+    </tr>`).join('') || '<tr><td colspan="7" class="vazio">Nada encontrado.</td></tr>';
+  };
   const cardPendentes = `<div class="card" style="margin-bottom:14px;">
     <p class="card-titulo">Carros a cobrar</p>
     ${pend.length ? `<div class="tabela-rolante"><table>
@@ -3167,6 +3198,22 @@ function renderCarros(d){
     </table></div>
     <div class="dp-aviso">Linha destacada = parado há mais de 30 dias.</div>`
     : '<div class="vazio">Nenhum carro pendente. Todos os comprados no período já chegaram. 👏</div>'}
+  </div>`;
+
+  const cardTodos = `<div class="card" style="margin-bottom:14px;">
+    <div class="aud-cabecalho">
+      <p class="card-titulo" style="margin:0;">Todos os carros</p>
+      <span class="aud-conta" id="carrosConta">${(d.lista || []).length}</span>
+      <input type="search" id="carrosBusca" class="carros-busca"
+        placeholder="veículo, placa, leilão, lote, situação, endereço...">
+    </div>
+    <div class="tabela-rolante"><table>
+      <thead><tr><th>Comprado</th><th>Veículo</th><th>Leilão</th><th>Valor</th>
+        <th>Situação</th><th>Chegada</th><th>Onde está</th></tr></thead>
+      <tbody id="carrosTabela"></tbody>
+    </table></div>
+    <div class="dp-aviso">A planilha inteira do período filtrado. Digite pra procurar
+      em qualquer campo — filtra enquanto você escreve, sem paginação.</div>
   </div>`;
 
   const maxLeilao = Math.max(...d.por_leilao.map(l => l.qtd), 1);
