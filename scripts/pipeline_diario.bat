@@ -37,6 +37,9 @@ echo --- fila de retomada --- >> "%LOG%"
 "%PY%" app\gerar_fila_retomada.py >> "%LOG%" 2>&1
 "%PY%" app\sincronizar_crm.py >> "%LOG%" 2>&1
 
+echo --- meta ads (windsor) --- >> "%LOG%"
+"%PY%" app\atualizar_meta_ads.py >> "%LOG%" 2>&1
+
 echo --- google ads (windsor) --- >> "%LOG%"
 "%PY%" app\atualizar_google_ads.py >> "%LOG%" 2>&1
 
