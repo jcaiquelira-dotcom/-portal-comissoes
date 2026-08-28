@@ -3191,6 +3191,7 @@ function renderCarros(d){
   document.getElementById('carrosCorpo').innerHTML = `
     <div class="dp-kpis">${kpis}</div>
     ${cardPendentes}
+    ${cardTodos}
     <div class="dp-grid duas">${cardLeiloes}${cardEstados}</div>
     <div class="card" style="margin-top:14px;">
       <p class="card-titulo">Como ler estes números</p>
@@ -3207,6 +3208,9 @@ function renderCarros(d){
         <b>${(d.gerado_em || '').slice(8,10)}/${(d.gerado_em || '').slice(5,7)} às ${(d.gerado_em || '').slice(11,16)}</b>.
         Editou a planilha? Rode de novo pra atualizar aqui.</span></div>
     </div>`;
+  window.__renderCarrosLista('');
+  document.getElementById('carrosBusca')?.addEventListener('input',
+    ev => window.__renderCarrosLista(ev.target.value));
 }
 
 document.addEventListener('change', ev => {

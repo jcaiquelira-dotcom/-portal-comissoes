@@ -2939,6 +2939,11 @@ def api_admin_carros():
         },
         "historico_sem_registro": somar([c for c in antigos if c["estado"] != "chegou"]),
         "lista_pendentes": pendentes,
+        # A planilha inteira, nao so os pendentes: o painel respondia "o que
+        # esta atrasado?" mas nao "cade o carro tal?". Ordem por compra, mais
+        # recente em cima; a busca acontece na tela, que ja tem tudo em maos.
+        "lista": sorted(visiveis, key=lambda c: (c["data"] or "", c["veiculo"] or ""),
+                        reverse=True),
         "por_leilao": agrupar(acompanhados, "leilao"),
         "por_estado": agrupar(acompanhados, "estado"),
         "total_geral": somar(visiveis),
