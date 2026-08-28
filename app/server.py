@@ -2430,6 +2430,19 @@ def api_admin_ml_conta():
     return jsonify(d)
 
 
+@app.route("/api/admin/shopee-conta")
+def api_admin_shopee_conta():
+    """Serie mensal da Shopee (importar_shopee_stats). Endpoint separado do
+    resumo porque o card dela e analise propria: mesmo quando o periodo
+    filtrado nao tem Shopee, a evolucao historica continua na tela."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    d = ler_json(resolver_pasta_dados() / "shopee_conta.json", None)
+    if not d or not (d.get("vendas") or {}).get("serie_mes"):
+        return jsonify({"sem_dados": True})
+    return jsonify(d)
+
+
 @app.route("/api/admin/metas-bonus")
 def api_admin_metas_bonus():
     if not exigir_admin():
