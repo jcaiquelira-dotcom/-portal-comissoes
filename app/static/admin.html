@@ -276,21 +276,27 @@
   .rh-ficha-acoes #rhApagar{margin-left:auto;color:var(--bad);}
 
   /* ---- Auditoria de comissões ---- */
-  .aud-modos{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;}
-  .aud-modo{
-    display:flex;flex-direction:column;gap:7px;text-align:left;
-    padding:18px;border-radius:12px;cursor:pointer;font-family:inherit;
-    background:var(--surface);border:1px solid var(--line);
-    transition:border-color .12s, transform .12s;
+  /* Chave seletora dos modos: pilula desliza por tras da opcao ativa. */
+  .seletor{
+    position:relative;display:inline-flex;align-items:stretch;
+    background:var(--surface-2);border:1px solid var(--line);
+    border-radius:999px;padding:3px;
   }
-  .aud-modo:hover{border-color:var(--accent);transform:translateY(-2px);}
-  .aud-modo .t{font-size:15px;font-weight:700;color:var(--text);}
-  .aud-modo .d{font-size:12.5px;color:var(--muted);line-height:1.5;}
-  .aud-modo.ativo{
-    border-color:var(--accent);
-    background:linear-gradient(180deg, rgba(232,116,58,.10), transparent);
+  .seletor-pilula{
+    position:absolute;top:3px;bottom:3px;left:3px;width:calc(50% - 3px);
+    background:var(--accent);border-radius:999px;
+    transition:transform .18s cubic-bezier(.4,0,.2,1);
   }
-  .aud-modo.ativo .t{color:var(--accent);}
+  .seletor[data-ativo="total"] .seletor-pilula{transform:translateX(100%);}
+  .seletor-opcao{
+    position:relative;z-index:1;flex:1;
+    background:none;border:none;cursor:pointer;font-family:inherit;
+    font-size:12px;font-weight:600;color:var(--muted);
+    padding:6px 16px;border-radius:999px;white-space:nowrap;
+    transition:color .18s;
+  }
+  .seletor-opcao.ativo{color:#fff;}
+  .seletor-opcao:not(.ativo):hover{color:var(--text);}
   .dp-kpi.filtravel{cursor:pointer;transition:border-color .12s, transform .12s;}
   .dp-kpi.filtravel:hover{border-color:var(--accent);transform:translateY(-2px);}
   .dp-kpi.ativo{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);}
@@ -961,6 +967,19 @@
           <label class="campo-rotulo" for="audVendedor">Vendedor</label>
           <select id="audVendedor"><option value="">Todos os vendedores</option></select>
         </div>
+        <div class="filtro-campo">
+          <label class="campo-rotulo">Modo</label>
+          <!-- Chave seletora: os dois modos continuam sempre visiveis, so que
+               num controle do tamanho dos outros filtros. A explicacao de cada
+               um vive no title. -->
+          <div class="seletor" id="audModos" data-ativo="amostra">
+            <span class="seletor-pilula"></span>
+            <button type="button" class="seletor-opcao" data-modo="amostra"
+              title="Um punhado por vez, metade escolhida por sinal de atenção.">Amostragem</button>
+            <button type="button" class="seletor-opcao" data-modo="total"
+              title="A planilha inteira do mês, venda por venda.">Total</button>
+          </div>
+        </div>
         <div class="filtro-campo" id="audCampoTamanho">
           <label class="campo-rotulo" for="audTamanho">Tamanho da amostra</label>
           <select id="audTamanho">
@@ -970,18 +989,6 @@
             <option value="80">80 vendas</option>
           </select>
         </div>
-      </div>
-      <!-- Os dois modos ficam sempre na tela, com o ativo marcado: trocar de um
-           pro outro e um clique, sem passar por tela nenhuma. -->
-      <div class="aud-modos" id="audModos">
-        <button class="aud-modo" data-modo="amostra">
-          <span class="t">Por amostragem</span>
-          <span class="d">Um punhado por vez, metade escolhida por sinal de atenção.</span>
-        </button>
-        <button class="aud-modo" data-modo="total">
-          <span class="t">Conferência total</span>
-          <span class="d">A planilha inteira do mês, venda por venda.</span>
-        </button>
       </div>
       <div id="audCorpo"></div>
     </section>
@@ -2069,7 +2076,9 @@ function audPeriodoPadrao(){
 }
 
 function audMarcarModo(){
-  document.querySelectorAll('#audModos .aud-modo').forEach(b =>
+  const chave = document.getElementById('audModos');
+  chave.dataset.ativo = audModo;
+  chave.querySelectorAll('.seletor-opcao').forEach(b =>
     b.classList.toggle('ativo', b.dataset.modo === audModo));
 }
 
