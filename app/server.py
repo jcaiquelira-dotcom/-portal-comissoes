@@ -1995,8 +1995,10 @@ def api_admin_rh():
             a["colaborador_id"] == cid and a.get("de", "") <= hoje <= (a.get("ate") or a.get("de", ""))
             for a in ausencias.values())
         lista.append(item)
+    # Ordena pelo apelido quando existe: e o nome que a lista mostra, e procurar
+    # "Nego" na letra R nao ajuda ninguem.
     lista.sort(key=lambda c: ((c.get("situacao") or "ativo") != "ativo",
-                              (c.get("nome") or "").lower()))
+                              (c.get("apelido") or c.get("nome") or "").lower()))
 
     nomes = {cid: c.get("nome", "?") for cid, c in colaboradores.items()}
 
