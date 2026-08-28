@@ -69,7 +69,11 @@ POR_VENDEDOR_CRM = 200
 # Só entra no painel quem parou de falar com a gente nos últimos DIAS_MAX_CRM
 # dias: lead frio de mês passado já resolveu a vida em outro lugar, e uma fila
 # curta e recente é a que o vendedor consegue trabalhar de verdade no dia.
-DIAS_MAX_CRM = 10
+# Baixado de 10 pra 5 em 28/08/2026 a pedido do gestor: com 10 dias a fila
+# tinha 445 clientes (~148 por vendedor) e ninguém trabalhava até o fim; com 5
+# ficam ~66 por vendedor, e quem sumiu há menos de uma semana ainda lembra da
+# conversa. Roda todo dia às 07:30 pelo pipeline_diario.bat.
+DIAS_MAX_CRM = 5
 SAIDA_CRM = ROOT / "Fila_CRM_CONFIDENCIAL.json"
 # nome que o Totalk usa pro atendente -> id do vendedor no portal-comissoes
 ID_PORTAL = {"Flávia": "flavia", "Gustavo": "gustavo", "Matheus": "matheus"}
