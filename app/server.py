@@ -3158,7 +3158,27 @@ def api_marketing_gestor():
     # metade do investimento.
     meta = gasto_bruto.get("meta")
     meta_rateio = None
-    if meta and meta.get("de") and meta.get("ate"):
+
+    # Desde 28/08/2026 o Meta vem do Windsor com serie por dia: soma exata do
+    # periodo filtrado, sem rateio. O bloco de rateio abaixo continua pro caso
+    # de a fonte voltar a ser o CSV do Gerenciador, que so traz o agregado.
+    serie_meta = (meta or {}).get("serie_dia") or {}
+    if serie_meta:
+        dentro = {d: v for d, v in serie_meta.items() if de <= d <= ate}
+        if dentro:
+            gasto_meta = round(sum(v["spend"] for v in dentro.values()), 2)
+            meta_rateio = {
+                "de": min(dentro), "ate": max(dentro),
+                "dias_dentro": len(dentro), "dias_relatorio": len(dentro),
+                "spend": gasto_meta,
+                "impressions": sum(v["impressions"] for v in dentro.values()),
+                "conversas": sum(v["conversas"] for v in dentro.values()),
+                "integral": True,
+                "por_dia": True,
+            }
+            investimento = round(investimento + gasto_meta, 2)
+            impressoes += meta_rateio["impressions"]
+    elif meta and meta.get("de") and meta.get("ate"):
         ini = max(de, meta["de"])
         fim = min(ate, meta["ate"])
         if ini <= fim:

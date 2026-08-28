@@ -3395,7 +3395,7 @@ function renderMarketing(d){
     <div class="num valor-money">${rat ? fmtMoeda(rat.spend) : '—'}</div>
     <span class="dp-var neutro">${rat
       ? (rat.integral
-          ? `${mt.conversas.toLocaleString('pt-BR')} conversas iniciadas`
+          ? `${(rat.por_dia ? rat.conversas : mt.conversas).toLocaleString('pt-BR')} conversas iniciadas`
           : `rateado · ${rat.dias_dentro} de ${rat.dias_relatorio} dias do relatório`)
       : 'sem relatório neste período'}</span></div>`;
   const mlr = m.ml_rateio;
