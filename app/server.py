@@ -1671,10 +1671,26 @@ def api_admin_resumo():
         desde_ml = (ml.get("vendas") or {}).get("serie_desde") or "9999"
         soma = round(sum(x.get("total", 0) for d, x in serie_ml.items() if de <= d <= ate), 2)
         qtd = sum(x.get("qtd", 0) for d, x in serie_ml.items() if de <= d <= ate)
+
+        # Venda que o time lanca com canal "Mercado Livre" foi paga pelo
+        # checkout do ML — ela JA esta nos pagamentos da serie acima. Conta uma
+        # vez so: fica inteira no comercial (comissao e meta do vendedor nao
+        # mudam) e sai da fatia do ML no consolidado. Confirmado pelo gestor em
+        # 28/08/2026.
+        dup_total, dup_qtd = 0.0, 0
+        for v_ in vendas.values():
+            if (v_.get("tipo", "venda") == "venda" and de <= v_["data"] <= ate
+                    and str(v_.get("canal") or "").startswith("Mercado Livre")):
+                dup_total += valor_liquido(v_)
+                dup_qtd += 1
+        dup_total = round(dup_total, 2)
+
         if qtd:
             marketplaces.append({
                 "id": "mercado_livre", "nome": "Mercado Livre",
-                "total": soma, "qtd": qtd,
+                "total": round(max(0.0, soma - dup_total), 2),
+                "qtd": max(0, qtd - dup_qtd),
+                "descontado_comercial": {"total": dup_total, "qtd": dup_qtd},
                 # Serie comeca em serie_desde: periodo pedido antes disso vem
                 # incompleto, e a tela avisa em vez de fingir que ML nao vendia.
                 "cobre_periodo": desde_ml <= de,

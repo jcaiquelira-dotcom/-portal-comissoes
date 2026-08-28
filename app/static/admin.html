@@ -146,6 +146,10 @@
     font-variant-numeric:tabular-nums;
   }
   .kpi-quebra:empty{display:none;}
+  .kpi-nota{
+    font-size:11px;color:var(--muted);margin:8px 2px 0;line-height:1.5;
+  }
+  .kpi-nota:empty{display:none;}
 
   /* ---- Conta Mercado Livre ---- */
   .ml-selo{
@@ -608,6 +612,7 @@
       </div>
 
       <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="kpi-nota" id="kpiNota"></div>
 
       <div class="card" id="cardMetas" style="margin-bottom:14px;">
         <p class="card-titulo">Metas do mês</p>
@@ -1680,6 +1685,16 @@ async function carregarResumo(){
   if(incompleto) sub('totalGeralValueSub',
     document.getElementById('totalGeralValueSub').innerHTML +
     ' <span title="A série do marketplace não cobre o período inteiro filtrado.">⚠</span>');
+
+  // A explicacao do desconto mora na tela: sem ela o gestor compararia o
+  // numero do ML aqui com o extrato do Mercado Pago e acharia um furo.
+  const descontos = mkts.filter(m => m.descontado_comercial?.qtd);
+  sub('kpiNota', descontos.length
+    ? descontos.map(m =>
+        `${m.descontado_comercial.qtd} vendas do time pagas pelo checkout do ${m.nome}
+         (${fmtMoeda(m.descontado_comercial.total)}) contam uma vez só: ficam no comercial
+         e saem do número do ${nomeCurto[m.id] || m.nome}.`).join(' ')
+    : '');
   document.getElementById('footTotal').textContent = fmtMoeda(resumoAtual.total_geral);
   document.getElementById('footComissao').textContent = fmtMoeda(resumoAtual.comissao_geral);
 
