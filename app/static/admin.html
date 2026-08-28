@@ -150,6 +150,9 @@
     font-size:11px;color:var(--muted);margin:8px 2px 0;line-height:1.5;
   }
   .kpi-nota:empty{display:none;}
+  .shopee-corpo{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,340px);gap:8px 26px;align-items:start;}
+  .shopee-meses .dp-linha .nome{width:52px;}
+  @media (max-width: 900px){ .shopee-corpo{grid-template-columns:1fr;} }
 
   /* ---- Conta Mercado Livre ---- */
   .ml-selo{
@@ -621,6 +624,7 @@
       <!-- Saúde da conta Mercado Livre: reputação e pós-venda ao lado das
            vendas, porque a medalha caindo derruba o funil inteiro. -->
       <div id="mlConta"></div>
+      <div id="shopeeConta"></div>
       </div>
 
       <div class="card" style="margin-bottom:14px;">
@@ -1153,6 +1157,7 @@ function mostrarApp(){
   carregarVendedores();
   carregarResumo();
   carregarMlConta();
+carregarShopeeConta();
   carregarMesesFechados();
   carregarLogAcessos();
   carregarLogAcoes();
@@ -3569,6 +3574,60 @@ async function carregarMlConta(){
       ${motivos}. Faturamento = pagamentos aprovados no Mercado Pago com origem no ML — valor real.
       Percentuais e limites são os oficiais do ML para manter a medalha.
       Sincronizado às ${(d.gerado_em || '').slice(11, 16)} de ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>` : ''}
+  </div>`;
+}
+
+async function carregarShopeeConta(){
+  const el = document.getElementById('shopeeConta');
+  if(!el) return;
+  const res = await fetch('/api/admin/shopee-conta');
+  if(!res.ok) return;
+  const d = await res.json();
+  if(d.sem_dados){ el.innerHTML = ''; return; }
+
+  const serie = d.vendas.serie_mes;
+  const meses = Object.keys(serie).sort();
+  const total = meses.reduce((t, m) => t + serie[m].total, 0);
+  const pedidos = meses.reduce((t, m) => t + serie[m].qtd, 0);
+  const max = Math.max(...meses.map(m => serie[m].total), 1);
+  const melhor = meses.reduce((a, b) => serie[a].total >= serie[b].total ? a : b);
+  const NOMES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const nomeMes = m => NOMES[Number(m.slice(5, 7)) - 1] + '/' + m.slice(2, 4);
+  const ultimo = meses[meses.length - 1];
+  const penultimo = meses[meses.length - 2];
+  const varUlt = penultimo && serie[penultimo].total
+    ? Math.round(100 * (serie[ultimo].total - serie[penultimo].total) / serie[penultimo].total) : null;
+
+  const tile = (rot, valor, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money">${valor}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+
+  el.innerHTML = `<div class="card" style="margin-bottom:14px;">
+    <div class="aud-cabecalho">
+      <p class="card-titulo" style="margin:0;">Shopee</p>
+      <span class="ml-selo">até ${nomeMes(ultimo)}</span>
+      <span class="aud-conta">relatório mensal do Seller Centre</span>
+    </div>
+    <div class="shopee-corpo">
+      <div class="dp-kpis" style="margin-bottom:0;">
+        ${tile('Vendas pagas no período', fmtMoeda(total), `${pedidos} pedidos · ${nomeMes(meses[0])} a ${nomeMes(ultimo)}`)}
+        ${tile('Ticket médio', fmtMoeda(pedidos ? total / pedidos : 0), 'por pedido pago')}
+        ${tile('Último mês (' + nomeMes(ultimo) + ')', fmtMoeda(serie[ultimo].total),
+               `${serie[ultimo].qtd} pedidos` + (varUlt !== null
+                 ? ` · ${varUlt >= 0 ? '▲ +' : '▼ '}${varUlt}% vs ${nomeMes(penultimo)}` : ''))}
+        ${tile('Melhor mês', nomeMes(melhor), fmtMoeda(serie[melhor].total))}
+      </div>
+      <div class="dp-lista shopee-meses">
+        ${meses.map(m => `<div class="dp-linha">
+          <span class="nome">${nomeMes(m)}</span>
+          <span class="v valor-money">${fmtMoeda(serie[m].total)}</span>
+          <span class="t"><span class="f" style="width:${(serie[m].total / max * 100).toFixed(1)}%"></span></span>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="dp-aviso" style="margin-top:10px;">Dados da planilha importada (${d.fonte || ''}) —
+      a Shopee só entra no total consolidado do topo quando o período filtrado tem mês coberto.
+      Pra dado ao vivo, falta a API oficial (Partner ID + Key).</div>
   </div>`;
 }
 
