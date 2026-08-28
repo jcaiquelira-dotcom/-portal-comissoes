@@ -1719,9 +1719,23 @@ def api_admin_resumo():
         # serie diaria, este bloco muda de fonte e o painel nem percebe.
         shp = ler_json(resolver_pasta_dados() / "shopee_conta.json", None) or {}
         serie_shp = (shp.get("vendas") or {}).get("serie_mes") or {}
+        serie_shp_dia = (shp.get("vendas") or {}).get("serie_dia") or {}
         soma_s, qtd_s, rateado = 0.0, 0.0, False
         d_de, d_ate = date.fromisoformat(de), date.fromisoformat(ate)
+
+        # Dia a dia primeiro (exportacao de periodo curto): soma exata, sem
+        # rateio. O mes que tem cobertura diaria ignora a linha mensal logo
+        # abaixo — senao a mesma venda entraria duas vezes.
+        meses_com_dia = set()
+        for dia_chave, dd in serie_shp_dia.items():
+            meses_com_dia.add(dia_chave[:7])
+            if de <= dia_chave <= ate:
+                soma_s += dd.get("total", 0)
+                qtd_s += dd.get("qtd", 0)
+
         for mes_chave, mm in serie_shp.items():
+            if mes_chave in meses_com_dia:
+                continue
             ano, mes_n = int(mes_chave[:4]), int(mes_chave[5:7])
             dias_mes = calendar.monthrange(ano, mes_n)[1]
             ini = max(d_de, date(ano, mes_n, 1))
@@ -1739,12 +1753,15 @@ def api_admin_resumo():
                 "id": "shopee", "nome": "Shopee",
                 "total": round(soma_s, 2), "qtd": int(round(qtd_s)),
                 "rateado": rateado,
-                "cobre_periodo": min(serie_shp) <= de[:7] and ate[:7] <= max(serie_shp),
+                "cobre_periodo": (min({**serie_shp, **{k[:7]: 1 for k in serie_shp_dia}})
+                                  <= de[:7] and ate[:7]
+                                  <= max({**serie_shp, **{k[:7]: 1 for k in serie_shp_dia}})),
             })
-        elif serie_shp:
+        elif serie_shp or serie_shp_dia:
+            ultimo = max(list(serie_shp) + [k[:7] for k in serie_shp_dia])
             marketplaces_ausentes.append({
                 "id": "shopee", "nome": "Shopee",
-                "motivo": f"relatório importado vai até {max(serie_shp)[5:7]}/{max(serie_shp)[:4]}",
+                "motivo": f"relatório importado vai até {ultimo[5:7]}/{ultimo[:4]}",
             })
 
         # Mesma regra pros canais de serie diaria: existe historico, mas nada
