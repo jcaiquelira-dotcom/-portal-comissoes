@@ -141,6 +141,11 @@
   .rh-tag.bad{color:var(--bad);border-color:var(--bad);}
   .rh-tag.ok{color:var(--good);border-color:var(--good);}
   .rh-num{text-align:right;font-variant-numeric:tabular-nums;}
+  th.rh-ord{cursor:pointer;user-select:none;white-space:nowrap;}
+  th.rh-ord:hover{color:var(--text);}
+  th.rh-ord.ativa{color:var(--accent);}
+  /* Largura reservada pra seta: sem isso a coluna pula de lugar a cada clique. */
+  .rh-seta{display:inline-block;width:9px;margin-left:3px;font-size:9px;}
   .rh-sit{font-size:11.5px;font-weight:600;}
   .rh-sit.ativo{color:var(--good);}
   .rh-sit.afastado{color:var(--warn);}
@@ -2228,6 +2233,9 @@ document.addEventListener('change', ev => {
 let rhDados = null;
 let rhAba = 'equipe';
 let rhEditando = null;
+// Sem coluna escolhida vale a ordem do servidor: ativos primeiro, depois pelo
+// nome que a lista mostra. É a ordem certa pra bater o olho no time.
+let rhOrdem = {coluna: null, desc: false};
 
 const RH_ABAS = {equipe: 'Equipe', ausencias: 'Ausências',
                  documentos: 'Documentos', ocorrencias: 'Ocorrências'};
@@ -2294,9 +2302,47 @@ function renderRh(){
 }
 
 /* ---------- equipe ---------- */
+// Cada coluna diz o que a celula mostra e por qual valor ela ordena. Texto sai
+// sem acento pra "Anúncios" nao cair depois de "Vendas".
+const RH_COLUNAS = [
+  {chave: 'nome',     rotulo: 'Nome',      ord: c => rhTexto(c.apelido || c.nome)},
+  {chave: 'cargo',    rotulo: 'Cargo',     ord: c => rhTexto(c.cargo)},
+  {chave: 'setor',    rotulo: 'Setor',     ord: c => rhTexto(c.setor)},
+  {chave: 'custo',    rotulo: 'Custo/mês', num: true, ord: c => rhCusto(c) || null},
+  {chave: 'casa',     rotulo: 'Casa',      num: true, ord: c => c.tempo_casa},
+  {chave: 'situacao', rotulo: 'Situação',  ord: c => rhTexto(c.situacao || 'ativo')},
+];
+
+function rhTexto(v){
+  return (v || '').toString().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function rhOrdenar(lista){
+  const col = RH_COLUNAS.find(c => c.chave === rhOrdem.coluna);
+  if(!col) return lista;
+  const sinal = rhOrdem.desc ? -1 : 1;
+  // Ficha em branco vai pro fim nos dois sentidos: quem nao tem cargo nem
+  // salario preenchido nao e resposta pra "quem custa mais" nem pra "quem
+  // custa menos" — e so ficha incompleta.
+  const vazio = v => v === null || v === undefined || v === '';
+  return lista.slice().sort((a, b) => {
+    const x = col.ord(a), y = col.ord(b);
+    if(vazio(x) !== vazio(y)) return vazio(x) ? 1 : -1;
+    if(vazio(x)) return 0;
+    return (x > y ? 1 : x < y ? -1 : 0) * sinal;
+  });
+}
+
 function rhEquipe(d){
   const i = d.indicadores;
-  const linhas = d.colaboradores.map(c => `
+  const cabecalho = RH_COLUNAS.map(col => {
+    const ativa = rhOrdem.coluna === col.chave;
+    return `<th class="rh-ord${col.num ? ' rh-num' : ''}${ativa ? ' ativa' : ''}"
+      data-ord="${col.chave}" title="Ordenar por ${col.rotulo}">${col.rotulo}<span
+      class="rh-seta">${ativa ? (rhOrdem.desc ? '▾' : '▴') : ''}</span></th>`;
+  }).join('');
+  const linhas = rhOrdenar(d.colaboradores).map(c => `
     <tr class="rh-linha" data-ficha="${c.id}">
       <td><b>${rhEsc(c.apelido || c.nome)}</b>${c.fora_hoje
         ? ' <span class="rh-tag warn">fora hoje</span>' : ''}</td>
@@ -2329,9 +2375,12 @@ function rhEquipe(d){
         <button class="btn btn-principal btn-pequeno" id="rhNovo">+ Novo colaborador</button>
       </div>
       ${d.colaboradores.length ? `<div class="tabela-rolante"><table>
-        <thead><tr><th>Nome</th><th>Cargo</th><th>Setor</th><th class="rh-num">Custo/mês</th><th>Casa</th><th>Situação</th></tr></thead>
+        <thead><tr>${cabecalho}</tr></thead>
         <tbody>${linhas}</tbody></table></div>
-        <div class="dp-aviso">Clique numa linha para abrir a ficha. O custo é salário bruto +
+        <div class="dp-aviso">Clique numa linha para abrir a ficha, ou no título de uma
+          coluna para ordenar por ela${rhOrdem.coluna
+            ? ' — <a href="#" id="rhOrdemPadrao">voltar à ordem normal</a>' : ''}.
+          O custo é salário bruto +
           vale-transporte + bonificação — não inclui encargos, férias nem 13º.</div>`
         : '<div class="vazio">Nenhum colaborador cadastrado ainda.</div>'}
     </div>
@@ -2535,6 +2584,17 @@ function rhOcorrencias(d){
 document.addEventListener('click', async ev => {
   const aba = ev.target.closest('[data-rhaba]');
   if(aba){ rhAba = aba.dataset.rhaba; renderRh(); return; }
+
+  if(ev.target.id === 'rhOrdemPadrao'){
+    ev.preventDefault(); rhOrdem = {coluna: null, desc: false}; renderRh(); return;
+  }
+  const th = ev.target.closest('th[data-ord]');
+  if(th){
+    const c = th.dataset.ord;
+    // Segundo clique na mesma coluna inverte; coluna nova comeca crescente.
+    rhOrdem = {coluna: c, desc: rhOrdem.coluna === c && !rhOrdem.desc};
+    renderRh(); return;
+  }
 
   const linha = ev.target.closest('[data-ficha]');
   if(linha && linha.closest('#rhCorpo')){ rhAbrirFicha(linha.dataset.ficha); return; }
