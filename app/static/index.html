@@ -842,11 +842,14 @@ function abrirModalDevolucao(v){
   document.getElementById('devolucaoValorField').style.display = devolucaoTipo === 'parcial' ? 'block' : 'none';
   document.getElementById('devolucaoValorInput').value = (v.devolucao && v.devolucao.tipo === 'parcial') ? v.devolucao.valor_devolvido : '';
   document.getElementById('devolucaoConfirmarBtn').style.display = devolucaoTipo ? 'block' : 'none';
-  document.getElementById('devolucaoOverlay').classList.add('show');
+  // A classe é 'aberto' — o CSS de .modal-overlay abre com ela. Ficou
+  // 'show' num refactor e o modal parava de aparecer: o overlay recebia a
+  // classe, era preenchido com os dados certos, e seguia em display:none.
+  document.getElementById('devolucaoOverlay').classList.add('aberto');
 }
 
 function fecharModalDevolucao(){
-  document.getElementById('devolucaoOverlay').classList.remove('show');
+  document.getElementById('devolucaoOverlay').classList.remove('aberto');
   devolucaoVendaId = null;
 }
 
