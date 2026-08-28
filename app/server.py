@@ -3027,6 +3027,20 @@ def api_marketing_gestor():
             investimento = round(investimento + ml_rateio["spend"], 2)
             impressoes += ml_rateio["impressions"]
 
+    # A agencia que gerencia as campanhas custa fixo por mes. Entra no
+    # investimento rateada por dia — cada dia do periodo carrega 1/n do mes a
+    # que pertence — porque gestao e custo de midia tanto quanto o clique.
+    # Valor unico e declarado aqui: mudou o contrato, muda esta linha.
+    AGENCIA_MENSAL = 1900.0
+    agencia = 0.0
+    d_ini, d_fim = date.fromisoformat(de), date.fromisoformat(ate)
+    dia = d_ini
+    while dia <= d_fim:
+        agencia += AGENCIA_MENSAL / calendar.monthrange(dia.year, dia.month)[1]
+        dia += timedelta(days=1)
+    agencia = round(agencia, 2)
+    investimento = round(investimento + agencia, 2)
+
     vendas = _vendas_no_periodo(vendedores, ef_de, ef_ate,
                                 so_vendedor=filtro_vendedor or None,
                                 universo=universo)
@@ -3077,6 +3091,7 @@ def api_marketing_gestor():
             "meta": meta,
             "meta_rateio": meta_rateio,
             "ml_rateio": ml_rateio,
+            "agencia": {"mensal": AGENCIA_MENSAL, "no_periodo": agencia},
         },
     })
 

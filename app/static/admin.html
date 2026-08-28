@@ -3256,14 +3256,19 @@ function renderMarketing(d){
             (mlr.acos ? ` · ACOS ${String(mlr.acos).replace('.', ',')}%` : '')
           : `rateado · ${mlr.dias_dentro} de ${mlr.dias_relatorio} dias da janela`)
       : 'sem dado neste período'}</span></div>`;
-  const fontes = ['Google', rat && 'Meta', mlr && 'ML'].filter(Boolean).join(' + ');
+  const ag = m.agencia;
+  const invAgencia = ag ? `<div class="dp-kpi"><div class="rot">Agência de marketing</div>
+    <div class="num valor-money">${fmtMoeda(ag.no_periodo)}</div>
+    <span class="dp-var neutro">gestão · ${fmtMoeda(ag.mensal)}/mês rateado</span></div>` : '';
+  const fontes = ['Google', rat && 'Meta', mlr && 'ML', ag && 'agência']
+    .filter(Boolean).join(' + ');
   const invTotal = `<div class="dp-kpi"><div class="rot">Investimento total</div>
     <div class="num valor-money">${fmtMoeda(m.investimento)}</div>
-    <span class="dp-var neutro">${fontes === 'Google' ? 'só Google Ads' : fontes}</span></div>`;
+    <span class="dp-var neutro">${fontes}</span></div>`;
 
   const cardInvestimento = `<div class="card" style="margin-bottom:14px;">
     <p class="card-titulo">Investimento em mídia</p>
-    <div class="dp-kpis" style="margin-bottom:0;">${invGoogle}${invMeta}${invMl}${invTotal}</div>
+    <div class="dp-kpis" style="margin-bottom:0;">${invGoogle}${invMeta}${invMl}${invAgencia}${invTotal}</div>
   </div>`;
 
   const maxCanal = Math.max(...d.por_canal.map(c => c.leads), 1);
