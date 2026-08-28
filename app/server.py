@@ -4521,6 +4521,40 @@ def api_admin_retomada_resumo():
 
 
 
+# ---------- sincronizador de gasto na nuvem (thread de fundo) ----------
+# Google e Meta pelo Windsor, uma vez por dia, sem depender do PC da loja.
+try:
+    import sincronizador_nuvem as _sn
+
+    def _sn_chave():
+        d = ler_json(resolver_pasta_dados() / "segredo_windsor.json", None) or {}
+        return d.get("chave")
+
+    def _sn_atual():
+        return ler_json(resolver_pasta_dados() / "marketing_gasto.json", None)
+
+    def _sn_gravar(corpo):
+        escrever_json(resolver_pasta_dados() / "marketing_gasto.json", corpo)
+
+    _sn.iniciar(_sn_chave, _sn_atual, _sn_gravar)
+except Exception as _e:
+    print(f"[sinc-nuvem] não subiu: {_e}")
+
+
+@app.route("/api/admin/sincronizar-gasto", methods=["POST"])
+def api_admin_sincronizar_gasto():
+    """Dispara na hora a atualizacao de Google+Meta — o mesmo que o thread
+    diario faz as 06:45. Serve pro gestor nao esperar o ciclo quando quer o
+    numero fresco agora."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    try:
+        resumo = _sn.sincronizar_gasto(_sn_chave, _sn_atual, _sn_gravar)
+        return jsonify({"ok": True, "resumo": resumo})
+    except Exception as e:
+        return jsonify({"erro": f"{type(e).__name__}: {e}"}), 502
+
+
 # ---------- monitor de atendimento (thread de fundo) ----------
 # Roda dentro do proprio servidor pra nao depender do computador da loja
 # ligado — historico completo em app/monitor_atendimento.py. No gunicorn cada
