@@ -2278,6 +2278,8 @@ function renderRh(){
     kpi('No time hoje', i.ativos, i.afastados ? `${i.afastados} afastado(s)` : 'todos ativos'),
     kpi('Fora hoje', i.fora_hoje.length, i.fora_hoje.join(', ') || 'ninguém',
         i.fora_hoje.length ? 'var(--warn)' : 'var(--good)'),
+    kpi('Tempo médio de casa', i.tempo_medio_casa === null ? '—' : i.tempo_medio_casa + ' anos',
+        i.tempo_medio_casa === null ? 'sem data de admissão nas fichas' : ''),
     kpi('Custo mensal do time', rhMoeda(i.custo_folha),
         i.sem_salario.length ? `${i.sem_salario.length} sem salário na ficha` : 'salário + VT + bonificação'),
     kpi('Documentos a vencer', i.documentos_vencendo, 'nos próximos 30 dias',
