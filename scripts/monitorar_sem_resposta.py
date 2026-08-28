@@ -158,6 +158,12 @@ def coletar():
                 esperando.append({
                     "id": s["id"],
                     "contato_id": s.get("contactId"),
+                    # Link direto pra conversa no Totalk: o vendedor clica no
+                    # cartao e cai na conversa, sem procurar na lista.
+                    "url": s.get("previewUrl"),
+                    # Carimbo da ultima fala do cliente. E o que permite o
+                    # "resolvido" saber se a conversa andou depois de marcada.
+                    "ultima_em": entrada.isoformat(timespec="seconds"),
                     "minutos": minutos,
                     "desde": entrada.astimezone(FUSO).isoformat(timespec="minutes"),
                     "status": status,

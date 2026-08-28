@@ -209,6 +209,12 @@
   .atd-msg{font-size:12.5px;color:var(--muted);margin-top:4px;
            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .atd-pe{font-size:11px;color:var(--muted);margin-top:5px;opacity:.85;}
+  .atd-acoes{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .atd-ok{font-size:12px;color:var(--good);font-weight:600;}
+  .atd-badge{
+    background:var(--bad);color:#fff;font-size:10.5px;font-weight:800;
+    border-radius:20px;padding:1px 7px;margin-left:auto;line-height:1.6;
+  }
 </style>
 </head>
 <body>
@@ -1572,6 +1578,40 @@ document.addEventListener('click', () => {
    Mesmo painel que o gestor vê deste vendedor, desenhado por desempenho.js.
    O servidor é que decide o que ele pode ver: /api/desempenho devolve tudo
    menos a participação no faturamento do time. */
+// O badge no menu e o que faz o vendedor olhar sem precisar entrar na tela.
+function atdBadge(n){
+  const item = document.querySelector('.nav-item[data-nav="atendimento"]');
+  if(!item) return;
+  item.querySelector('.atd-badge')?.remove();
+  if(!n) return;
+  const b = document.createElement('span');
+  b.className = 'atd-badge';
+  b.textContent = n;
+  item.appendChild(b);
+}
+
+document.addEventListener('click', async ev => {
+  const botao = ev.target.closest('[data-resolver]');
+  if(!botao) return;
+  botao.disabled = true;
+  botao.textContent = 'Marcando…';
+  const res = await fetch('/api/atendimento/resolver', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id: botao.dataset.resolver, ultima_em: botao.dataset.ultima})});
+  if(res.ok){
+    // Some o cartao na hora: esperar o recarregamento daria a sensacao de
+    // clique perdido, e a lista so muda de 10 em 10 minutos.
+    const cartao = botao.closest('.atd-item');
+    cartao.style.opacity = '.35';
+    cartao.querySelector('.atd-acoes').innerHTML =
+      '<span class="atd-ok">✓ marcado como resolvido</span>';
+    setTimeout(() => { cartao.remove(); carregarMeuAtendimento(); }, 900);
+  }else{
+    botao.disabled = false;
+    botao.textContent = 'Já resolvi';
+  }
+});
+
 async function carregarMeuAtendimento(){
   const el = document.getElementById('atdVendedor');
   const res = await fetch('/api/meu-atendimento');
@@ -1579,8 +1619,10 @@ async function carregarMeuAtendimento(){
   const d = await res.json();
   if(d.sem_dados){
     el.innerHTML = '<div class="card"><div class="vazio">O monitor ainda não rodou hoje.</div></div>';
+    atdBadge(0);
     return;
   }
+  atdBadge(d.total);
   if(!d.total){
     el.innerHTML = `<div class="card">
       <div class="vazio">Ninguém esperando resposta sua. Tudo em dia 👏</div>
@@ -1614,6 +1656,12 @@ async function carregarMeuAtendimento(){
           .replace(/</g, '&lt;')}</div>
         <div class="atd-pe">última mensagem dele às ${quando}${
           c.nunca_respondida ? ' · <b>nunca respondida</b>' : ''}</div>
+        <div class="atd-acoes">
+          ${c.url ? `<a class="btn btn-principal btn-pequeno" href="${c.url}"
+             target="_blank" rel="noopener">Abrir conversa</a>` : ''}
+          <button class="btn btn-neutro btn-pequeno" data-resolver="${c.id}"
+            data-ultima="${c.ultima_em || ''}">Já resolvi</button>
+        </div>
       </div>`;
     }).join('')}
     <div class="dp-aviso">Atualiza sozinho a cada 10 minutos. Quem aparece aqui mandou
@@ -1660,6 +1708,11 @@ const SECOES_VENDEDOR = {painel: 'secaoPainel', vendas: 'secaoVendas',
 // Roda assim que SECOES_VENDEDOR existe: se a URL trouxe um hash que nao e
 // secao, cai no painel — mas '#performance' agora e reconhecido.
 if(!SECOES_VENDEDOR[secaoAtual]) secaoAtual = 'painel';
+
+// Badge no boot: o vendedor precisa ver que tem gente esperando mesmo estando
+// em outra tela.
+fetch('/api/meu-atendimento').then(r => r.ok ? r.json() : null)
+  .then(d => { if(d && !d.sem_dados) atdBadge(d.total); }).catch(() => {});
 
 function irParaSecao(chave){
   secaoAtual = SECOES_VENDEDOR[chave] ? chave : 'painel';

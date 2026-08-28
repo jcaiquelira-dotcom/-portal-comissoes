@@ -150,7 +150,9 @@
     font-size:11px;color:var(--muted);margin:8px 2px 0;line-height:1.5;
   }
   .kpi-nota:empty{display:none;}
-  .atd-msg{max-width:340px;color:var(--muted);font-size:12px;
+  .atd-acoes-td{white-space:nowrap;}
+  .atd-acoes-td .btn{padding:3px 9px;font-size:11px;}
+  .atd-msg{max-width:300px;color:var(--muted);font-size:12px;
            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .carros-busca{
     background:var(--surface-2);border:1px solid var(--line);color:var(--text);
@@ -3713,6 +3715,20 @@ async function carregarSiteConta(){
   </div>`;
 }
 
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest('[data-resolver]');
+  if(!b) return;
+  b.disabled = true;
+  const res = await fetch('/api/atendimento/resolver', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id: b.dataset.resolver, ultima_em: b.dataset.ultima})});
+  if(res.ok){
+    const tr = b.closest('tr');
+    tr.style.opacity = '.3';
+    setTimeout(() => carregarAtendimento(), 700);
+  }else{ b.disabled = false; }
+});
+
 async function carregarAtendimento(){
   const el = document.getElementById('atdCorpo');
   const res = await fetch('/api/admin/atendimento-alerta');
@@ -3740,6 +3756,12 @@ async function carregarAtendimento(){
         ? '<span class="rh-tag bad">nunca respondida</span>'
         : '<span class="rh-tag">aguardando retorno</span>'}</td>
       <td class="atd-msg">${(x.ultima_msg || '').replace(/</g, '&lt;')}</td>
+      <td class="atd-acoes-td">
+        ${x.url ? `<a href="${x.url}" target="_blank" rel="noopener"
+           class="btn btn-neutro btn-pequeno">Abrir</a>` : ''}
+        <button class="btn btn-neutro btn-pequeno" data-resolver="${x.id}"
+          data-ultima="${x.ultima_em || ''}">Resolvido</button>
+      </td>
       <td>${(() => { const [d, h] = x.desde.split('T');
         const hoje = new Date().toISOString().slice(0, 10);
         return d === hoje ? h.slice(0, 5)
@@ -3756,6 +3778,7 @@ async function carregarAtendimento(){
             c.urgente ? 'var(--warn)' : 'var(--good)')}
       ${kpi('Abertas há +24h', d.paradas_antigas || 0, 'sessões esquecidas em aberto')}
       ${kpi('Só agradeceram', d.so_agradeceram || 0, 'fora do alerta: não pedem resposta')}
+      ${kpi('Marcadas resolvidas', d.resolvidas || 0, 'voltam se o cliente falar de novo')}
     </div>
     <div class="card">
       <div class="aud-cabecalho">
@@ -3764,7 +3787,7 @@ async function carregarAtendimento(){
       </div>
       ${linhas ? `<div class="tabela-rolante"><table>
         <thead><tr><th>Esperando</th><th>Cliente</th><th>Atendente</th><th>Situação</th>
-          <th>Última mensagem do cliente</th><th>Desde</th></tr></thead>
+          <th>Última mensagem do cliente</th><th></th><th>Desde</th></tr></thead>
         <tbody>${linhas}</tbody></table></div>`
         : '<div class="vazio">Ninguém esperando. Todo mundo foi respondido. 👏</div>'}
       <div class="dp-aviso">Quem falou por último é o cliente e a loja ainda não respondeu.

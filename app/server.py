@@ -859,6 +859,50 @@ def exigir_vendedor():
     return vendedor_id
 
 
+def _atd_resolvidos() -> dict:
+    """{id da sessao: carimbo da ultima mensagem quando foi marcada}."""
+    return ler_json(resolver_pasta_dados() / "atendimento_resolvido.json", None) or {}
+
+
+def _atd_pendentes(conversas, resolvidos):
+    """Tira da lista o que ja foi resolvido — mas SO enquanto o cliente nao
+    falar de novo. Se ele mandar mensagem nova depois da marcacao, a conversa
+    volta: esconder cliente que voltou a falar seria pior que nao ter alerta."""
+    saida = []
+    for c in conversas:
+        marcado = resolvidos.get(c["id"])
+        if marcado and c.get("ultima_em") and c["ultima_em"] <= marcado:
+            continue
+        saida.append(c)
+    return saida
+
+
+@app.route("/api/atendimento/resolver", methods=["POST"])
+def api_atendimento_resolver():
+    """Marca uma conversa como resolvida. Vale pro vendedor e pro gestor: os
+    dois veem a mesma fila, entao resolver num lugar resolve no outro."""
+    if not (exigir_vendedor() or exigir_admin()):
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    sessao = (corpo.get("id") or "").strip()
+    if not sessao:
+        return jsonify({"erro": "Sessão não informada."}), 400
+
+    resolvidos = _atd_resolvidos()
+    if corpo.get("desfazer"):
+        resolvidos.pop(sessao, None)
+    else:
+        # Guarda o carimbo da ultima fala do cliente, nao a hora do clique:
+        # e assim que a conversa reaparece se ele voltar a falar.
+        resolvidos[sessao] = (corpo.get("ultima_em")
+                              or agora_br().isoformat(timespec="seconds"))
+    # Marcacao velha nao serve pra nada e so faria o arquivo crescer.
+    corte = (agora_br() - timedelta(days=7)).isoformat(timespec="seconds")
+    resolvidos = {k: v for k, v in resolvidos.items() if v >= corte}
+    escrever_json(resolver_pasta_dados() / "atendimento_resolvido.json", resolvidos)
+    return jsonify({"ok": True, "resolvidas": len(resolvidos)})
+
+
 @app.route("/api/meu-atendimento")
 def api_meu_atendimento():
     """Os clientes que estao esperando ESTE vendedor responder.
@@ -873,8 +917,9 @@ def api_meu_atendimento():
     d = ler_json(resolver_pasta_dados() / "atendimento_alerta.json", None)
     if not d:
         return jsonify({"sem_dados": True})
-    minhas = [c for c in (d.get("conversas") or [])
-              if c.get("vendedor_id") == vendedor_id]
+    resolvidos = _atd_resolvidos()
+    minhas = _atd_pendentes([c for c in (d.get("conversas") or [])
+                             if c.get("vendedor_id") == vendedor_id], resolvidos)
     return jsonify({
         "gerado_em": d.get("gerado_em"),
         "limites": d.get("limites"),
@@ -2559,6 +2604,12 @@ def api_admin_atendimento_alerta():
     d = ler_json(resolver_pasta_dados() / "atendimento_alerta.json", None)
     if not d:
         return jsonify({"sem_dados": True})
+    resolvidos = _atd_resolvidos()
+    conversas = _atd_pendentes(d.get("conversas") or [], resolvidos)
+    d = {**d, "conversas": conversas, "total": len(conversas),
+         "resolvidas": len(d.get("conversas") or []) - len(conversas),
+         "contagem": {n: sum(1 for c in conversas if c["nivel"] == n)
+                      for n in ("critico", "urgente", "atencao")}}
     return jsonify(d)
 
 
