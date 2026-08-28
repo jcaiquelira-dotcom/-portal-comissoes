@@ -141,27 +141,46 @@
   .rh-tag.bad{color:var(--bad);border-color:var(--bad);}
   .rh-tag.ok{color:var(--good);border-color:var(--good);}
   .rh-num{text-align:right;font-variant-numeric:tabular-nums;}
-  /* ---- Meta Bonus: lancar producao ---- */
-  .mb-lancar{
-    display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px;
-  }
-  .mb-lancar .campo{margin:0;min-width:130px;flex:1;}
-  .mb-lancar select,.mb-lancar input{
+  /* ---- Meta Bonus: chamada do dia ---- */
+  .mb-dia-topo{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px;}
+  .mb-dia-topo .campo{margin:0;}
+  .mb-dia-topo input[type=date]{
     background:var(--surface-2);border:1px solid var(--line);color:var(--text);
-    border-radius:8px;padding:7px 9px;font-family:inherit;font-size:12.5px;width:100%;
+    border-radius:8px;padding:7px 9px;font-family:inherit;font-size:12.5px;
   }
-  .mb-lancar select:focus,.mb-lancar input:focus{outline:none;border-color:var(--accent);}
-  .mb-lancar .btn{margin-bottom:1px;}
+  .mb-dia-grade{
+    display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+    gap:18px;margin-top:6px;
+  }
+  .mb-pessoa{
+    display:grid;grid-template-columns:1fr 86px;gap:8px;align-items:center;
+    padding:3px 0;cursor:text;
+  }
+  .mb-pessoa .n{font-size:12.5px;font-weight:600;}
+  .mb-pessoa input{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:6px 9px;font-family:inherit;font-size:12.5px;
+    text-align:right;font-variant-numeric:tabular-nums;width:100%;
+  }
+  .mb-pessoa input:focus{outline:none;border-color:var(--accent);}
+  .mb-veic{margin-top:14px;padding-top:4px;border-top:1px dashed var(--line);}
+  .mb-veic-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .mb-veic-form input{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:6px 9px;font-family:inherit;font-size:12.5px;
+    flex:2;min-width:110px;
+  }
+  .mb-veic-form input#mbPecas{flex:1;min-width:70px;text-align:right;}
+  .mb-veic-form input:focus{outline:none;border-color:var(--accent);}
+  .mb-veic-vazio{font-size:12px;color:var(--muted);padding:4px 0;}
   .mb-recentes-titulo{
     font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-    color:var(--muted);margin:14px 0 4px;
+    color:var(--muted);margin:10px 0 4px;
   }
   .mb-recente{
-    display:grid;grid-template-columns:44px 1fr auto 60px 24px;gap:8px;
+    display:grid;grid-template-columns:1fr auto 24px;gap:8px;
     align-items:center;padding:5px 0;border-top:1px solid var(--line);font-size:12.5px;
   }
-  .mb-recente .d{color:var(--muted);font-variant-numeric:tabular-nums;}
-  .mb-recente .t{color:var(--muted);font-size:11px;}
   .mb-recente .q{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;}
   .mb-apagar{
     background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;
@@ -833,34 +852,30 @@
         </div>
       </div>
 
-      <!-- Lancar aqui mesmo: a historia veio do painel-metas, mas quem digita a
-           producao do dia agora e o gestor, nesta tela, e o painel embaixo
-           recalcula na hora. -->
+      <!-- Chamada do dia: a data em cima e um campo por pessoa. Preenche todo
+           mundo de uma vez e salva num botao so — lancamento um-a-um era lento
+           demais pra rotina de fim de dia. -->
       <div class="card" style="margin-bottom:14px;">
         <details class="dobra" id="mbLancarDobra">
-          <summary><span class="card-titulo">Lançar produção</span>
+          <summary><span class="card-titulo">Lançar produção do dia</span>
             <span class="dobra-conta" id="mbLancarResumo"></span></summary>
-          <div class="mb-lancar" id="mbLancarForm">
-            <div class="campo"><label class="campo-rotulo" for="mbTipo">O que</label>
-              <select id="mbTipo">
-                <option value="anuncio">Anúncios feitos</option>
-                <option value="cadastro">Peças cadastradas</option>
-                <option value="veiculo">Veículo desmontado</option>
-              </select></div>
-            <div class="campo" id="mbCampoPessoa"><label class="campo-rotulo" for="mbPessoa">Quem</label>
-              <select id="mbPessoa"></select></div>
-            <div class="campo oculto" id="mbCampoCarro"><label class="campo-rotulo" for="mbCarro">Carro</label>
-              <input type="text" id="mbCarro" placeholder="Land Rover Defender"></div>
-            <div class="campo oculto" id="mbCampoCodigo"><label class="campo-rotulo" for="mbCodigo">Código</label>
-              <input type="text" id="mbCodigo" placeholder="V638"></div>
-            <div class="campo"><label class="campo-rotulo" for="mbData">Data</label>
+          <div class="mb-dia-topo">
+            <div class="campo"><label class="campo-rotulo" for="mbData">Dia</label>
               <input type="date" id="mbData"></div>
-            <div class="campo"><label class="campo-rotulo" for="mbQtd" id="mbQtdRotulo">Quantidade</label>
-              <input type="number" id="mbQtd" min="0" step="1" placeholder="0"></div>
-            <button class="btn btn-principal btn-pequeno" id="mbSalvar">Lançar</button>
+            <button class="btn btn-principal btn-pequeno" id="mbSalvarDia">Salvar o dia</button>
             <span class="status-msg" id="mbStatus"></span>
           </div>
-          <div id="mbRecentes"></div>
+          <div class="mb-dia-grade" id="mbGrade"></div>
+          <div class="mb-veic">
+            <div class="mb-recentes-titulo">Veículos desmontados no dia</div>
+            <div id="mbVeicLista"></div>
+            <div class="mb-veic-form">
+              <input type="text" id="mbCarro" placeholder="Carro (ex.: Land Rover Defender)">
+              <input type="text" id="mbCodigo" placeholder="Código (V638)">
+              <input type="number" id="mbPecas" min="0" step="1" placeholder="Peças">
+              <button class="btn btn-neutro btn-pequeno" id="mbAddVeiculo">Adicionar</button>
+            </div>
+          </div>
         </details>
       </div>
 
@@ -2219,88 +2234,94 @@ async function carregarMetaBonus(mes){
   }
   sel.value = d.mes;
   renderMetaBonus(d);
-  if(d.lancar) mbMontarLancar(d);
-  mbCarregarRecentes();
+  if(d.lancar?.ativo) mbCarregarDia(mbDiaAtual);
 }
 
 const MB_MESES = ['janeiro','fevereiro','março','abril','maio','junho',
                   'julho','agosto','setembro','outubro','novembro','dezembro'];
-let mbPessoas = {};
+let mbDiaAtual = '';
 
-function mbMontarLancar(d){
-  mbPessoas = d.lancar?.pessoas || {};
-  const data = document.getElementById('mbData');
-  if(!data.value) data.value = new Date().toISOString().slice(0, 10);
-  mbTrocaTipo();
-}
+const MB_GRUPOS = [
+  {setor: 'anunciante', tipo: 'anuncio', titulo: 'Anúncios feitos'},
+  {setor: 'cadastrador', tipo: 'cadastro', titulo: 'Peças cadastradas'},
+];
 
-function mbTrocaTipo(){
-  const tipo = document.getElementById('mbTipo').value;
-  const ehVeiculo = tipo === 'veiculo';
-  document.getElementById('mbCampoPessoa').classList.toggle('oculto', ehVeiculo);
-  document.getElementById('mbCampoCarro').classList.toggle('oculto', !ehVeiculo);
-  document.getElementById('mbCampoCodigo').classList.toggle('oculto', !ehVeiculo);
-  document.getElementById('mbQtdRotulo').textContent = ehVeiculo ? 'Peças' : 'Quantidade';
-  if(!ehVeiculo){
-    const setor = tipo === 'anuncio' ? 'anunciante' : 'cadastrador';
-    document.getElementById('mbPessoa').innerHTML = (mbPessoas[setor] || [])
-      .map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
-  }
-}
+async function mbCarregarDia(data){
+  const campo = document.getElementById('mbData');
+  if(data) campo.value = data;
+  if(!campo.value) campo.value = new Date().toISOString().slice(0, 10);
+  mbDiaAtual = campo.value;
 
-async function mbCarregarRecentes(){
-  const el = document.getElementById('mbRecentes');
-  const res = await fetch('/api/admin/metas-bonus/recentes');
-  if(!res.ok){ el.innerHTML = ''; return; }
+  const res = await fetch('/api/admin/metas-bonus/dia?data=' + mbDiaAtual);
+  if(!res.ok) return;
   const d = await res.json();
-  const ROTULO = {anuncio: 'anúncios', cadastro: 'cadastro', veiculo: 'veículo'};
+
+  document.getElementById('mbGrade').innerHTML = MB_GRUPOS.map(g => {
+    const gente = d.setores[g.setor] || [];
+    if(!gente.length) return '';
+    return `<div class="mb-grupo">
+      <div class="mb-recentes-titulo">${g.titulo}</div>
+      ${gente.map(p => `<label class="mb-pessoa">
+        <span class="n">${p.nome}</span>
+        <input type="number" min="0" step="1" inputmode="numeric" placeholder="—"
+          data-mbtipo="${g.tipo}" data-mbpid="${p.id}" value="${p.quantidade}">
+      </label>`).join('')}
+    </div>`;
+  }).join('');
+
+  document.getElementById('mbVeicLista').innerHTML = d.veiculos.map(v => `
+    <div class="mb-recente">
+      <span class="n">${v.carro}${v.codigo ? ' · ' + v.codigo : ''}</span>
+      <span class="q">${v.pecas} peças</span>
+      <button class="mb-apagar" data-mbveic="${v.id}" title="Apagar">×</button>
+    </div>`).join('') || '<div class="mb-veic-vazio">Nenhum veículo lançado neste dia.</div>';
+
+  const preenchidos = [...document.querySelectorAll('#mbGrade input')]
+    .filter(i => i.value !== '').length;
   document.getElementById('mbLancarResumo').textContent =
-    d.itens.length ? `último: ${d.itens[0].nome}` : '';
-  el.innerHTML = !d.itens.length ? '' : `
-    <div class="mb-recentes-titulo">Últimos lançamentos</div>
-    ${d.itens.map(i => {
-      const [y, m, dd] = (i.data || '').split('-');
-      return `<div class="mb-recente">
-        <span class="d">${dd}/${m}</span>
-        <span class="n">${i.nome}${i.codigo ? ' · ' + i.codigo : ''}</span>
-        <span class="t">${ROTULO[i.tipo] || i.tipo}</span>
-        <span class="q">${i.quantidade}</span>
-        <button class="mb-apagar" data-mbtipo="${i.tipo}" data-mbid="${i.id}"
-          title="Apagar este lançamento">×</button>
-      </div>`;
-    }).join('')}`;
+    preenchidos ? `${preenchidos} lançados no dia` : '';
 }
 
-async function mbSalvarLancamento(){
+async function mbSalvarDia(){
   const status = document.getElementById('mbStatus');
   status.classList.remove('show', 'err');
-  const tipo = document.getElementById('mbTipo').value;
-  const corpo = {data: document.getElementById('mbData').value,
-                 quantidade: document.getElementById('mbQtd').value};
-  let rota = '/api/admin/metas-bonus/lancamentos';
-  if(tipo === 'veiculo'){
-    rota = '/api/admin/metas-bonus/veiculos';
-    corpo.carro = document.getElementById('mbCarro').value;
-    corpo.codigo = document.getElementById('mbCodigo').value;
-    corpo.pecas = corpo.quantidade;
-  }else{
-    corpo.tipo = tipo;
-    corpo.pessoa_id = document.getElementById('mbPessoa').value;
-  }
-  const res = await fetch(rota, {method: 'POST',
-    headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)});
+  const itens = [...document.querySelectorAll('#mbGrade input')].map(i => ({
+    tipo: i.dataset.mbtipo, pessoa_id: i.dataset.mbpid, quantidade: i.value,
+  }));
+  const res = await fetch('/api/admin/metas-bonus/dia', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({data: mbDiaAtual, itens})});
   const d = await res.json().catch(() => ({}));
   if(!res.ok){
-    status.textContent = d.erro || 'Erro ao lançar.';
+    status.textContent = d.erro || 'Erro ao salvar.';
     status.classList.add('show', 'err');
     return;
   }
-  status.textContent = 'Lançado.';
+  status.textContent = `Dia salvo: ${d.gravados} lançamento(s).`;
   status.classList.add('show');
-  document.getElementById('mbQtd').value = '';
+  mbCarregarDia(mbDiaAtual);
+  carregarMetaBonus(document.getElementById('mbMes').value);
+}
+
+async function mbAddVeiculo(){
+  const status = document.getElementById('mbStatus');
+  status.classList.remove('show', 'err');
+  const res = await fetch('/api/admin/metas-bonus/veiculos', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({data: mbDiaAtual,
+      carro: document.getElementById('mbCarro').value,
+      codigo: document.getElementById('mbCodigo').value,
+      pecas: document.getElementById('mbPecas').value})});
+  const d = await res.json().catch(() => ({}));
+  if(!res.ok){
+    status.textContent = d.erro || 'Erro ao lançar veículo.';
+    status.classList.add('show', 'err');
+    return;
+  }
   document.getElementById('mbCarro').value = '';
   document.getElementById('mbCodigo').value = '';
-  mbCarregarRecentes();
+  document.getElementById('mbPecas').value = '';
+  mbCarregarDia(mbDiaAtual);
   carregarMetaBonus(document.getElementById('mbMes').value);
 }
 
@@ -2426,7 +2447,7 @@ function renderMetaBonus(d){
 
 document.addEventListener('change', ev => {
   if(ev.target.id === 'mbMes') carregarMetaBonus(ev.target.value);
-  if(ev.target.id === 'mbTipo') mbTrocaTipo();
+  if(ev.target.id === 'mbData') mbCarregarDia(ev.target.value);
 });
 
 /* ---------- Recursos humanos ----------
@@ -2803,17 +2824,15 @@ document.addEventListener('click', async ev => {
   const linha = ev.target.closest('[data-ficha]');
   if(linha && linha.closest('#rhCorpo')){ rhAbrirFicha(linha.dataset.ficha); return; }
 
-  if(ev.target.id === 'mbSalvar'){ mbSalvarLancamento(); return; }
-  const apagarMb = ev.target.closest('.mb-apagar');
-  if(apagarMb){
-    const tipo = apagarMb.dataset.mbtipo;
-    const rota = tipo === 'veiculo'
-      ? `/api/admin/metas-bonus/veiculos/${apagarMb.dataset.mbid}`
-      : `/api/admin/metas-bonus/lancamentos/${tipo}/${apagarMb.dataset.mbid}`;
-    fetch(rota, {method: 'DELETE'}).then(() => {
-      mbCarregarRecentes();
-      carregarMetaBonus(document.getElementById('mbMes').value);
-    });
+  if(ev.target.id === 'mbSalvarDia'){ mbSalvarDia(); return; }
+  if(ev.target.id === 'mbAddVeiculo'){ mbAddVeiculo(); return; }
+  const apagarVeic = ev.target.closest('[data-mbveic]');
+  if(apagarVeic){
+    fetch(`/api/admin/metas-bonus/veiculos/${apagarVeic.dataset.mbveic}`, {method: 'DELETE'})
+      .then(() => {
+        mbCarregarDia(mbDiaAtual);
+        carregarMetaBonus(document.getElementById('mbMes').value);
+      });
     return;
   }
   if(ev.target.id === 'rhNovo'){ rhAbrirFicha(null); return; }

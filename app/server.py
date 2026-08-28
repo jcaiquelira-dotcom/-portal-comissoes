@@ -2439,6 +2439,89 @@ def _inicio_acompanhamento(carros):
 
 
 
+@app.route("/api/admin/metas-bonus/dia")
+def api_mb_dia():
+    """O dia como uma chamada: cada pessoa com o que ja foi lancado nessa data.
+    E o que a tela mostra pra preencher todo mundo de uma vez."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    data = (request.args.get("data") or "").strip() or hoje_br().isoformat()
+    dados = _mb_bruto()
+    setores = {}
+    for setor, tipo in TIPO_META.items():
+        do_dia = {}
+        for l in (dados["lancamentos"].get(tipo) or {}).values():
+            if l.get("data") == data:
+                pid = l.get("pessoa_id")
+                do_dia[pid] = do_dia.get(pid, 0.0) + float(l.get("quantidade") or 0)
+        setores[setor] = sorted((
+            {"id": pid, "nome": p.get("nome") or "?",
+             "quantidade": do_dia.get(pid) or ""}
+            for pid, p in dados["pessoas"].get(setor, {}).items()),
+            key=lambda x: x["nome"])
+    veiculos = sorted((
+        {"id": vid, "carro": v.get("carro"), "codigo": v.get("codigo"),
+         "pecas": v.get("pecas") or 0}
+        for vid, v in dados["veiculos"].items() if v.get("data") == data),
+        key=lambda x: x["carro"] or "")
+    return jsonify({"data": data, "setores": setores, "veiculos": veiculos})
+
+
+@app.route("/api/admin/metas-bonus/dia", methods=["POST"])
+def api_mb_dia_salvar():
+    """Grava o dia inteiro de uma vez. Upsert por (pessoa, data): o campo da
+    tela E o valor do dia — vazio ou zero apaga, numero substitui. Assim a
+    grade pode ser corrigida e salva de novo sem duplicar nada."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    data = (corpo.get("data") or "").strip()
+    try:
+        parse_dt_tolerante(data)
+    except Exception:
+        return jsonify({"erro": "Data inválida."}), 400
+    itens = corpo.get("itens")
+    if not isinstance(itens, list):
+        return jsonify({"erro": "Nada para salvar."}), 400
+
+    dados = _mb_bruto()
+    carimbo = agora_br().isoformat(timespec="seconds")
+    gravados = apagados = 0
+    for item in itens:
+        tipo = item.get("tipo")
+        if tipo not in ("anuncio", "cadastro"):
+            return jsonify({"erro": f"Tipo inválido: {tipo}"}), 400
+        setor = next(st for st, t in TIPO_META.items() if t == tipo)
+        pid = (item.get("pessoa_id") or "").strip()
+        if pid not in dados["pessoas"].get(setor, {}):
+            return jsonify({"erro": "Pessoa desconhecida."}), 400
+        bruto_qtd = str(item.get("quantidade") or "").strip().replace(",", ".")
+        try:
+            quantidade = float(bruto_qtd) if bruto_qtd else 0.0
+        except ValueError:
+            nome = dados["pessoas"][setor][pid].get("nome") or "?"
+            return jsonify({"erro": f"Quantidade inválida para {nome}."}), 400
+        if quantidade < 0:
+            nome = dados["pessoas"][setor][pid].get("nome") or "?"
+            return jsonify({"erro": f"Quantidade negativa para {nome}."}), 400
+
+        lanc = dados["lancamentos"].setdefault(tipo, {})
+        havia = [lid for lid, l in lanc.items()
+                 if l.get("pessoa_id") == pid and l.get("data") == data]
+        for lid in havia:
+            lanc.pop(lid)
+        if quantidade > 0:
+            lanc[uuid.uuid4().hex[:12]] = {
+                "pessoa_id": pid, "data": data, "quantidade": quantidade,
+                "lancado_em": carimbo,
+            }
+            gravados += 1
+        elif havia:
+            apagados += 1
+    _mb_gravar(dados)
+    return jsonify({"ok": True, "gravados": gravados, "apagados": apagados})
+
+
 @app.route("/api/admin/metas-bonus/lancamentos", methods=["POST"])
 def api_mb_lancar():
     if not exigir_admin():
