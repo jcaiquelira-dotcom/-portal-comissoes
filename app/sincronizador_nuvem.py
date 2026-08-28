@@ -134,19 +134,44 @@ def sincronizar_gasto(ler_chave, ler_atual, gravar, log=print):
     if not chave:
         raise RuntimeError("sem chave do Windsor (segredo_windsor)")
 
-    gasto = coletar_gasto_google(chave)
-    meta = coletar_meta(chave)
+    # Uma fonte fora do ar nao pode derrubar a outra: se o Google cair (conta
+    # desconectada no Windsor, por exemplo), o Meta ainda entra, e o painel
+    # avisa qual fonte faltou em vez de mostrar um total silenciosamente menor.
+    ausentes = []
+    try:
+        gasto = coletar_gasto_google(chave)
+    except Exception as e:
+        log(f"[sinc-nuvem] Google Ads indisponível: {type(e).__name__}")
+        gasto, ausentes = None, ["Google Ads"]
+    try:
+        meta = coletar_meta(chave)
+    except Exception as e:
+        log(f"[sinc-nuvem] Meta Ads indisponível: {type(e).__name__}")
+        meta = None
+    if not meta:
+        ausentes.append("Meta Ads")
+    if gasto is None and meta is None:
+        raise RuntimeError("nenhuma fonte de mídia respondeu")
+
+    # Fonte que falhou preserva o que ja estava gravado, em vez de zerar.
+    anterior = ler_atual() or {}
+    if gasto is None:
+        gasto = anterior.get("linhas") or []
+    if meta is None:
+        meta = anterior.get("meta")
+
     corpo = {
         "gerado_em": datetime.now(FUSO).isoformat(timespec="seconds"),
         "linhas": gasto,
         "meta": meta,
-        "fontes_ausentes": [] if meta else ["Meta Ads"],
+        "fontes_ausentes": ausentes,
         "origem": "servidor",
     }
     gravar(corpo)
     total_g = round(sum(x["spend"] for x in gasto), 2)
     resumo = (f"google R$ {total_g:,.2f} ({len(gasto)} linhas) | "
-              f"meta R$ {meta['spend'] if meta else 0:,.2f}")
+              f"meta R$ {meta['spend'] if meta else 0:,.2f}"
+              + (f" | faltou: {', '.join(ausentes)}" if ausentes else ""))
     log(f"[sinc-nuvem] gasto atualizado: {resumo}")
     return resumo
 
