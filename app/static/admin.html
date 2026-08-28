@@ -302,6 +302,8 @@
     transition:color .18s;
   }
   .seletor-opcao.ativo{color:#fff;}
+  .aud-modo-faixa{display:flex;justify-content:flex-end;margin-bottom:10px;}
+  .seletor.grande .seletor-opcao{font-size:13px;padding:7px 22px;}
   .seletor-opcao:not(.ativo):hover{color:var(--text);}
   .dp-kpi.filtravel{cursor:pointer;transition:border-color .12s, transform .12s;}
   .dp-kpi.filtravel:hover{border-color:var(--accent);transform:translateY(-2px);}
@@ -956,6 +958,18 @@
 
     <!-- ---------- COMISSÕES / AUDITORIA ---------- -->
     <section id="secAuditoria" class="oculto">
+      <!-- O seletor de modo mora numa faixa so dele, fixa, fora da linha de
+           filtros: campo que aparece/some (tamanho da amostra) reflui a linha
+           de baixo e NUNCA move a chave. -->
+      <div class="aud-modo-faixa">
+        <div class="seletor grande" id="audModos" data-ativo="amostra">
+          <span class="seletor-pilula"></span>
+          <button type="button" class="seletor-opcao" data-modo="amostra"
+            title="Um punhado por vez, metade escolhida por sinal de atenção.">Amostragem</button>
+          <button type="button" class="seletor-opcao" data-modo="total"
+            title="A planilha inteira do mês, venda por venda.">Total</button>
+        </div>
+      </div>
       <div class="filtros" id="audFiltros">
         <div class="filtro-campo">
           <label class="campo-rotulo" for="audDe">De</label>
@@ -972,19 +986,6 @@
         <div class="filtro-campo">
           <label class="campo-rotulo" for="audVendedor">Vendedor</label>
           <select id="audVendedor"><option value="">Todos os vendedores</option></select>
-        </div>
-        <div class="filtro-campo">
-          <label class="campo-rotulo">Modo</label>
-          <!-- Chave seletora: os dois modos continuam sempre visiveis, so que
-               num controle do tamanho dos outros filtros. A explicacao de cada
-               um vive no title. -->
-          <div class="seletor" id="audModos" data-ativo="amostra">
-            <span class="seletor-pilula"></span>
-            <button type="button" class="seletor-opcao" data-modo="amostra"
-              title="Um punhado por vez, metade escolhida por sinal de atenção.">Amostragem</button>
-            <button type="button" class="seletor-opcao" data-modo="total"
-              title="A planilha inteira do mês, venda por venda.">Total</button>
-          </div>
         </div>
         <div class="filtro-campo" id="audCampoTamanho">
           <label class="campo-rotulo" for="audTamanho">Tamanho da amostra</label>
@@ -1636,7 +1637,7 @@ async function carregarResumo(){
   const consTotal = resumoAtual.total_geral + mktTotal;
   const consQtd = resumoAtual.qtd_vendas_geral + mktQtd;
   const sub = (id, txt) => { document.getElementById(id).innerHTML = txt || ''; };
-  const nomeCurto = {mercado_livre: 'ML'};
+  const nomeCurto = {mercado_livre: 'ML', shopee: 'Shopee'};
 
   document.getElementById('totalGeralValue').textContent = fmtMoeda(consTotal);
   sub('totalGeralValueSub', mkts.length
