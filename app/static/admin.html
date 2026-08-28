@@ -3741,6 +3741,12 @@ async function carregarAtendimento(){
       Ele roda de 10 em 10 minutos no computador da loja.</div></div>`;
     return;
   }
+  if(d.fora_do_horario){
+    el.innerHTML = `<div class="card"><div class="vazio">Fora do horário de atendimento 🌙</div>
+      <div class="dp-aviso">Monitor pausado — volta na abertura (seg a sex 08:30–17:30,
+        sábado 09:00–12:00). O tempo de espera conta só minutos do expediente.</div></div>`;
+    return;
+  }
   const c = d.contagem || {};
   const NIVEL = {critico: 'var(--bad)', urgente: 'var(--warn)', atencao: 'var(--muted)'};
   const kpi = (rot, num, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot}</div>
