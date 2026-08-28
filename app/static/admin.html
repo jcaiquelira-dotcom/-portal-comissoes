@@ -141,6 +141,13 @@
   .rh-tag.bad{color:var(--bad);border-color:var(--bad);}
   .rh-tag.ok{color:var(--good);border-color:var(--good);}
   .rh-num{text-align:right;font-variant-numeric:tabular-nums;}
+  /* ---- Conta Mercado Livre ---- */
+  .ml-selo{
+    font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+    border:1px solid var(--line);border-radius:20px;padding:2px 9px;color:var(--muted);
+  }
+  .ml-selo.ok{color:var(--good);border-color:var(--good);}
+
   /* ---- Meta Bonus: chamada do dia ---- */
   .mb-dia-topo{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px;}
   .mb-dia-topo .campo{margin:0;}
@@ -572,6 +579,10 @@
       <div class="card" id="cardMetas" style="margin-bottom:14px;">
         <p class="card-titulo">Metas do mês</p>
         <div id="metasPainel"></div>
+
+      <!-- Saúde da conta Mercado Livre: reputação e pós-venda ao lado das
+           vendas, porque a medalha caindo derruba o funil inteiro. -->
+      <div id="mlConta"></div>
       </div>
 
       <div class="card" style="margin-bottom:14px;">
@@ -1103,6 +1114,7 @@ function mostrarApp(){
   marcarPreset('presetMes');
   carregarVendedores();
   carregarResumo();
+  carregarMlConta();
   carregarMesesFechados();
   carregarLogAcessos();
   carregarLogAcoes();
@@ -3235,13 +3247,23 @@ function renderMarketing(d){
           ? `${mt.conversas.toLocaleString('pt-BR')} conversas iniciadas`
           : `rateado · ${rat.dias_dentro} de ${rat.dias_relatorio} dias do relatório`)
       : 'sem relatório neste período'}</span></div>`;
+  const mlr = m.ml_rateio;
+  const invMl = `<div class="dp-kpi"><div class="rot">Mercado Livre Ads</div>
+    <div class="num valor-money">${mlr ? fmtMoeda(mlr.spend) : '—'}</div>
+    <span class="dp-var neutro">${mlr
+      ? (mlr.integral
+          ? `${mlr.cliques.toLocaleString('pt-BR')} cliques` +
+            (mlr.acos ? ` · ACOS ${String(mlr.acos).replace('.', ',')}%` : '')
+          : `rateado · ${mlr.dias_dentro} de ${mlr.dias_relatorio} dias da janela`)
+      : 'sem dado neste período'}</span></div>`;
+  const fontes = ['Google', rat && 'Meta', mlr && 'ML'].filter(Boolean).join(' + ');
   const invTotal = `<div class="dp-kpi"><div class="rot">Investimento total</div>
     <div class="num valor-money">${fmtMoeda(m.investimento)}</div>
-    <span class="dp-var neutro">${rat ? 'Google + Meta' : 'só Google Ads'}</span></div>`;
+    <span class="dp-var neutro">${fontes === 'Google' ? 'só Google Ads' : fontes}</span></div>`;
 
   const cardInvestimento = `<div class="card" style="margin-bottom:14px;">
     <p class="card-titulo">Investimento em mídia</p>
-    <div class="dp-kpis" style="margin-bottom:0;">${invGoogle}${invMeta}${invTotal}</div>
+    <div class="dp-kpis" style="margin-bottom:0;">${invGoogle}${invMeta}${invMl}${invTotal}</div>
   </div>`;
 
   const maxCanal = Math.max(...d.por_canal.map(c => c.leads), 1);
@@ -3400,6 +3422,64 @@ async function abrirEscolhaDesempenho(){
       </button>`;
   }).join('');
   carregarComparativoTime();
+}
+
+let mlContaCarregado = false;
+
+async function carregarMlConta(){
+  const el = document.getElementById('mlConta');
+  if(!el) return;
+  const res = await fetch('/api/admin/ml-conta');
+  if(!res.ok) return;
+  const d = await res.json();
+  if(d.sem_dados){ el.innerHTML = ''; return; }
+  mlContaCarregado = true;
+
+  const rep = d.reputacao || {}, pos = d.pos_venda || {}, ads = d.ads;
+  const nivelOk = (rep.nivel || '').includes('green');
+  const medalha = {gold: 'MercadoLíder Gold', platinum: 'MercadoLíder Platinum',
+                   silver: 'MercadoLíder'}[rep.medalha] || rep.medalha || '—';
+  const pct = (m) => m && m.rate !== undefined ? (100 * m.rate).toFixed(2).replace('.', ',') + '%' : '—';
+  const qtd = (m) => m && m.value !== undefined ? m.value : '—';
+  // Limites do proprio ML pra manter a medalha: reclamacoes 1%, cancelamentos
+  // 2,5%, atrasos 15%. Verde folgado, laranja perto do limite, vermelho fora.
+  const cor = (m, limite) => !m || m.rate === undefined ? ''
+    : m.rate <= limite * .6 ? 'var(--good)' : m.rate <= limite ? 'var(--warn)' : 'var(--bad)';
+
+  const tile = (rot, valor, sub, corTxt) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money"${corTxt ? ` style="color:${corTxt}"` : ''}>${valor}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+
+  const m30 = pos.dias30 || {};
+  const motivos = (m30.motivos || []).slice(0, 3)
+    .map(x => `${x.motivo} (${x.qtd})`).join(' · ');
+
+  el.innerHTML = `<div class="card" style="margin-bottom:14px;">
+    <div class="aud-cabecalho">
+      <p class="card-titulo" style="margin:0;">Conta Mercado Livre</p>
+      <span class="ml-selo${nivelOk ? ' ok' : ''}">${medalha}</span>
+      <span class="aud-conta">${rep.vendas_60d ? rep.vendas_60d.toLocaleString('pt-BR') + ' vendas em 60 dias' : ''}</span>
+    </div>
+    <div class="dp-kpis" style="margin-bottom:0;">
+      ${tile('Reclamações 60d', pct(rep.reclamacoes_60d), qtd(rep.reclamacoes_60d) + ' casos · limite 1%',
+             cor(rep.reclamacoes_60d, 0.01))}
+      ${tile('Cancelamentos 60d', pct(rep.cancelamentos_60d), qtd(rep.cancelamentos_60d) + ' casos · limite 2,5%',
+             cor(rep.cancelamentos_60d, 0.025))}
+      ${tile('Despacho atrasado 60d', pct(rep.atrasos_60d), qtd(rep.atrasos_60d) + ' casos · limite 15%',
+             cor(rep.atrasos_60d, 0.15))}
+      ${tile('Reclamações abertas', pos.abertas_agora ?? '—', pos.mediacoes_agora
+             ? pos.mediacoes_agora + ' em mediação' : 'nenhuma em mediação',
+             pos.abertas_agora > 0 ? 'var(--warn)' : 'var(--good)')}
+      ${tile('Pós-venda 30d', (m30.mediacoes ?? 0) + ' casos',
+             `${m30.cancel_comprador ?? 0} canc. comprador · ${m30.devolucoes ?? 0} devoluções`)}
+      ${ads ? tile('Product Ads 30d', fmtMoeda(ads.investido),
+             `${(ads.cliques || 0).toLocaleString('pt-BR')} cliques` +
+             (ads.acos ? ` · ACOS ${String(ads.acos).replace('.', ',')}%` : '')) : ''}
+    </div>
+    ${motivos ? `<div class="dp-aviso" style="margin-top:10px;">Principais motivos de reclamação (30d):
+      ${motivos}. Percentuais e limites são os oficiais do ML para manter a medalha.
+      Sincronizado às ${(d.gerado_em || '').slice(11, 16)} de ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>` : ''}
+  </div>`;
 }
 
 async function carregarComparativoTime(){

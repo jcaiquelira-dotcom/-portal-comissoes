@@ -1,0 +1,228 @@
+"""
+Leva a saúde da conta Mercado Livre pro portal, na área do gestor.
+
+Fonte: a mesma credencial do ml-dashboard (Documents/ml-dashboard/ml_auth.json).
+ATENÇÃO à regra mais importante deste arquivo: o refresh_token do ML ROTACIONA
+a cada uso. O token novo é gravado de volta no ml_auth.json na hora — se isso
+falhar no meio, o refresh diário dos artifacts quebra junto. Por isso a troca
+de token acontece antes de qualquer outra chamada e o arquivo é reescrito
+imediatamente.
+
+O que sobe pro portal (chave ml_conta):
+  - reputação oficial (nível, medalha, reclamações/cancelamentos/atrasos 60d)
+  - reclamações AGORA (abertas e em mediação)
+  - últimos 35 dias de pós-venda por tipo (mediações, devoluções,
+    cancelamentos) — janela de 30 dias e mês corrente
+  - Product Ads (investimento), se a conta tiver acesso pela API
+
+Uso:
+    set DATABASE_URL=postgresql://...
+    python scripts/sincronizar_ml.py
+    python scripts/sincronizar_ml.py --seco
+"""
+
+import io
+import json
+import os
+import sys
+import urllib.parse
+import urllib.request
+from collections import Counter
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+AUTH = Path(r"C:\Users\José Caique\Documents\ml-dashboard\ml_auth.json")
+API = "https://api.mercadolibre.com"
+FUSO = timezone(timedelta(hours=-3))
+
+MOTIVOS = {
+    "PDD9939": "Arrependimento", "PDD9829": "Arrependimento",
+    "PDD9949": "Chegou sem funcionar", "PDD9946": "Danificado no transporte",
+    "PDD9967": "Outro problema / incompatível", "PDD9944": "Diferente do anunciado",
+}
+
+
+def http(url, token=None, corpo=None, cabecalhos=None):
+    req = urllib.request.Request(url)
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    for k, v in (cabecalhos or {}).items():
+        req.add_header(k, v)
+    dados = None
+    if corpo is not None:
+        dados = urllib.parse.urlencode(corpo).encode()
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    with urllib.request.urlopen(req, dados, timeout=60) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def renovar_token():
+    auth = json.loads(AUTH.read_text(encoding="utf-8"))
+    resp = http(f"{API}/oauth/token", corpo={
+        "grant_type": "refresh_token",
+        "client_id": auth["client_id"],
+        "client_secret": auth["client_secret"],
+        "refresh_token": auth["refresh_token"],
+    })
+    # O refresh rotacionou: gravar o novo AGORA, antes de qualquer outra coisa.
+    auth["refresh_token"] = resp["refresh_token"]
+    auth["last_updated"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    AUTH.write_text(json.dumps(auth, ensure_ascii=False, indent=2), encoding="utf-8")
+    return resp["access_token"], auth["user_id"]
+
+
+def coletar_reputacao(token, user_id):
+    u = http(f"{API}/users/{user_id}", token)
+    sr = u.get("seller_reputation") or {}
+    met = sr.get("metrics") or {}
+    trans = sr.get("transactions") or {}
+    return {
+        "nivel": sr.get("level_id"),
+        "medalha": sr.get("power_seller_status"),
+        "vendas_60d": (met.get("sales") or {}).get("completed"),
+        "reclamacoes_60d": met.get("claims") or {},
+        "atrasos_60d": met.get("delayed_handling_time") or {},
+        "cancelamentos_60d": met.get("cancellations") or {},
+        "avaliacoes": trans.get("ratings") or {},
+        "transacoes_total": trans.get("total"),
+    }
+
+
+def contar(token, user_id, filtro):
+    d = http(f"{API}/post-purchase/v1/claims/search?{filtro}&limit=1", token,
+             cabecalhos={"x-caller.id": str(user_id)})
+    return (d.get("paging") or {}).get("total", 0)
+
+
+def coletar_pos_venda(token, user_id):
+    """Todos os registros dos últimos 35 dias, paginados uma vez, e daí saem a
+    janela de 30 dias e o mês corrente — mesma tática do ml-dashboard."""
+    registros = []
+    for status in ("closed", "opened"):
+        offset = 0
+        while True:
+            d = http(f"{API}/post-purchase/v1/claims/search?status={status}"
+                     f"&range=date_created:after:now-35d,before:now"
+                     f"&limit=50&offset={offset}", token,
+                     cabecalhos={"x-caller.id": str(user_id)})
+            dados = d.get("data") or []
+            registros.extend(dados)
+            offset += 50
+            if offset >= (d.get("paging") or {}).get("total", 0) or not dados:
+                break
+
+    agora = datetime.now(FUSO)
+    corte_30d = (agora - timedelta(days=30)).isoformat()
+    mes = agora.isoformat()[:7]
+
+    def resumo(grupo):
+        tipos = Counter(r.get("type") for r in grupo)
+        motivos = Counter(
+            MOTIVOS.get(r.get("reason_id"),
+                        "Problema de entrega" if str(r.get("reason_id") or "").startswith("PNR")
+                        else "Outros")
+            for r in grupo if r.get("type") == "mediations")
+        return {
+            "mediacoes": tipos.get("mediations", 0),
+            "devolucoes": tipos.get("returns", 0),
+            "cancel_comprador": tipos.get("cancel_purchase", 0),
+            "cancel_vendedor": tipos.get("cancel_sale", 0),
+            "motivos": [{"motivo": m, "qtd": q} for m, q in motivos.most_common(5)],
+        }
+
+    return {
+        "abertas_agora": contar(token, user_id, "status=opened"),
+        "mediacoes_agora": contar(token, user_id, "stage=mediation"),
+        "dias30": resumo([r for r in registros if (r.get("date_created") or "") >= corte_30d]),
+        "mes_atual": resumo([r for r in registros if (r.get("date_created") or "")[:7] == mes]),
+    }
+
+
+def coletar_ads(token, user_id):
+    """Product Ads pelo caminho novo (marketplace/advertising). Soma as
+    campanhas do periodo; falhou, devolve None e o portal nao mostra o bloco."""
+    try:
+        adv = http(f"{API}/advertising/advertisers?product_id=PADS", token,
+                   cabecalhos={"Api-Version": "1"})
+        lista = adv.get("advertisers") or []
+        if not lista:
+            return None
+        a = lista[0]
+        base = (f"{API}/marketplace/advertising/{a['site_id']}/advertisers/"
+                f"{a['advertiser_id']}/product_ads/campaigns/search")
+        ate = datetime.now(FUSO).date()
+        de = ate - timedelta(days=30)
+        campanhas, offset = [], 0
+        while True:
+            d = http(f"{base}?limit=50&offset={offset}&date_from={de}&date_to={ate}"
+                     f"&metrics=cost,clicks,prints,units_quantity,direct_amount,"
+                     f"indirect_amount,total_amount,acos",
+                     token, cabecalhos={"Api-Version": "2"})
+            campanhas.extend(d.get("results") or [])
+            offset += 50
+            if offset >= (d.get("paging") or {}).get("total", 0):
+                break
+
+        def soma(campo):
+            return round(sum(float((c.get("metrics") or {}).get(campo) or 0)
+                             for c in campanhas), 2)
+        investido = soma("cost")
+        receita = soma("total_amount") or (soma("direct_amount") + soma("indirect_amount"))
+        return {
+            "de": str(de), "ate": str(ate),
+            "investido": investido,
+            "cliques": int(soma("clicks")),
+            "impressoes": int(soma("prints")),
+            "vendas_atribuidas": int(soma("units_quantity")),
+            "receita_atribuida": receita,
+            "acos": round(100 * investido / receita, 1) if receita else None,
+            "campanhas_ativas": sum(1 for c in campanhas if c.get("status") == "active"),
+            "campanhas": len(campanhas),
+        }
+    except Exception as e:
+        print(f"  Product Ads indisponível ({type(e).__name__}) — seguindo sem ads.")
+        return None
+
+
+def gravar(pacote, url):
+    import psycopg2
+    from psycopg2.extras import Json
+    conn = psycopg2.connect(url)
+    with conn, conn.cursor() as cur:
+        cur.execute("INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
+                    "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
+                    ("ml_conta", Json(pacote)))
+    conn.close()
+    print("\n  gravado ml_conta")
+
+
+def main():
+    token, user_id = renovar_token()
+    print("token renovado e rotacionado no ml_auth.json")
+
+    rep = coletar_reputacao(token, user_id)
+    print(f"reputação: {rep['nivel']} / {rep['medalha']} | vendas 60d: {rep['vendas_60d']}")
+
+    pos = coletar_pos_venda(token, user_id)
+    print(f"agora: {pos['abertas_agora']} abertas, {pos['mediacoes_agora']} em mediação")
+    print(f"30d  : {pos['dias30']['mediacoes']} mediações, {pos['dias30']['devolucoes']} devoluções, "
+          f"{pos['dias30']['cancel_comprador']}+{pos['dias30']['cancel_vendedor']} cancelamentos")
+
+    ads = coletar_ads(token, user_id)
+    if ads:
+        print(f"ads  : R$ {ads['investido']} em 30d, {ads['cliques']} cliques")
+
+    pacote = {"gerado_em": datetime.now(FUSO).isoformat(timespec="seconds"),
+              "reputacao": rep, "pos_venda": pos, "ads": ads}
+    if "--seco" in sys.argv:
+        print("\n(--seco: nada gravado)")
+        return
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise SystemExit("DATABASE_URL não definida.")
+    gravar(pacote, url)
+
+
+if __name__ == "__main__":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    main()

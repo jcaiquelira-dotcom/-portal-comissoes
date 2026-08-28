@@ -2352,6 +2352,18 @@ def _mb_agregar(dados: dict) -> dict:
     return por_mes
 
 
+@app.route("/api/admin/ml-conta")
+def api_admin_ml_conta():
+    """Saude da conta Mercado Livre: reputacao oficial, pos-venda e Product
+    Ads, empurrados por scripts/sincronizar_ml.py a partir do ml-dashboard."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    d = ler_json(resolver_pasta_dados() / "ml_conta.json", None)
+    if not d:
+        return jsonify({"sem_dados": True})
+    return jsonify(d)
+
+
 @app.route("/api/admin/metas-bonus")
 def api_admin_metas_bonus():
     if not exigir_admin():
@@ -2988,6 +3000,33 @@ def api_marketing_gestor():
             investimento = round(investimento + meta_rateio["spend"], 2)
             impressoes += meta_rateio["impressions"]
 
+    # Product Ads do Mercado Livre, com o MESMO rateio por dia do Meta: o
+    # sincronizador entrega uma janela fechada de 30 dias, e daqui sai a fatia
+    # que cai no periodo pedido. Aproximacao — e a tela diz isso.
+    ml_conta = ler_json(resolver_pasta_dados() / "ml_conta.json", None) or {}
+    ml_ads = ml_conta.get("ads")
+    ml_rateio = None
+    if ml_ads and ml_ads.get("de") and ml_ads.get("ate") and ml_ads.get("investido"):
+        ini = max(de, ml_ads["de"])
+        fim = min(ate, ml_ads["ate"])
+        if ini <= fim:
+            dias_relatorio = (date.fromisoformat(ml_ads["ate"])
+                              - date.fromisoformat(ml_ads["de"])).days + 1
+            dias_dentro = (date.fromisoformat(fim) - date.fromisoformat(ini)).days + 1
+            fatia = dias_dentro / dias_relatorio if dias_relatorio else 0
+            ml_rateio = {
+                "de": ini, "ate": fim,
+                "dias_dentro": dias_dentro, "dias_relatorio": dias_relatorio,
+                "spend": round(float(ml_ads["investido"]) * fatia, 2),
+                "cliques": int((ml_ads.get("cliques") or 0) * fatia),
+                "impressions": int((ml_ads.get("impressoes") or 0) * fatia),
+                "receita": round(float(ml_ads.get("receita_atribuida") or 0) * fatia, 2),
+                "acos": ml_ads.get("acos"),
+                "integral": dias_dentro == dias_relatorio,
+            }
+            investimento = round(investimento + ml_rateio["spend"], 2)
+            impressoes += ml_rateio["impressions"]
+
     vendas = _vendas_no_periodo(vendedores, ef_de, ef_ate,
                                 so_vendedor=filtro_vendedor or None,
                                 universo=universo)
@@ -3037,6 +3076,7 @@ def api_marketing_gestor():
                        "clicks": cliques},
             "meta": meta,
             "meta_rateio": meta_rateio,
+            "ml_rateio": ml_rateio,
         },
     })
 
