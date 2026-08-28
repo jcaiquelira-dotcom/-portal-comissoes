@@ -140,6 +140,7 @@
   .rh-tag.warn{color:var(--warn);border-color:var(--warn);}
   .rh-tag.bad{color:var(--bad);border-color:var(--bad);}
   .rh-tag.ok{color:var(--good);border-color:var(--good);}
+  .rh-num{text-align:right;font-variant-numeric:tabular-nums;}
   .rh-sit{font-size:11.5px;font-weight:600;}
   .rh-sit.ativo{color:var(--good);}
   .rh-sit.afastado{color:var(--warn);}
@@ -2247,6 +2248,15 @@ function rhEsc(t){
 function rhData(iso){
   return iso ? iso.slice(8) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '—';
 }
+function rhMoeda(v){
+  return 'R$ ' + (Number(v) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2,
+                                                           maximumFractionDigits: 2});
+}
+
+function rhCusto(c){
+  return (Number(c.salario) || 0) + (Number(c.vt) || 0) + (Number(c.bonificacao) || 0);
+}
+
 function rhOpcoes(lista, atual, vazio){
   return (vazio ? `<option value="">${vazio}</option>` : '')
     + lista.map(x => {
@@ -2268,7 +2278,8 @@ function renderRh(){
     kpi('No time hoje', i.ativos, i.afastados ? `${i.afastados} afastado(s)` : 'todos ativos'),
     kpi('Fora hoje', i.fora_hoje.length, i.fora_hoje.join(', ') || 'ninguém',
         i.fora_hoje.length ? 'var(--warn)' : 'var(--good)'),
-    kpi('Tempo médio de casa', i.tempo_medio_casa === null ? '—' : i.tempo_medio_casa + ' anos'),
+    kpi('Custo mensal do time', rhMoeda(i.custo_folha),
+        i.sem_salario.length ? `${i.sem_salario.length} sem salário na ficha` : 'salário + VT + bonificação'),
     kpi('Documentos a vencer', i.documentos_vencendo, 'nos próximos 30 dias',
         i.documentos_vencendo ? 'var(--bad)' : 'var(--good)'),
   ].join('');
@@ -2289,7 +2300,7 @@ function rhEquipe(d){
         ? ' <span class="rh-tag warn">fora hoje</span>' : ''}</td>
       <td>${rhEsc(c.cargo || '—')}</td>
       <td>${rhEsc(c.setor || '—')}</td>
-      <td>${rhEsc(c.contrato || '—')}</td>
+      <td class="rh-num">${rhCusto(c) ? rhMoeda(rhCusto(c)) : '—'}</td>
       <td>${c.tempo_casa === null ? '—' : c.tempo_casa + (c.tempo_casa === 1 ? ' ano' : ' anos')}</td>
       <td><span class="rh-sit ${c.situacao || 'ativo'}">${d.opcoes.situacoes[c.situacao] || 'Ativo'}</span></td>
     </tr>`).join('');
@@ -2316,9 +2327,10 @@ function rhEquipe(d){
         <button class="btn btn-principal btn-pequeno" id="rhNovo">+ Novo colaborador</button>
       </div>
       ${d.colaboradores.length ? `<div class="tabela-rolante"><table>
-        <thead><tr><th>Nome</th><th>Cargo</th><th>Setor</th><th>Contrato</th><th>Casa</th><th>Situação</th></tr></thead>
+        <thead><tr><th>Nome</th><th>Cargo</th><th>Setor</th><th class="rh-num">Custo/mês</th><th>Casa</th><th>Situação</th></tr></thead>
         <tbody>${linhas}</tbody></table></div>
-        <div class="dp-aviso">Clique numa linha para abrir a ficha.</div>`
+        <div class="dp-aviso">Clique numa linha para abrir a ficha. O custo é salário bruto +
+          vale-transporte + bonificação — não inclui encargos, férias nem 13º.</div>`
         : '<div class="vazio">Nenhum colaborador cadastrado ainda.</div>'}
     </div>
     <div class="dp-grid duas">
@@ -2366,7 +2378,9 @@ function rhAbrirFicha(cid){
       ${campo('emergencia', 'Contato de emergência', c.emergencia)}
       ${campo('cpf', 'CPF', c.cpf)}
       ${campo('rg', 'RG', c.rg)}
-      ${campo('salario', 'Salário (R$)', c.salario, 'number', 'step="0.01" min="0"')}
+      ${campo('salario', 'Salário bruto (R$)', c.salario, 'number', 'step="0.01" min="0"')}
+      ${campo('vt', 'Vale-transporte (R$)', c.vt, 'number', 'step="0.01" min="0"')}
+      ${campo('bonificacao', 'Bonificação (R$)', c.bonificacao, 'number', 'step="0.01" min="0"')}
     </div>
     ${campo('endereco', 'Endereço', c.endereco)}
     <div class="campo"><label class="campo-rotulo" for="rh_obs">Observações</label>
@@ -2416,7 +2430,8 @@ async function rhSalvarFicha(){
   const val = (id) => { const e = document.getElementById('rh_' + id); return e ? e.value : ''; };
   const corpo = {id: rhEditando};
   ['nome','apelido','cargo','setor','contrato','situacao','admissao','nascimento',
-   'vendedor_id','telefone','email','emergencia','cpf','rg','salario','endereco','obs',
+   'vendedor_id','telefone','email','emergencia','cpf','rg','salario','vt','bonificacao',
+   'endereco','obs',
    'desligamento','motivo_desligamento'].forEach(k => corpo[k] = val(k));
   const res = await fetch('/api/admin/rh/colaboradores', {
     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)});

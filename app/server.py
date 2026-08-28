@@ -1898,8 +1898,10 @@ def api_admin_auditoria_marcar(venda_id):
 # a tela avisa que são dados restritos. O elo fraco continua sendo a senha única
 # do portal — vale trocar por senha por pessoa quando der.
 
-SETORES_RH = ["Vendas", "Expedição", "Anúncios", "Cadastro", "Pátio",
-              "Administrativo", "Marketing", "Outro"]
+# Setores como a empresa se organiza de fato, na ordem da planilha de folha.
+SETORES_RH = ["Vendas", "Anúncios", "Cadastro", "Desmontagem", "Expedição",
+              "Estoque", "Higienização", "Pátio", "Gerência", "Administrativo",
+              "Marketing", "Outro"]
 CONTRATOS_RH = ["CLT", "PJ", "Estágio", "Temporário", "Sócio"]
 SITUACOES_RH = {"ativo": "Ativo", "afastado": "Afastado", "desligado": "Desligado"}
 TIPOS_AUSENCIA = {"ferias": "Férias", "falta": "Falta", "atestado": "Atestado",
@@ -1933,6 +1935,18 @@ def _rh_data(v) -> str:
         return t
     except ValueError:
         return ""
+
+
+def _rh_num(v):
+    """Campo de dinheiro vazio é normal e vira None, não zero: zero diz
+    "ganha zero", vazio diz "não sei"."""
+    t = str(v if v is not None else "").strip()
+    if t in ("", "None"):
+        return None
+    try:
+        return round(float(t.replace(",", ".")), 2)
+    except ValueError:
+        return None
 
 
 def _idade_ou_tempo(desde: str):
@@ -2013,6 +2027,13 @@ def api_admin_rh():
     for c in ativos:
         por_setor[c.get("setor") or "Sem setor"] = por_setor.get(c.get("setor") or "Sem setor", 0) + 1
 
+    # Custo mensal direto: o que sai do caixa por cada pessoa todo mes. Nao e a
+    # folha contabil (falta encargo, ferias, 13o), e o rodape da tela diz isso.
+    def custo(c):
+        return sum(float(c.get(campo) or 0) for campo in ("salario", "vt", "bonificacao"))
+    custo_folha = sum(custo(c) for c in ativos)
+    sem_salario = [c["nome"] for c in ativos if not c.get("salario")]
+
     tempos = [c["tempo_casa"] for c in ativos if c["tempo_casa"] is not None]
     ano = hoje[:4]
     desligados_ano = [c for c in lista
@@ -2039,6 +2060,8 @@ def api_admin_rh():
             "por_setor": sorted(({"setor": k, "qtd": v} for k, v in por_setor.items()),
                                 key=lambda x: -x["qtd"]),
             "tempo_medio_casa": round(sum(tempos) / len(tempos), 1) if tempos else None,
+            "custo_folha": round(custo_folha, 2),
+            "sem_salario": sem_salario,
             "fora_hoje": [c["nome"] for c in lista if c["fora_hoje"]],
             "aniversariantes": sorted(
                 ({"nome": c["nome"], "dia": c["nascimento"][8:10]} for c in lista
@@ -2089,8 +2112,9 @@ def api_admin_rh_salvar():
         "emergencia": _rh_texto(corpo.get("emergencia"), 120),
         "cpf": _rh_texto(corpo.get("cpf"), 20),
         "rg": _rh_texto(corpo.get("rg"), 20),
-        "salario": (round(float(corpo["salario"]), 2)
-                    if str(corpo.get("salario") or "").strip() not in ("", "None") else None),
+        "salario": _rh_num(corpo.get("salario")),
+        "vt": _rh_num(corpo.get("vt")),
+        "bonificacao": _rh_num(corpo.get("bonificacao")),
         # Liga a ficha ao vendedor do portal: com isso a tela de RH consegue
         # abrir o desempenho da pessoa sem cadastro duplicado.
         "vendedor_id": _rh_texto(corpo.get("vendedor_id"), 40),
