@@ -3729,6 +3729,8 @@ document.addEventListener('click', async ev => {
   }else{ b.disabled = false; }
 });
 
+let atdTimerGestor = null;
+
 async function carregarAtendimento(){
   const el = document.getElementById('atdCorpo');
   const res = await fetch('/api/admin/atendimento-alerta');
@@ -4124,6 +4126,8 @@ function irParaSecao(chave, sub){
   if(chave === 'desempenho') abrirEscolhaDesempenho();
   if(chave === 'carros' && !carrosCarregado) carregarCarros();
   if(chave === 'atendimento') carregarAtendimento();
+  clearInterval(atdTimerGestor);
+  if(chave === 'atendimento') atdTimerGestor = setInterval(carregarAtendimento, 30000);
   if(chave === 'rh' && !rhDados) carregarRh();
   if(chave === 'metabonus' && !mbCarregado) carregarMetaBonus();
   if(chave === 'auditoria' && !audCarregado){

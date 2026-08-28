@@ -211,6 +211,8 @@
   .atd-pe{font-size:11px;color:var(--muted);margin-top:5px;opacity:.85;}
   .atd-acoes{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
   .atd-ok{font-size:12px;color:var(--good);font-weight:600;}
+  .atd-rodape{display:flex;align-items:center;gap:10px;justify-content:space-between;
+              flex-wrap:wrap;margin-top:10px;font-size:11.5px;color:var(--muted);}
   .atd-badge{
     background:var(--bad);color:#fff;font-size:10.5px;font-weight:800;
     border-radius:20px;padding:1px 7px;margin-left:auto;line-height:1.6;
@@ -1612,8 +1614,24 @@ document.addEventListener('click', async ev => {
   }
 });
 
-async function carregarMeuAtendimento(){
+// O vendedor responde no WhatsApp e volta pra ca: se a tela nao se atualizar
+// sozinha, ele revê quem ja atendeu e perde tempo conferindo. Entao ela se
+// renova a cada 30s enquanto estiver aberta, e imediatamente quando ele volta
+// pra aba — que e exatamente o momento em que ele volta do WhatsApp.
+let atdTimer = null;
+
+function atdAutoAtualizar(ligar){
+  clearInterval(atdTimer);
+  atdTimer = ligar ? setInterval(() => carregarMeuAtendimento(true), 30000) : null;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden && secaoAtual === 'atendimento') carregarMeuAtendimento(true);
+});
+
+async function carregarMeuAtendimento(silencioso){
   const el = document.getElementById('atdVendedor');
+  if(!silencioso) el.innerHTML = '<div class="vazio">Carregando…</div>';
   const res = await fetch('/api/meu-atendimento');
   if(!res.ok){ el.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
   const d = await res.json();
@@ -1626,8 +1644,8 @@ async function carregarMeuAtendimento(){
   if(!d.total){
     el.innerHTML = `<div class="card">
       <div class="vazio">Ninguém esperando resposta sua. Tudo em dia 👏</div>
-      <div class="dp-aviso">Atualizado às ${(d.gerado_em || '').slice(11, 16)}.
-        A lista se renova sozinha a cada 10 minutos.</div></div>`;
+      <div class="dp-aviso">Dados de ${(d.gerado_em || '').slice(11, 16)}.
+        Esta tela se atualiza sozinha — se chegar alguém, aparece aqui.</div></div>`;
     return;
   }
   const COR = {critico: 'var(--bad)', urgente: 'var(--warn)', atencao: 'var(--muted)'};
@@ -1670,6 +1688,13 @@ async function carregarMeuAtendimento(){
       que some sozinha quando o bot atende primeiro.<br>
       <b>"Já resolvi" vale só para hoje:</b> se amanhecer e o cliente continuar sem
       resposta, ele volta para esta lista. E volta na hora se ele mandar mensagem nova.</div>`;
+  const rodape = document.createElement('div');
+  rodape.className = 'atd-rodape';
+  rodape.innerHTML = `<span>Dados de ${(d.gerado_em || '').slice(11, 16)} ·
+    a tela se atualiza sozinha</span>
+    <button class="btn btn-neutro btn-pequeno" id="atdAgora">Atualizar agora</button>`;
+  el.appendChild(rodape);
+  document.getElementById('atdAgora').addEventListener('click', () => carregarMeuAtendimento());
 }
 
 async function carregarPerformance(){
@@ -1712,10 +1737,20 @@ const SECOES_VENDEDOR = {painel: 'secaoPainel', vendas: 'secaoVendas',
 // secao, cai no painel — mas '#performance' agora e reconhecido.
 if(!SECOES_VENDEDOR[secaoAtual]) secaoAtual = 'painel';
 
-// Badge no boot: o vendedor precisa ver que tem gente esperando mesmo estando
-// em outra tela.
-fetch('/api/meu-atendimento').then(r => r.ok ? r.json() : null)
-  .then(d => { if(d && !d.sem_dados) atdBadge(d.total); }).catch(() => {});
+// O badge acompanha mesmo com o vendedor em outra tela — e o que avisa que
+// chegou gente nova sem ele precisar entrar na secao. A cada 60s basta: o
+// monitor roda de 2 em 2 minutos.
+function atdConferirBadge(){
+  fetch('/api/meu-atendimento')
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if(d && !d.sem_dados) atdBadge(d.total); })
+    .catch(() => {});
+}
+atdConferirBadge();
+setInterval(() => { if(secaoAtual !== 'atendimento') atdConferirBadge(); }, 60000);
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden && secaoAtual !== 'atendimento') atdConferirBadge();
+});
 
 function irParaSecao(chave){
   secaoAtual = SECOES_VENDEDOR[chave] ? chave : 'painel';
@@ -1724,6 +1759,7 @@ function irParaSecao(chave){
   });
   if(secaoAtual === 'performance') carregarPerformance();
   if(secaoAtual === 'atendimento') carregarMeuAtendimento();
+  atdAutoAtualizar(secaoAtual === 'atendimento');
   document.getElementById('tituloSecao').textContent = TITULOS[secaoAtual];
   document.querySelectorAll('.nav-item[data-nav]').forEach(a => {
     a.classList.toggle('ativo', a.dataset.nav === secaoAtual);
