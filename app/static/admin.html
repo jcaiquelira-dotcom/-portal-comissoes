@@ -3738,7 +3738,7 @@ async function carregarAtendimento(){
   const d = await res.json();
   if(d.sem_dados){
     el.innerHTML = `<div class="card"><div class="vazio">O monitor ainda não rodou.
-      Ele roda de 10 em 10 minutos no computador da loja.</div></div>`;
+      Ele roda a cada 2 minutos no servidor, em horário de atendimento.</div></div>`;
     return;
   }
   if(d.fora_do_horario){

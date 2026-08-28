@@ -4521,6 +4521,26 @@ def api_admin_retomada_resumo():
 
 
 
+# ---------- monitor de atendimento (thread de fundo) ----------
+# Roda dentro do proprio servidor pra nao depender do computador da loja
+# ligado — historico completo em app/monitor_atendimento.py. No gunicorn cada
+# worker teria o seu; o servico usa 1 worker e as escritas sao idempotentes,
+# entao duplicata eventual so custaria chamadas repetidas, nunca dado errado.
+try:
+    import monitor_atendimento as _mon
+
+    def _mon_token():
+        d = ler_json(resolver_pasta_dados() / "segredo_totalk.json", None) or {}
+        return d.get("token")
+
+    def _mon_gravar(pacote):
+        escrever_json(resolver_pasta_dados() / "atendimento_alerta.json", pacote)
+
+    _mon.iniciar(_mon_token, _mon_gravar)
+except Exception as _e:   # o monitor nunca pode derrubar o portal
+    print(f"[monitor-atendimento] não subiu: {_e}")
+
+
 if __name__ == "__main__":
     # use_reloader liga SÓ o recarregador: mudou o código, o servidor reinicia
     # sozinho, sem ninguém precisar lembrar de reiniciar na mão.

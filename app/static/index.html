@@ -1603,7 +1603,7 @@ document.addEventListener('click', async ev => {
     body: JSON.stringify({id: botao.dataset.resolver, ultima_em: botao.dataset.ultima})});
   if(res.ok){
     // Some o cartao na hora: esperar o recarregamento daria a sensacao de
-    // clique perdido, e a lista so muda de 10 em 10 minutos.
+    // clique perdido, e a lista se renova a cada 2 minutos no servidor.
     const cartao = botao.closest('.atd-item');
     cartao.style.opacity = '.35';
     cartao.querySelector('.atd-acoes').innerHTML =
@@ -1694,7 +1694,7 @@ async function carregarMeuAtendimento(silencioso){
         </div>
       </div>`;
     }).join('')}
-    <div class="dp-aviso">Atualiza sozinho a cada 10 minutos. Quem aparece aqui mandou
+    <div class="dp-aviso">Atualiza sozinho a cada 2 minutos, direto do servidor. Quem aparece aqui mandou
       mensagem e ainda não teve resposta — não depende da bolinha de "não lida" do Totalk,
       que some sozinha quando o bot atende primeiro.<br>
       <b>"Já resolvi" vale só para hoje:</b> se amanhecer e o cliente continuar sem
