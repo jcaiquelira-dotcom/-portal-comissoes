@@ -670,10 +670,17 @@ function contarRepetidas(vendas){
   return cont;
 }
 
+// Sem acento dos dois lados: "itau" acha "Itaú". canal_original entra porque
+// a grafia antiga ("ML", "B") e a que o vendedor digitou e lembra.
+function semAcento(t){
+  return t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 function textoDaVenda(v){
   const [y,m,d] = v.data.split('-');
-  return [v.produto, v.sku, v.canal, `${d}/${m}/${y}`, String(v.valor).replace('.', ',')]
-    .filter(Boolean).join(' ').toLowerCase();
+  return semAcento([v.produto, v.sku, v.canal, v.canal_original,
+    `${d}/${m}/${y}`, String(v.valor).replace('.', ',')]
+    .filter(Boolean).join(' '));
 }
 
 async function carregarVendas(){
@@ -696,7 +703,7 @@ function renderVendas(){
   const termo = (document.getElementById('buscaVendasInput')?.value || '').trim().toLowerCase();
   const repetidas = contarRepetidas(vendasDoMes);
   const vendas = termo
-    ? vendasDoMes.filter(v => termo.split(/\s+/).every(p => textoDaVenda(v).includes(p)))
+    ? vendasDoMes.filter(v => semAcento(termo).split(/\s+/).every(p => textoDaVenda(v).includes(p)))
     : vendasDoMes;
 
   const body = document.getElementById('vendasBody');
