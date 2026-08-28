@@ -3740,7 +3740,10 @@ async function carregarAtendimento(){
         ? '<span class="rh-tag bad">nunca respondida</span>'
         : '<span class="rh-tag">aguardando retorno</span>'}</td>
       <td class="atd-msg">${(x.ultima_msg || '').replace(/</g, '&lt;')}</td>
-      <td>${x.desde.slice(11)}</td>
+      <td>${(() => { const [d, h] = x.desde.split('T');
+        const hoje = new Date().toISOString().slice(0, 10);
+        return d === hoje ? h.slice(0, 5)
+          : `${d.slice(8, 10)}/${d.slice(5, 7)} ${h.slice(0, 5)}`; })()}</td>
     </tr>`).join('');
 
   el.innerHTML = `
@@ -3752,6 +3755,7 @@ async function carregarAtendimento(){
       ${kpi('Urgente', c.urgente || 0, `mais de ${d.limites.urgente} min`,
             c.urgente ? 'var(--warn)' : 'var(--good)')}
       ${kpi('Abertas há +24h', d.paradas_antigas || 0, 'sessões esquecidas em aberto')}
+      ${kpi('Só agradeceram', d.so_agradeceram || 0, 'fora do alerta: não pedem resposta')}
     </div>
     <div class="card">
       <div class="aud-cabecalho">
@@ -3766,7 +3770,8 @@ async function carregarAtendimento(){
       <div class="dp-aviso">Quem falou por último é o cliente e a loja ainda não respondeu.
         <b>Não usa a bolinha de "não lida" do Totalk</b> — ela é zerada pelo bot antes de
         alguém ver, e foi por isso que este painel existe. Sessões abertas há mais de 24h
-        ficam de fora da lista (são conversas esquecidas em aberto, não atendimento de hoje).</div>
+        ficam de fora da lista (são conversas esquecidas em aberto, não atendimento de hoje),
+        e também sai quem só mandou "ok"/"obrigado" — encerramento não pede resposta.</div>
     </div>`;
 }
 

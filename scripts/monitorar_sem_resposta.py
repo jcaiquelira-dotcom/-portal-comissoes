@@ -24,6 +24,7 @@ Uso:
 import io
 import json
 import os
+import re
 import sys
 import urllib.parse
 import time
@@ -43,6 +44,40 @@ ATENCAO, URGENTE, CRITICO = 15, 30, 60
 # `paradas_antigas`. Sem esse corte o alerta virava 355 linhas de 10 dias
 # atras e ninguem olharia.
 TETO_MINUTOS = 24 * 60
+
+# Cliente que responde "ok" ou "obrigado" nao esta esperando nada — encerrou a
+# conversa. Sem este filtro o alerta nascia com 45 "criticos" que eram so
+# agradecimento, e alerta cheio de ruido ninguem olha. So vale pra mensagem
+# CURTA: "obrigado, mas queria saber se tem pra Gol" precisa de resposta.
+ENCERRAMENTOS = {
+    "ok", "okay", "okey", "blz", "beleza", "valeu", "vlw", "obrigado",
+    "obrigada", "obg", "brigado", "brigada", "agradecido", "agradecida",
+    "isso", "certo", "perfeito", "show", "otimo", "ótimo", "legal", "top",
+    "entendi", "ta bom", "tá bom", "tabom", "ta certo", "tudo bem", "de nada",
+    "bom dia", "boa tarde", "boa noite", "att", "amem", "amém",
+}
+# Emoji sozinho (joinha, mãozinha, coração) tambem e encerramento.
+SO_EMOJI = re.compile(r"^[\W_]+$", re.UNICODE)
+
+
+def so_agradeceu(texto: str) -> bool:
+    """True quando a ultima mensagem do cliente nao pede resposta."""
+    t = (texto or "").strip().lower()
+    if not t:
+        return False
+    if len(t) > 40:            # mensagem longa sempre merece olhar
+        return False
+    if SO_EMOJI.fullmatch(t):  # 👍 🙏 ❤️ sozinhos
+        return True
+    # tira pontuacao e emoji das pontas antes de comparar
+    limpo = re.sub(r"^[\W_]+|[\W_]+$", "", t)
+    if limpo in ENCERRAMENTOS:
+        return True
+    # "muito obrigado", "ok obrigado", "obrigado!!" — todas as palavras sao de
+    # encerramento ou reforco ("muito", "mesmo", "entao").
+    reforco = {"muito", "mesmo", "entao", "então", "ai", "aí", "ja", "já", "e", "eh"}
+    palavras = [p for p in re.split(r"[\W_]+", limpo) if p]
+    return bool(palavras) and all(p in ENCERRAMENTOS or p in reforco for p in palavras)
 
 # userId do Totalk -> nome que o portal usa. Mesmo mapa do vendas-insights.
 ATENDENTES = {
@@ -91,6 +126,7 @@ def quando(txt: str):
 def coletar():
     agora = datetime.now(timezone.utc)
     esperando, antigas = [], []
+    agradecimentos = 0
 
     # PENDING = ainda na fila; IN_PROGRESS = com atendente. As duas contam:
     # cliente esperando na fila e cliente esperando resposta pesam igual.
@@ -114,6 +150,9 @@ def coletar():
                     continue
                 if minutos > TETO_MINUTOS:
                     antigas.append(minutos)
+                    continue
+                if so_agradeceu(s.get("lastMessageText")):
+                    agradecimentos += 1
                     continue
                 esperando.append({
                     "id": s["id"],
@@ -140,15 +179,18 @@ def coletar():
         except Exception:
             e["cliente"] = "?"
         time.sleep(0.25)   # a API corta rajada; 4 por segundo passa tranquilo
-    return esperando, antigas
+    return esperando, antigas, agradecimentos
 
 
 def main():
-    esperando, antigas = coletar()
+    esperando, antigas, agradecimentos = coletar()
     agora = datetime.now(FUSO)
     contagem = {n: sum(1 for e in esperando if e["nivel"] == n)
                 for n in ("critico", "urgente", "atencao")}
     print(f"{len(esperando)} conversas esperando resposta há {ATENCAO}min ou mais")
+    if agradecimentos:
+        print(f"  ({agradecimentos} ignoradas: última do cliente era só "
+              f'"ok"/"obrigado" — não pedem resposta)')
     if antigas:
         print(f"  (+{len(antigas)} sessões abertas há mais de 24h — provavelmente "
               f"esquecidas em aberto, contadas à parte)")
@@ -165,6 +207,7 @@ def main():
         "contagem": contagem,
         "total": len(esperando),
         "paradas_antigas": len(antigas),
+        "so_agradeceram": agradecimentos,
         "conversas": esperando[:40],
     }
     if "--seco" in sys.argv:
