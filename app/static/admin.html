@@ -141,6 +141,8 @@
   .rh-tag.bad{color:var(--bad);border-color:var(--bad);}
   .rh-tag.ok{color:var(--good);border-color:var(--good);}
   .rh-num{text-align:right;font-variant-numeric:tabular-nums;}
+  .dp-linha-time{cursor:pointer;}
+  .dp-linha-time:hover td{background:var(--surface-2);}
   th.rh-ord{cursor:pointer;user-select:none;white-space:nowrap;}
   th.rh-ord:hover{color:var(--text);}
   th.rh-ord.ativa{color:var(--accent);}
@@ -689,6 +691,9 @@
       <div id="desempenhoEscolha">
         <p class="fechamento-nota" style="margin:0 0 14px;">Escolha o vendedor para abrir o painel de desempenho.</p>
         <div class="dp-escolha" id="dpCards"></div>
+        <!-- O time inteiro lado a lado antes de mergulhar em alguem: a pergunta
+             "quem precisa de atencao?" vem antes de "como esta o fulano?". -->
+        <div id="dpComparativo" style="margin-top:16px;"></div>
       </div>
 
       <div id="desempenhoPainel" class="oculto">
@@ -3032,6 +3037,54 @@ function abrirEscolhaDesempenho(){
         <span class="s">${v.percentual ? v.percentual + '% de comissão' : 'ver desempenho'}</span></span>
       </button>`;
   }).join('');
+  carregarComparativoTime();
+}
+
+async function carregarComparativoTime(){
+  const el = document.getElementById('dpComparativo');
+  const lista = vendedoresAtuais.length ? vendedoresAtuais : (resumoAtual?.vendedores || []);
+  if(!lista.length){ el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="vazio">Montando o comparativo…</div>';
+  const mes = new Date().toISOString().slice(0,7);
+  const dados = (await Promise.all(lista.map(v =>
+    fetch(`/api/admin/desempenho?vendedor=${encodeURIComponent(v.id)}&mes=${mes}`)
+      .then(r => r.ok ? r.json() : null).catch(() => null)
+  ))).filter(Boolean);
+  if(!dados.length){ el.innerHTML = ''; return; }
+
+  dados.sort((x, y) => y.atual.total - x.atual.total);
+  const fmt = v => 'R$ ' + (v || 0).toLocaleString('pt-BR', {maximumFractionDigits: 0});
+  const linhas = dados.map(d => {
+    const conv = d.atendimento?.taxa_conversao;
+    const metaPct = d.meta?.pct;
+    const projecao = d.ritmo?.projecao || 0;
+    const metaOk = metaPct !== null && metaPct !== undefined;
+    // Projecao pintada contra a meta: verde ja garante, laranja alcanca no
+    // ritmo, vermelho nao alcanca. Sem meta, fica neutra.
+    const corProj = !metaOk ? '' : projecao >= d.meta.mensal ? 'var(--good)'
+                   : projecao >= d.meta.mensal * .85 ? 'var(--warn)' : 'var(--bad)';
+    return `<tr class="dp-linha-time" data-dp="${d.vendedor.id}">
+      <td><b>${d.vendedor.nome}</b></td>
+      <td class="rh-num">${fmt(d.atual.total)}</td>
+      <td class="rh-num">${d.atual.qtd}</td>
+      <td class="rh-num">${fmt(d.atual.ticket)}</td>
+      <td class="rh-num">${metaOk ? metaPct + '%' : '—'}</td>
+      <td class="rh-num"${corProj ? ` style="color:${corProj};font-weight:600"` : ''}>${fmt(projecao)}</td>
+      <td class="rh-num">${conv !== null && conv !== undefined ? conv + '%' : '—'}</td>
+      <td class="rh-num">${d.time?.participacao ?? '—'}%</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div class="card">
+    <div class="aud-cabecalho"><p class="card-titulo" style="margin:0;">O time no mês, lado a lado</p></div>
+    <div class="tabela-rolante"><table>
+      <thead><tr><th>Vendedor</th><th class="rh-num">Faturamento</th><th class="rh-num">Vendas</th>
+        <th class="rh-num">Ticket</th><th class="rh-num">Meta</th><th class="rh-num">Projeção</th>
+        <th class="rh-num">Conversão</th><th class="rh-num">Fatia</th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>
+    <div class="dp-aviso">Clique numa linha para abrir o painel completo. Projeção no ritmo dos dias
+      já corridos, pintada contra a meta. Conversão = vendas no portal ÷ clientes atendidos no
+      Totalk — quem não atende por lá fica sem o número.</div>
+  </div>`;
 }
 
 async function abrirDesempenho(vid, mes){
