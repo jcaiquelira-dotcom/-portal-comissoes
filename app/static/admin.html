@@ -130,6 +130,39 @@
   @media (max-width:700px){.grid-2{grid-template-columns:1fr;}}
   .tabela-rolante{overflow-x:auto;}
 
+  /* ---- Recursos humanos ---- */
+  .rh-linha{cursor:pointer;}
+  .rh-linha:hover td{background:var(--surface-2);}
+  .rh-tag{
+    font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    border:1px solid var(--line);border-radius:20px;padding:1px 7px;color:var(--muted);
+  }
+  .rh-tag.warn{color:var(--warn);border-color:var(--warn);}
+  .rh-tag.bad{color:var(--bad);border-color:var(--bad);}
+  .rh-tag.ok{color:var(--good);border-color:var(--good);}
+  .rh-sit{font-size:11.5px;font-weight:600;}
+  .rh-sit.ativo{color:var(--good);}
+  .rh-sit.afastado{color:var(--warn);}
+  .rh-sit.desligado{color:var(--muted);}
+  .rh-form{align-items:center;}
+  .rh-form select,.rh-form input{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:7px 9px;font-family:inherit;font-size:12.5px;
+    flex:1;min-width:110px;
+  }
+  .rh-form select:focus,.rh-form input:focus{outline:none;border-color:var(--accent);}
+
+  .rh-ficha{position:fixed;inset:0;z-index:80;display:flex;
+            align-items:flex-start;justify-content:center;padding:28px 16px;overflow-y:auto;}
+  .rh-ficha-fundo{position:fixed;inset:0;background:rgba(10,14,20,.55);}
+  .rh-ficha-caixa{
+    position:relative;width:100%;max-width:920px;
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:18px;box-shadow:var(--sombra-forte);
+  }
+  .rh-ficha-acoes{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+  .rh-ficha-acoes #rhApagar{margin-left:auto;color:var(--bad);}
+
   /* ---- Auditoria de comissões ---- */
   .aud-modos{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;}
   .aud-modo{
@@ -773,6 +806,35 @@
         </button>
       </div>
       <div id="audCorpo"></div>
+    </section>
+
+    <!-- ---------- RECURSOS HUMANOS ---------- -->
+    <section id="secRh" class="oculto">
+      <div class="config-abas" id="rhAbas">
+        <button class="config-aba ativa" data-rhaba="equipe">Equipe</button>
+        <button class="config-aba" data-rhaba="ausencias">Ausências</button>
+        <button class="config-aba" data-rhaba="documentos">Documentos</button>
+        <button class="config-aba" data-rhaba="ocorrencias">Ocorrências</button>
+      </div>
+      <div id="rhCorpo"></div>
+
+      <!-- Ficha por cima da lista: abrir numa tela separada faria perder o
+           lugar na lista a cada consulta rapida. -->
+      <div id="rhFicha" class="rh-ficha oculto">
+        <div class="rh-ficha-fundo" id="rhFichaFundo"></div>
+        <div class="rh-ficha-caixa">
+          <div class="aud-cabecalho">
+            <p class="card-titulo" style="margin:0;" id="rhFichaTitulo">Ficha</p>
+            <button class="btn btn-neutro btn-pequeno" id="rhVerDesempenho">Ver desempenho</button>
+            <button class="btn btn-neutro btn-pequeno" id="rhFechar">Fechar</button>
+          </div>
+          <div id="rhFichaCorpo"></div>
+          <div class="rh-ficha-acoes">
+            <button class="btn btn-principal btn-pequeno" id="rhSalvar">Salvar</button>
+            <button class="btn btn-neutro btn-pequeno" id="rhApagar">Apagar colaborador</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ---------- CONFIGURAÇÕES ---------- -->
@@ -2157,6 +2219,350 @@ document.addEventListener('change', ev => {
   if(ev.target.id === 'mbMes') carregarMetaBonus(ev.target.value);
 });
 
+/* ---------- Recursos humanos ----------
+   Quatro abas sobre a mesma base: equipe, ausências, documentos e ocorrências.
+   A ficha da pessoa abre por cima da lista, e quando ela está ligada a um
+   vendedor do portal traz o atalho pro painel de Desempenho — é o que faz esse
+   RH valer mais que uma planilha. */
+let rhDados = null;
+let rhAba = 'equipe';
+let rhEditando = null;
+
+const RH_ABAS = {equipe: 'Equipe', ausencias: 'Ausências',
+                 documentos: 'Documentos', ocorrencias: 'Ocorrências'};
+
+async function carregarRh(){
+  const corpo = document.getElementById('rhCorpo');
+  if(!rhDados) corpo.innerHTML = '<div class="vazio">Carregando…</div>';
+  const res = await fetch('/api/admin/rh');
+  if(!res.ok){ corpo.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  rhDados = await res.json();
+  renderRh();
+}
+
+function rhEsc(t){
+  return String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function rhData(iso){
+  return iso ? iso.slice(8) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '—';
+}
+function rhOpcoes(lista, atual, vazio){
+  return (vazio ? `<option value="">${vazio}</option>` : '')
+    + lista.map(x => {
+      const [v, r] = Array.isArray(x) ? x : [x, x];
+      return `<option value="${rhEsc(v)}"${v === atual ? ' selected' : ''}>${rhEsc(r)}</option>`;
+    }).join('');
+}
+
+function renderRh(){
+  const d = rhDados, i = d.indicadores;
+  document.querySelectorAll('#rhAbas .config-aba').forEach(b =>
+    b.classList.toggle('ativa', b.dataset.rhaba === rhAba));
+
+  const kpi = (rot, num, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${num}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+
+  const kpis = [
+    kpi('No time hoje', i.ativos, i.afastados ? `${i.afastados} afastado(s)` : 'todos ativos'),
+    kpi('Fora hoje', i.fora_hoje.length, i.fora_hoje.join(', ') || 'ninguém',
+        i.fora_hoje.length ? 'var(--warn)' : 'var(--good)'),
+    kpi('Tempo médio de casa', i.tempo_medio_casa === null ? '—' : i.tempo_medio_casa + ' anos'),
+    kpi('Documentos a vencer', i.documentos_vencendo, 'nos próximos 30 dias',
+        i.documentos_vencendo ? 'var(--bad)' : 'var(--good)'),
+  ].join('');
+
+  document.getElementById('rhCorpo').innerHTML =
+    `<div class="dp-kpis">${kpis}</div>` + ({
+      equipe: rhEquipe, ausencias: rhAusencias,
+      documentos: rhDocumentos, ocorrencias: rhOcorrencias,
+    }[rhAba])(d);
+}
+
+/* ---------- equipe ---------- */
+function rhEquipe(d){
+  const i = d.indicadores;
+  const linhas = d.colaboradores.map(c => `
+    <tr class="rh-linha" data-ficha="${c.id}">
+      <td><b>${rhEsc(c.apelido || c.nome)}</b>${c.fora_hoje
+        ? ' <span class="rh-tag warn">fora hoje</span>' : ''}</td>
+      <td>${rhEsc(c.cargo || '—')}</td>
+      <td>${rhEsc(c.setor || '—')}</td>
+      <td>${rhEsc(c.contrato || '—')}</td>
+      <td>${c.tempo_casa === null ? '—' : c.tempo_casa + (c.tempo_casa === 1 ? ' ano' : ' anos')}</td>
+      <td><span class="rh-sit ${c.situacao || 'ativo'}">${d.opcoes.situacoes[c.situacao] || 'Ativo'}</span></td>
+    </tr>`).join('');
+
+  const aniv = i.aniversariantes.length
+    ? i.aniversariantes.map(a => `<div class="dp-destaque"><span class="rot">dia ${a.dia}</span>
+        <span class="val">${rhEsc(a.nome)}</span></div>`).join('')
+    : '<div class="vazio">Ninguém faz aniversário este mês.</div>';
+
+  const setores = i.por_setor.length
+    ? (() => { const max = Math.max(...i.por_setor.map(s => s.qtd), 1);
+        return `<div class="dp-lista">${i.por_setor.map(s => `
+          <div class="dp-linha"><span class="nome">${rhEsc(s.setor)}</span>
+          <span class="v">${s.qtd}</span>
+          <span class="t"><span class="f" style="width:${(s.qtd/max*100).toFixed(1)}%"></span></span>
+          </div>`).join('')}</div>`; })()
+    : '<div class="vazio">Sem colaboradores cadastrados.</div>';
+
+  return `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="aud-cabecalho">
+        <p class="card-titulo" style="margin:0;">Colaboradores</p>
+        <span class="aud-conta">${d.colaboradores.length}</span>
+        <button class="btn btn-principal btn-pequeno" id="rhNovo">+ Novo colaborador</button>
+      </div>
+      ${d.colaboradores.length ? `<div class="tabela-rolante"><table>
+        <thead><tr><th>Nome</th><th>Cargo</th><th>Setor</th><th>Contrato</th><th>Casa</th><th>Situação</th></tr></thead>
+        <tbody>${linhas}</tbody></table></div>
+        <div class="dp-aviso">Clique numa linha para abrir a ficha.</div>`
+        : '<div class="vazio">Nenhum colaborador cadastrado ainda.</div>'}
+    </div>
+    <div class="dp-grid duas">
+      <div class="card"><p class="card-titulo">Aniversariantes do mês</p>${aniv}</div>
+      <div class="card"><p class="card-titulo">Quadro por setor</p>${setores}
+        <div class="dp-destaque" style="margin-top:8px;"><span class="rot">Movimentação no ano</span>
+          <span class="val">${i.admitidos_no_ano} entraram · ${i.desligados_no_ano} saíram · ${i.turnover_ano}%</span></div>
+        <div class="dp-aviso">Com equipe pequena um desligamento move muito o percentual — por isso
+          o número absoluto vem junto.</div>
+      </div>
+    </div>`;
+}
+
+/* ---------- ficha ---------- */
+function rhAbrirFicha(cid){
+  const d = rhDados;
+  const c = cid ? d.colaboradores.find(x => x.id === cid) : {};
+  rhEditando = cid || null;
+  const o = d.opcoes;
+  const campo = (id, rot, valor, tipo = 'text', extra = '') => `
+    <div class="campo"><label class="campo-rotulo" for="rh_${id}">${rot}</label>
+      <input type="${tipo}" id="rh_${id}" value="${rhEsc(valor ?? '')}" ${extra}></div>`;
+  const select = (id, rot, lista, atual, vazio) => `
+    <div class="campo"><label class="campo-rotulo" for="rh_${id}">${rot}</label>
+      <select id="rh_${id}">${rhOpcoes(lista, atual, vazio)}</select></div>`;
+
+  const ausencias = d.ausencias.filter(a => a.colaborador_id === cid);
+  const documentos = d.documentos.filter(x => x.colaborador_id === cid);
+  const ocorrencias = d.ocorrencias.filter(x => x.colaborador_id === cid);
+
+  document.getElementById('rhFichaCorpo').innerHTML = `
+    <div class="grid-3">
+      ${campo('nome', 'Nome completo', c.nome)}
+      ${campo('apelido', 'Como é chamado', c.apelido)}
+      ${campo('cargo', 'Cargo', c.cargo)}
+      ${select('setor', 'Setor', o.setores, c.setor, '—')}
+      ${select('contrato', 'Contrato', o.contratos, c.contrato, '—')}
+      ${select('situacao', 'Situação', Object.entries(o.situacoes), c.situacao || 'ativo')}
+      ${campo('admissao', 'Admissão', c.admissao, 'date')}
+      ${campo('nascimento', 'Nascimento', c.nascimento, 'date')}
+      ${select('vendedor_id', 'Ligar ao vendedor do portal',
+               d.vendedores.map(v => [v.id, v.nome]), c.vendedor_id, 'não é vendedor')}
+      ${campo('telefone', 'Telefone', c.telefone)}
+      ${campo('email', 'E-mail', c.email)}
+      ${campo('emergencia', 'Contato de emergência', c.emergencia)}
+      ${campo('cpf', 'CPF', c.cpf)}
+      ${campo('rg', 'RG', c.rg)}
+      ${campo('salario', 'Salário (R$)', c.salario, 'number', 'step="0.01" min="0"')}
+    </div>
+    ${campo('endereco', 'Endereço', c.endereco)}
+    <div class="campo"><label class="campo-rotulo" for="rh_obs">Observações</label>
+      <input type="text" id="rh_obs" value="${rhEsc(c.obs ?? '')}"></div>
+    <div id="rhBlocoDesligamento" class="grid-3" style="${(c.situacao === 'desligado') ? '' : 'display:none;'}">
+      ${campo('desligamento', 'Data do desligamento', c.desligamento, 'date')}
+      ${campo('motivo_desligamento', 'Motivo', c.motivo_desligamento)}
+    </div>
+    <div class="dp-aviso">CPF, RG e salário são dados restritos: ficam visíveis pra quem tem a senha
+      do gestor. Enquanto o portal tiver senha única, quem entra aqui vê tudo.</div>
+
+    ${cid ? `<div class="dp-grid duas" style="margin-top:14px;">
+      <div class="card">
+        <p class="card-titulo">Histórico</p>
+        ${ocorrencias.length ? ocorrencias.map(x => `<div class="dp-destaque">
+            <span class="rot">${rhData(x.data)} · ${rhEsc(o.tipos_ocorrencia[x.tipo] || x.tipo)}</span>
+            <span class="val" style="font-weight:400;text-align:right;">${rhEsc(x.texto)}</span></div>`).join('')
+          : '<div class="vazio">Nada registrado.</div>'}
+      </div>
+      <div class="card">
+        <p class="card-titulo">Ausências e documentos</p>
+        ${ausencias.length ? ausencias.map(a => `<div class="dp-destaque">
+            <span class="rot">${rhEsc(o.tipos_ausencia[a.tipo] || a.tipo)}</span>
+            <span class="val">${rhData(a.de)}${a.ate !== a.de ? ' a ' + rhData(a.ate) : ''} · ${a.dias}d</span>
+          </div>`).join('') : '<div class="vazio">Sem ausências registradas.</div>'}
+        ${documentos.map(x => `<div class="dp-destaque">
+            <span class="rot">${rhEsc(x.tipo)}</span>
+            <span class="val" style="color:${x.dias !== null && x.dias <= 30 ? 'var(--bad)' : ''}">
+              ${x.vence_em ? 'vence ' + rhData(x.vence_em) : 'sem validade'}</span></div>`).join('')}
+      </div>
+    </div>` : ''}`;
+
+  document.getElementById('rhFichaTitulo').textContent = cid ? (c.nome || 'Ficha') : 'Novo colaborador';
+  const atalho = document.getElementById('rhVerDesempenho');
+  atalho.style.display = (cid && c.vendedor_id) ? '' : 'none';
+  atalho.onclick = () => { irParaSecao('desempenho'); rhFecharFicha(); abrirDesempenho(c.vendedor_id); };
+  document.getElementById('rhApagar').style.display = cid ? '' : 'none';
+  document.getElementById('rhFicha').classList.remove('oculto');
+}
+
+function rhFecharFicha(){
+  document.getElementById('rhFicha').classList.add('oculto');
+  rhEditando = null;
+}
+
+async function rhSalvarFicha(){
+  const val = (id) => { const e = document.getElementById('rh_' + id); return e ? e.value : ''; };
+  const corpo = {id: rhEditando};
+  ['nome','apelido','cargo','setor','contrato','situacao','admissao','nascimento',
+   'vendedor_id','telefone','email','emergencia','cpf','rg','salario','endereco','obs',
+   'desligamento','motivo_desligamento'].forEach(k => corpo[k] = val(k));
+  const res = await fetch('/api/admin/rh/colaboradores', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)});
+  const dados = await res.json();
+  if(!res.ok){ alert(dados.erro || 'Não consegui salvar.'); return; }
+  rhFecharFicha();
+  carregarRh();
+}
+
+/* ---------- listas de registro ---------- */
+function rhFormulario(colecao, d){
+  const o = d.opcoes;
+  const pessoas = d.colaboradores.filter(c => c.situacao !== 'desligado')
+    .map(c => [c.id, c.apelido || c.nome]);
+  const comum = `<select data-rhcampo="colaborador_id">${rhOpcoes(pessoas, '', 'Quem?')}</select>`;
+  if(colecao === 'ausencias'){
+    return comum
+      + `<select data-rhcampo="tipo">${rhOpcoes(Object.entries(o.tipos_ausencia), 'ferias')}</select>`
+      + `<input type="date" data-rhcampo="de" title="De">`
+      + `<input type="date" data-rhcampo="ate" title="Até">`
+      + `<input type="text" data-rhcampo="obs" placeholder="observação">`;
+  }
+  if(colecao === 'documentos'){
+    return comum
+      + `<select data-rhcampo="tipo">${rhOpcoes(o.tipos_documento, 'ASO')}</select>`
+      + `<input type="text" data-rhcampo="numero" placeholder="número">`
+      + `<input type="date" data-rhcampo="vence_em" title="Vence em">`
+      + `<input type="text" data-rhcampo="obs" placeholder="observação">`;
+  }
+  return comum
+    + `<select data-rhcampo="tipo">${rhOpcoes(Object.entries(o.tipos_ocorrencia), 'nota')}</select>`
+    + `<input type="date" data-rhcampo="data">`
+    + `<input type="text" data-rhcampo="texto" placeholder="o que aconteceu" style="flex:2;">`;
+}
+
+function rhListaCard(titulo, colecao, d, linhas, cabecalho){
+  return `<div class="card">
+    <div class="aud-cabecalho">
+      <p class="card-titulo" style="margin:0;">${titulo}</p>
+      <span class="aud-conta">${linhas.length}</span>
+    </div>
+    <form class="pend-form rh-form" data-rhcolecao="${colecao}">
+      ${rhFormulario(colecao, d)}
+      <button type="submit" class="btn btn-principal btn-pequeno">Adicionar</button>
+    </form>
+    ${linhas.length ? `<div class="tabela-rolante"><table>
+      <thead><tr>${cabecalho.map(h => `<th>${h}</th>`).join('')}<th></th></tr></thead>
+      <tbody>${linhas.join('')}</tbody></table></div>`
+      : '<div class="vazio">Nada registrado ainda.</div>'}
+  </div>`;
+}
+
+function rhBotaoApagar(colecao, id){
+  return `<td><button class="pend-x" data-rhapagar="${colecao}:${id}" title="Remover">&times;</button></td>`;
+}
+
+function rhAusencias(d){
+  const linhas = d.ausencias.map(a => `<tr>
+    <td>${rhEsc(a.colaborador)}</td>
+    <td>${rhEsc(d.opcoes.tipos_ausencia[a.tipo] || a.tipo)}</td>
+    <td>${rhData(a.de)}${a.ate !== a.de ? ' a ' + rhData(a.ate) : ''}</td>
+    <td>${a.dias}</td>
+    <td>${rhEsc(a.obs || '')}</td>
+    ${rhBotaoApagar('ausencias', a.id)}</tr>`);
+  return rhListaCard('Ausências', 'ausencias', d, linhas,
+                     ['Quem', 'Tipo', 'Período', 'Dias', 'Observação']);
+}
+
+function rhDocumentos(d){
+  const linhas = d.documentos.map(x => {
+    const estado = x.dias === null ? '<span class="rh-tag">sem validade</span>'
+      : x.dias < 0 ? `<span class="rh-tag bad">vencido há ${-x.dias}d</span>`
+      : x.dias <= 30 ? `<span class="rh-tag warn">vence em ${x.dias}d</span>`
+      : `<span class="rh-tag ok">${x.dias}d</span>`;
+    return `<tr>
+      <td>${rhEsc(x.colaborador)}</td>
+      <td>${rhEsc(x.tipo)}</td>
+      <td>${rhEsc(x.numero || '—')}</td>
+      <td>${rhData(x.vence_em)}</td>
+      <td>${estado}</td>
+      ${rhBotaoApagar('documentos', x.id)}</tr>`;
+  });
+  return rhListaCard('Documentos', 'documentos', d, linhas,
+                     ['Quem', 'Tipo', 'Número', 'Vence', 'Situação']);
+}
+
+function rhOcorrencias(d){
+  const linhas = d.ocorrencias.map(x => `<tr>
+    <td>${rhData(x.data)}</td>
+    <td>${rhEsc(x.colaborador)}</td>
+    <td>${rhEsc(d.opcoes.tipos_ocorrencia[x.tipo] || x.tipo)}</td>
+    <td>${rhEsc(x.texto)}</td>
+    ${rhBotaoApagar('ocorrencias', x.id)}</tr>`);
+  return rhListaCard('Ocorrências', 'ocorrencias', d, linhas,
+                     ['Data', 'Quem', 'Tipo', 'O que aconteceu']);
+}
+
+/* ---------- eventos ---------- */
+document.addEventListener('click', async ev => {
+  const aba = ev.target.closest('[data-rhaba]');
+  if(aba){ rhAba = aba.dataset.rhaba; renderRh(); return; }
+
+  const linha = ev.target.closest('[data-ficha]');
+  if(linha && linha.closest('#rhCorpo')){ rhAbrirFicha(linha.dataset.ficha); return; }
+
+  if(ev.target.id === 'rhNovo'){ rhAbrirFicha(null); return; }
+  if(ev.target.id === 'rhFechar' || ev.target.id === 'rhFichaFundo'){ rhFecharFicha(); return; }
+  if(ev.target.id === 'rhSalvar'){ rhSalvarFicha(); return; }
+
+  if(ev.target.id === 'rhApagar'){
+    if(!confirm('Apagar este colaborador? As ausências, documentos e ocorrências dele vão junto.')) return;
+    await fetch('/api/admin/rh/colaboradores/' + rhEditando, {method: 'DELETE'});
+    rhFecharFicha(); carregarRh();
+    return;
+  }
+
+  const apagar = ev.target.closest('[data-rhapagar]');
+  if(apagar){
+    const [colecao, id] = apagar.dataset.rhapagar.split(':');
+    if(!confirm('Remover este registro?')) return;
+    await fetch(`/api/admin/rh/${colecao}/${id}`, {method: 'DELETE'});
+    carregarRh();
+  }
+});
+
+document.addEventListener('change', ev => {
+  // O bloco de desligamento só existe quando a situação é essa.
+  if(ev.target.id === 'rh_situacao'){
+    const bloco = document.getElementById('rhBlocoDesligamento');
+    if(bloco) bloco.style.display = ev.target.value === 'desligado' ? '' : 'none';
+  }
+});
+
+document.addEventListener('submit', async ev => {
+  const form = ev.target.closest('[data-rhcolecao]');
+  if(!form) return;
+  ev.preventDefault();
+  const corpo = {};
+  form.querySelectorAll('[data-rhcampo]').forEach(c => corpo[c.dataset.rhcampo] = c.value);
+  const res = await fetch('/api/admin/rh/' + form.dataset.rhcolecao, {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)});
+  const dados = await res.json();
+  if(!res.ok){ alert(dados.erro || 'Não consegui salvar.'); return; }
+  carregarRh();
+});
+
 /* ---------- Carros pra chegar ----------
    A pergunta que o painel responde: qual carro já foi comprado e ainda não
    entrou no pátio, e há quanto tempo. Tudo o mais é contexto. */
@@ -2703,6 +3109,7 @@ const SECOES = {
   desempenho: {titulo: 'Desempenho',        el: 'secDesempenho'},
   marketing:  {titulo: 'Marketing',         el: 'secMarketing'},
   carros:     {titulo: 'Carros pra chegar', el: 'secCarros'},
+  rh:         {titulo: 'Recursos humanos',  el: 'secRh'},
   metabonus:  {titulo: 'Meta Bônus',        el: 'secMetaBonus'},
   auditoria:  {titulo: 'Comissões · conferência', el: 'secAuditoria'},
   configuracoes: {titulo: 'Configurações',  el: null},
@@ -2768,6 +3175,7 @@ function irParaSecao(chave, sub){
   // Entrar em Desempenho sempre comeca pela escolha do vendedor.
   if(chave === 'desempenho') abrirEscolhaDesempenho();
   if(chave === 'carros' && !carrosCarregado) carregarCarros();
+  if(chave === 'rh' && !rhDados) carregarRh();
   if(chave === 'metabonus' && !mbCarregado) carregarMetaBonus();
   if(chave === 'auditoria' && !audCarregado){
     audMarcarModo();
