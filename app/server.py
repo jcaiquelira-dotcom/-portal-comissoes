@@ -2275,11 +2275,81 @@ def api_admin_rh_remover_registro(colecao, rid):
 # ============================================================
 # Meta Bônus
 # ============================================================
-# Vem do painel-metas (scripts/sincronizar_metas_bonus.py), onde o time lança a
-# producao diaria. Aqui e so leitura: o lancamento continua acontecendo la, e
-# duplicar a entrada nos dois lugares so criaria divergencia.
+# O lancamento agora acontece AQUI: o dado bruto (pessoas, lancamentos diarios,
+# veiculos desmontados) mora em metas_bonus_dados — a historia veio importada do
+# painel-metas, que lancava local. A agregacao por mes que o sincronizador fazia
+# roda no proprio portal, entao lancou, apareceu.
 
 SETORES_META = {"anunciante": "Anunciantes", "cadastrador": "Cadastradores"}
+# setor da pessoa -> tipo do lancamento, nomes herdados do painel-metas.
+TIPO_META = {"anunciante": "anuncio", "cadastrador": "cadastro"}
+
+
+def _mb_bruto() -> dict:
+    d = ler_json(resolver_pasta_dados() / "metas_bonus_dados.json", None) or {}
+    d.setdefault("pessoas", {})
+    d.setdefault("lancamentos", {})
+    d.setdefault("veiculos", {})
+    d.setdefault("meta_veiculos", {"meta": 0, "meta_bonus": 0})
+    return d
+
+
+def _mb_gravar(dados: dict) -> None:
+    escrever_json(resolver_pasta_dados() / "metas_bonus_dados.json", dados)
+
+
+def _mb_agregar(dados: dict) -> dict:
+    """Producao por pessoa/mes contra meta e bonus — o mesmo agregado que o
+    sincronizador antigo montava, agora calculado do dado vivo."""
+    producao = {}
+    for setor, tipo in TIPO_META.items():
+        for l in (dados["lancamentos"].get(tipo) or {}).values():
+            chave = (setor, l.get("pessoa_id"), (l.get("data") or "")[:7])
+            producao[chave] = producao.get(chave, 0.0) + float(l.get("quantidade") or 0)
+
+    meses_set = ({c[2] for c in producao}
+                 | {(v.get("data") or "")[:7] for v in dados["veiculos"].values() if v.get("data")})
+    meta_veic = dados["meta_veiculos"]
+
+    por_mes = {}
+    for mes in sorted(m for m in meses_set if m):
+        setores = {}
+        for setor, gente in dados["pessoas"].items():
+            linhas = []
+            for pid, p in gente.items():
+                total = round(producao.get((setor, pid, mes), 0), 2)
+                meta = float(p.get("meta") or 0)
+                bonus = float(p.get("meta_bonus") or 0)
+                # Quem nao lancou nada no mes nao entra: apareceria como 0% e
+                # pareceria alguem que trabalhou e nao produziu, quando na
+                # verdade nao estava no time naquele mes.
+                if total <= 0:
+                    continue
+                linhas.append({
+                    "nome": p.get("nome") or "(sem nome)",
+                    "total": total, "meta": meta, "meta_bonus": bonus,
+                    "pct": round(100 * total / meta, 1) if meta else None,
+                    "bateu_meta": bool(meta) and total >= meta,
+                    "bateu_bonus": bool(bonus) and total >= bonus,
+                })
+            linhas.sort(key=lambda x: -x["total"])
+            if linhas:
+                setores[setor] = linhas
+
+        do_mes = [v for v in dados["veiculos"].values() if (v.get("data") or "")[:7] == mes]
+        por_mes[mes] = {
+            "setores": setores,
+            "veiculos": {
+                "carros": len(do_mes),
+                "pecas": round(sum(float(v.get("pecas") or 0) for v in do_mes), 2),
+                "meta": float(meta_veic.get("meta") or 0),
+                "meta_bonus": float(meta_veic.get("meta_bonus") or 0),
+                "lista": sorted(({"data": v.get("data"), "carro": v.get("carro"),
+                                  "codigo": v.get("codigo"), "pecas": v.get("pecas") or 0}
+                                 for v in do_mes), key=lambda v: v["data"] or ""),
+            },
+        }
+    return por_mes
 
 
 @app.route("/api/admin/metas-bonus")
@@ -2287,8 +2357,14 @@ def api_admin_metas_bonus():
     if not exigir_admin():
         return jsonify({"erro": "Não autenticado."}), 401
 
-    bruto = ler_json(resolver_pasta_dados() / "metas_bonus.json", None) or {}
-    meses = bruto.get("meses") or {}
+    dados_brutos = _mb_bruto()
+    tem_bruto = any(dados_brutos["lancamentos"].values()) or dados_brutos["veiculos"]
+    if tem_bruto:
+        meses = _mb_agregar(dados_brutos)
+    else:
+        # Sem dado bruto, vale o agregado que o sincronizador antigo empurrou.
+        bruto = ler_json(resolver_pasta_dados() / "metas_bonus.json", None) or {}
+        meses = bruto.get("meses") or {}
     if not meses:
         return jsonify({"sem_dados": True})
 
@@ -2322,7 +2398,13 @@ def api_admin_metas_bonus():
                  "pct_do_mes": round(100 * hoje.day / dias)}
 
     return jsonify({
-        "gerado_em": bruto.get("gerado_em"),
+        "lancar": {
+            "pessoas": {setor: sorted(({"id": pid, "nome": p.get("nome") or "?"}
+                                       for pid, p in gente.items()), key=lambda x: x["nome"])
+                        for setor, gente in dados_brutos["pessoas"].items()},
+            "ativo": True,
+        },
+        "gerado_em": (agora_br().isoformat(timespec="seconds") if tem_bruto else bruto.get("gerado_em")),
         "mes": mes,
         "meses": disponiveis,
         "rotulos": SETORES_META,
@@ -2354,6 +2436,118 @@ def _inicio_acompanhamento(carros):
     a ausência de chegada não significa nada."""
     marcos = [c[campo] for c in carros for campo in ("chegada", "agendamento") if c.get(campo)]
     return min(marcos) if marcos else None
+
+
+
+@app.route("/api/admin/metas-bonus/lancamentos", methods=["POST"])
+def api_mb_lancar():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    tipo = corpo.get("tipo")
+    if tipo not in ("anuncio", "cadastro"):
+        return jsonify({"erro": "Tipo inválido."}), 400
+    dados = _mb_bruto()
+    setor = next(st for st, t in TIPO_META.items() if t == tipo)
+    pessoa_id = (corpo.get("pessoa_id") or "").strip()
+    if pessoa_id not in dados["pessoas"].get(setor, {}):
+        return jsonify({"erro": "Escolha a pessoa."}), 400
+    data = (corpo.get("data") or "").strip() or hoje_br().isoformat()
+    try:
+        parse_dt_tolerante(data)
+    except Exception:
+        return jsonify({"erro": "Data inválida."}), 400
+    try:
+        quantidade = float(str(corpo.get("quantidade")).replace(",", "."))
+    except (TypeError, ValueError):
+        return jsonify({"erro": "Quantidade inválida."}), 400
+    if quantidade <= 0:
+        return jsonify({"erro": "Quantidade deve ser maior que zero."}), 400
+
+    dados["lancamentos"].setdefault(tipo, {})[uuid.uuid4().hex[:12]] = {
+        "pessoa_id": pessoa_id, "data": data, "quantidade": quantidade,
+        "lancado_em": agora_br().isoformat(timespec="seconds"),
+    }
+    _mb_gravar(dados)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/metas-bonus/lancamentos/<tipo>/<lid>", methods=["DELETE"])
+def api_mb_apagar(tipo, lid):
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    dados = _mb_bruto()
+    if lid not in dados["lancamentos"].get(tipo, {}):
+        return jsonify({"erro": "Lançamento não encontrado."}), 404
+    dados["lancamentos"][tipo].pop(lid)
+    _mb_gravar(dados)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/metas-bonus/veiculos", methods=["POST"])
+def api_mb_veiculo():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    carro = (corpo.get("carro") or "").strip()
+    if not carro:
+        return jsonify({"erro": "Informe o carro."}), 400
+    data = (corpo.get("data") or "").strip() or hoje_br().isoformat()
+    try:
+        parse_dt_tolerante(data)
+    except Exception:
+        return jsonify({"erro": "Data inválida."}), 400
+    try:
+        pecas = float(str(corpo.get("pecas")).replace(",", "."))
+    except (TypeError, ValueError):
+        return jsonify({"erro": "Quantidade de peças inválida."}), 400
+    if pecas <= 0:
+        return jsonify({"erro": "Peças deve ser maior que zero."}), 400
+
+    dados = _mb_bruto()
+    dados["veiculos"][uuid.uuid4().hex[:12]] = {
+        "data": data, "carro": carro[:80],
+        "codigo": (corpo.get("codigo") or "").strip()[:20], "pecas": pecas,
+        "lancado_em": agora_br().isoformat(timespec="seconds"),
+    }
+    _mb_gravar(dados)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/metas-bonus/veiculos/<vid>", methods=["DELETE"])
+def api_mb_veiculo_apagar(vid):
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    dados = _mb_bruto()
+    if vid not in dados["veiculos"]:
+        return jsonify({"erro": "Veículo não encontrado."}), 404
+    dados["veiculos"].pop(vid)
+    _mb_gravar(dados)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/metas-bonus/recentes")
+def api_mb_recentes():
+    """Ultimos lancamentos, pra conferir e desfazer erro de digitacao."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    dados = _mb_bruto()
+    nomes = {pid: p.get("nome") or "?"
+             for gente in dados["pessoas"].values() for pid, p in gente.items()}
+    itens = []
+    for tipo, lanc in dados["lancamentos"].items():
+        for lid, l in lanc.items():
+            itens.append({"id": lid, "tipo": tipo, "data": l.get("data"),
+                          "nome": nomes.get(l.get("pessoa_id"), "?"),
+                          "quantidade": l.get("quantidade"),
+                          "ordem": l.get("lancado_em") or l.get("data") or ""})
+    for vid, v in dados["veiculos"].items():
+        itens.append({"id": vid, "tipo": "veiculo", "data": v.get("data"),
+                      "nome": v.get("carro"), "codigo": v.get("codigo"),
+                      "quantidade": v.get("pecas"),
+                      "ordem": v.get("lancado_em") or v.get("data") or ""})
+    itens.sort(key=lambda x: x["ordem"], reverse=True)
+    return jsonify({"itens": itens[:12]})
 
 
 @app.route("/api/admin/carros")
