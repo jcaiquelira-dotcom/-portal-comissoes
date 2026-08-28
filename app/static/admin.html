@@ -141,6 +141,38 @@
   .rh-tag.bad{color:var(--bad);border-color:var(--bad);}
   .rh-tag.ok{color:var(--good);border-color:var(--good);}
   .rh-num{text-align:right;font-variant-numeric:tabular-nums;}
+  /* ---- Metas por vendedor: nome + tres colunas rotuladas ---- */
+  .metas-vendedor-row{
+    display:grid;grid-template-columns:150px repeat(3, minmax(0,1fr));
+    gap:8px;align-items:center;margin-top:8px;
+  }
+  .metas-vendedor-row .nome{font-weight:600;font-size:13px;}
+  .metas-vendedor-row input{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:7px 9px;font-family:inherit;font-size:12.5px;
+    width:100%;text-align:right;font-variant-numeric:tabular-nums;
+  }
+  .metas-vendedor-row input:focus{outline:none;border-color:var(--accent);}
+  .metas-vendedor-row.cabecalho{margin-top:12px;}
+  .metas-vendedor-row.cabecalho span{
+    font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted);text-align:right;
+  }
+  .metas-oculto{
+    font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+    border:1px solid var(--line);border-radius:20px;padding:1px 7px;color:var(--muted);
+    margin-left:6px;vertical-align:1px;
+  }
+  .metas-soma{
+    margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);
+    font-size:12.5px;color:var(--muted);
+  }
+  .metas-soma b{color:var(--text);}
+  @media (max-width:720px){
+    .metas-vendedor-row{grid-template-columns:1fr 1fr;}
+    .metas-vendedor-row .nome{grid-column:1 / -1;}
+    .metas-vendedor-row.cabecalho{display:none;}
+  }
   .dp-linha-time{cursor:pointer;}
   .dp-linha-time:hover td{background:var(--surface-2);}
   th.rh-ord{cursor:pointer;user-select:none;white-space:nowrap;}
@@ -1091,18 +1123,43 @@ async function carregarMetas(){
     lista.innerHTML = '<div class="override-empty">Cadastre vendedores primeiro.</div>';
     return;
   }
-  lista.innerHTML = vendedoresParaMetas.map(v => {
+  lista.innerHTML = `
+    <div class="metas-vendedor-row cabecalho">
+      <span></span><span>Diária (R$)</span><span>Semanal (R$)</span><span>Mensal (R$)</span>
+    </div>` + vendedoresParaMetas.map(v => {
     const m = metas.vendedores?.[v.id] || {};
     return `
       <div class="metas-vendedor-row">
-        <span class="nome">${v.nome}</span>
+        <span class="nome">${v.nome}${v.oculto ? ' <span class="metas-oculto">conta oculta</span>' : ''}</span>
         <input type="number" min="0" step="0.01" class="meta-diaria" data-vid="${v.id}" value="${m.diaria || 0}" placeholder="Diária">
         <input type="number" min="0" step="0.01" class="meta-semanal" data-vid="${v.id}" value="${m.semanal || 0}" placeholder="Semanal">
         <input type="number" min="0" step="0.01" class="meta-mensal" data-vid="${v.id}" value="${m.mensal || 0}" placeholder="Mensal">
       </div>
     `;
-  }).join('');
+  }).join('') + `<div class="metas-soma" id="metasSoma"></div>`;
+  atualizarSomaMetas();
 }
+
+// A soma das mensais ao lado da meta do grupo: e assim que o gestor percebe na
+// hora se as individuais fecham com o alvo do time ou se ha folga/estouro.
+function atualizarSomaMetas(){
+  const el = document.getElementById('metasSoma');
+  if(!el) return;
+  const soma = [...document.querySelectorAll('.meta-mensal')]
+    .reduce((t, i) => t + (Number(i.value) || 0), 0);
+  const grupo = Number(document.getElementById('metaGrupoMensal').value) || 0;
+  const dif = soma - grupo;
+  el.innerHTML = `Soma das mensais: <b>${fmtMoeda(soma)}</b>` + (grupo
+    ? ` · meta do grupo ${fmtMoeda(grupo)} · ` + (dif === 0 ? 'fecham exatas'
+      : dif > 0 ? `individuais ${fmtMoeda(dif)} acima do grupo`
+      : `individuais ${fmtMoeda(-dif)} abaixo do grupo`)
+    : '');
+}
+
+document.addEventListener('input', ev => {
+  if(ev.target.classList?.contains('meta-mensal') || ev.target.id === 'metaGrupoMensal')
+    atualizarSomaMetas();
+});
 
 document.getElementById('salvarMetasBtn').addEventListener('click', async () => {
   const status = document.getElementById('metasStatus');
