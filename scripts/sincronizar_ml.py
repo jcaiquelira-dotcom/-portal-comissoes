@@ -138,6 +138,47 @@ def coletar_pos_venda(token, user_id):
     }
 
 
+def coletar_vendas(token, user_id):
+    """Faturamento real pelos pagamentos do Mercado Pago (/collections): a
+    permissao de Orders o app nao tem, mas o dinheiro aprovado conta a mesma
+    historia. So marketplace=MELI e status=approved entram — pagamento de
+    maquininha/link fica de fora pra nao misturar com o que ja e Itau no
+    portal. Uma paginacao cobre 30 dias e o mes corrente."""
+    agora = datetime.now(FUSO)
+    inicio = min(agora - timedelta(days=30), agora.replace(day=1, hour=0, minute=0, second=0))
+    begin = inicio.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end = agora.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    pagamentos, offset = [], 0
+    while True:
+        d = http(f"{API}/collections/search?seller_id={user_id}&limit=50&offset={offset}"
+                 f"&range=date_approved&begin_date={begin}&end_date={end}", token)
+        pagamentos.extend(x.get("collection") or {} for x in d.get("results") or [])
+        offset += 50
+        total = (d.get("paging") or {}).get("total", 0)
+        if offset >= total or offset >= 3000:
+            break
+
+    validos = [c for c in pagamentos
+               if c.get("status") == "approved"
+               and c.get("operation_type") == "regular_payment"
+               and c.get("marketplace") == "MELI"]
+    corte_30d = (agora - timedelta(days=30)).isoformat()
+    mes = agora.isoformat()[:7]
+
+    def resumo(grupo):
+        soma = round(sum(float(c.get("transaction_amount") or 0) for c in grupo), 2)
+        return {"pagamentos": len(grupo), "total": soma,
+                "ticket": round(soma / len(grupo), 2) if grupo else 0}
+
+    return {
+        "dias30": resumo([c for c in validos if (c.get("date_approved") or "") >= corte_30d]),
+        "mes_atual": resumo([c for c in validos if (c.get("date_approved") or "")[:7] == mes]),
+        "fora_meli_30d": len([c for c in pagamentos
+                              if c.get("status") == "approved" and c.get("marketplace") != "MELI"]),
+    }
+
+
 def coletar_ads(token, user_id):
     """Product Ads pelo caminho novo (marketplace/advertising). Soma as
     campanhas do periodo; falhou, devolve None e o portal nao mostra o bloco."""
@@ -208,12 +249,17 @@ def main():
     print(f"30d  : {pos['dias30']['mediacoes']} mediações, {pos['dias30']['devolucoes']} devoluções, "
           f"{pos['dias30']['cancel_comprador']}+{pos['dias30']['cancel_vendedor']} cancelamentos")
 
+    vendas = coletar_vendas(token, user_id)
+    print(f"vendas: mês R$ {vendas['mes_atual']['total']:,.0f} em "
+          f"{vendas['mes_atual']['pagamentos']} pagamentos | "
+          f"30d R$ {vendas['dias30']['total']:,.0f}")
+
     ads = coletar_ads(token, user_id)
     if ads:
         print(f"ads  : R$ {ads['investido']} em 30d, {ads['cliques']} cliques")
 
     pacote = {"gerado_em": datetime.now(FUSO).isoformat(timespec="seconds"),
-              "reputacao": rep, "pos_venda": pos, "ads": ads}
+              "reputacao": rep, "pos_venda": pos, "vendas": vendas, "ads": ads}
     if "--seco" in sys.argv:
         print("\n(--seco: nada gravado)")
         return
