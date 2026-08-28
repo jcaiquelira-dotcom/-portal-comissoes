@@ -1701,6 +1701,15 @@ async function carregarResumo(){
 
   // A explicacao do desconto mora na tela: sem ela o gestor compararia o
   // numero do ML aqui com o extrato do Mercado Pago e acharia um furo.
+  // Canal conhecido sem numero no periodo: dito na tela, senao o total parece
+  // ja incluir tudo. A quebra tambem marca "—" pra deixar visivel na linha.
+  const ausentes = resumoAtual.marketplaces_ausentes || [];
+  if(ausentes.length){
+    const marca = ausentes.map(x => `${nomeCurto[x.id] || x.nome} —`).join(' · ');
+    sub('totalGeralValueSub',
+      (document.getElementById('totalGeralValueSub').innerHTML || '') + ' · ' + marca);
+  }
+
   const descontos = mkts.filter(m => m.descontado_comercial?.qtd);
   sub('kpiNota', descontos.length
     ? descontos.map(m =>
@@ -1708,6 +1717,11 @@ async function carregarResumo(){
          (${fmtMoeda(m.descontado_comercial.total)}) contam uma vez só: ficam no comercial
          e saem do número do ${nomeCurto[m.id] || m.nome}.`).join(' ')
     : '');
+  if(ausentes.length){
+    const el = document.getElementById('kpiNota');
+    el.innerHTML = (el.innerHTML ? el.innerHTML + ' ' : '') +
+      ausentes.map(x => `<b>${x.nome} não está neste total</b> — ${x.motivo}.`).join(' ');
+  }
   document.getElementById('footTotal').textContent = fmtMoeda(resumoAtual.total_geral);
   document.getElementById('footComissao').textContent = fmtMoeda(resumoAtual.comissao_geral);
 

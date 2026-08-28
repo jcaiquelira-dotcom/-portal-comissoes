@@ -1665,6 +1665,10 @@ def api_admin_resumo():
     # a Shopee chegar, e mais um item aqui e o painel ja mostra. Filtrando um
     # vendedor especifico o bloco sai — marketplace nao e de ninguem do time.
     marketplaces = []
+    # Canal que EXISTE no sistema mas nao tem numero no periodo pedido entra
+    # aqui, nao no silencio: sumir da tela faz o gestor achar que o total ja
+    # inclui aquele canal. Foi o que aconteceu com a Shopee em agosto.
+    marketplaces_ausentes = []
     if not filtro_vendedor:
         ml = ler_json(resolver_pasta_dados() / "ml_conta.json", None) or {}
         serie_ml = (ml.get("vendas") or {}).get("serie_dia") or {}
@@ -1737,6 +1741,20 @@ def api_admin_resumo():
                 "rateado": rateado,
                 "cobre_periodo": min(serie_shp) <= de[:7] and ate[:7] <= max(serie_shp),
             })
+        elif serie_shp:
+            marketplaces_ausentes.append({
+                "id": "shopee", "nome": "Shopee",
+                "motivo": f"relatório importado vai até {max(serie_shp)[5:7]}/{max(serie_shp)[:4]}",
+            })
+
+        # Mesma regra pros canais de serie diaria: existe historico, mas nada
+        # dentro do periodo filtrado.
+        if not qtd and serie_ml:
+            marketplaces_ausentes.append({"id": "mercado_livre", "nome": "Mercado Livre",
+                                          "motivo": "sem pagamento no período"})
+        if not qtd_t and serie_st:
+            marketplaces_ausentes.append({"id": "site", "nome": "Site próprio",
+                                          "motivo": "sem pedido pago no período"})
 
     return jsonify({
         "de": de,
@@ -1753,6 +1771,7 @@ def api_admin_resumo():
         "serie_mensal": serie_mensal,
         "serie_diaria": serie_diaria,
         "marketplaces": marketplaces,
+        "marketplaces_ausentes": marketplaces_ausentes,
     })
 
 
