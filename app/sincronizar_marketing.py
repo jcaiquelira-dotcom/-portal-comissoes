@@ -41,6 +41,8 @@ GASTO_DETALHE = ROOT / "_windsor_periodo.json"
 # Export do Gerenciador do Meta. Vem agregado do periodo inteiro, nao por dia —
 # por isso entra separado do gasto diario do Google, com o periodo dele junto.
 CSV_META = ROOT.parent / "META-ADS-CSV-AGOSTO.csv"
+# Meta Ads dia a dia pelo Windsor; substitui o CSV desde 28/08/2026.
+META_JSON = ROOT / "_meta_ads.json"
 
 ATENDENTES = {
     "75f20108-887e-47c1-b245-b1c12565e484": "flavia",
@@ -100,8 +102,69 @@ def coletar_gasto():
 
 
 def coletar_meta():
-    """Le o CSV do Gerenciador. A primeira linha, sem nome de anuncio, e a linha
-    de TOTAL do relatorio — somar ela junto com as outras dobraria o gasto."""
+    """Meta Ads dia a dia, vindo do Windsor (app/atualizar_meta_ads.py).
+
+    Ate 28/08/2026 isso era um CSV exportado a mao do Gerenciador, com periodo
+    fixo — o painel travava na data do relatorio e rateava o investimento por
+    dia. Agora vem por dia e o rateio some. O CSV continua como reserva: se o
+    _meta_ads.json nao existir, cai nele.
+    """
+    if not META_JSON.exists():
+        return _coletar_meta_csv()
+
+    linhas = json.loads(META_JSON.read_text(encoding="utf-8"))["data"]
+    if not linhas:
+        return _coletar_meta_csv()
+
+    datas = sorted({x["data"] for x in linhas if x.get("data")})
+
+    por_anuncio = {}
+    for x in linhas:
+        a = por_anuncio.setdefault(x["anuncio"], {
+            "anuncio": x["anuncio"], "spend": 0.0, "impressions": 0,
+            "alcance": 0, "conversas": 0})
+        a["spend"] += x["spend"]
+        a["impressions"] += x["impressions"]
+        a["conversas"] += x["conversas"]
+        # Alcance por anuncio ainda e soma de dias — a mesma pessoa pode ter
+        # visto em dias diferentes. Serve pra ordenar, nao como total.
+        a["alcance"] += x["alcance"]
+    detalhe = sorted(por_anuncio.values(), key=lambda a: -a["spend"])
+    for a in detalhe:
+        a["spend"] = round(a["spend"], 2)
+
+    # A serie por dia e o que deixa o painel somar qualquer periodo filtrado
+    # sem aproximar nada.
+    serie = {}
+    for x in linhas:
+        d = serie.setdefault(x["data"], {"spend": 0.0, "clicks": 0,
+                                         "impressions": 0, "conversas": 0})
+        d["spend"] = round(d["spend"] + x["spend"], 2)
+        d["clicks"] += x["clicks"]
+        d["impressions"] += x["impressions"]
+        d["conversas"] += x["conversas"]
+
+    total_spend = round(sum(x["spend"] for x in linhas), 2)
+    total_conversas = sum(x["conversas"] for x in linhas)
+    return {
+        "de": datas[0], "ate": datas[-1],
+        "spend": total_spend,
+        "impressions": sum(x["impressions"] for x in linhas),
+        "conversas": total_conversas,
+        # Sem a linha de TOTAL do relatorio nao da pra deduplicar alcance: a
+        # soma conta de novo quem viu em mais de um dia. Marcado como tal.
+        "alcance": sum(x["alcance"] for x in linhas),
+        "alcance_deduplicado": False,
+        "custo_por_conversa": (round(total_spend / total_conversas, 2)
+                               if total_conversas else None),
+        "anuncios": detalhe,
+        "serie_dia": serie,
+        "fonte": "windsor",
+    }
+
+
+def _coletar_meta_csv():
+    """Reserva: o CSV exportado do Gerenciador, formato antigo."""
     if not CSV_META.exists():
         return None
     import csv
