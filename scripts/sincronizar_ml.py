@@ -56,7 +56,55 @@ def http(url, token=None, corpo=None, cabecalhos=None):
         return json.loads(r.read().decode("utf-8"))
 
 
+def _cred_do_banco():
+    """Credencial no banco (chave segredo_ml). Desde 28/08/2026 ela e a fonte
+    unica: o refresh_token do ML rotaciona a cada uso, e com duas copias
+    renovando em paralelo uma queima a da outra. Sem DATABASE_URL, cai no
+    arquivo local — util pra rodar solto, mas ai o servidor nao pode estar
+    renovando ao mesmo tempo."""
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        return None, None
+    import psycopg2
+    conn = psycopg2.connect(url)
+    cur = conn.cursor()
+    cur.execute("SELECT valor FROM dados_json WHERE chave='segredo_ml'")
+    linha = cur.fetchone()
+    return (linha[0] if linha else None), conn
+
+
+def _gravar_cred(conn, cred):
+    from psycopg2.extras import Json
+    with conn, conn.cursor() as cur:
+        cur.execute("INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
+                    "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
+                    ("segredo_ml", Json(cred)))
+
+
 def renovar_token():
+    cred, conn = _cred_do_banco()
+    if cred:
+        resp = http(f"{API}/oauth/token", corpo={
+            "grant_type": "refresh_token",
+            "client_id": cred["client_id"],
+            "client_secret": cred["client_secret"],
+            "refresh_token": cred["refresh_token"],
+        })
+        novo = dict(cred)
+        novo["refresh_token"] = resp["refresh_token"]
+        novo["last_updated"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        novo["rotacionado_por"] = "script local"
+        _gravar_cred(conn, novo)      # grava ANTES de seguir: queda aqui nao perde o token
+        conn.close()
+        # Espelha no arquivo pra quem ainda le de la nao ficar pra tras.
+        try:
+            arq = json.loads(AUTH.read_text(encoding="utf-8"))
+            arq.update({k: novo[k] for k in ("refresh_token", "last_updated")})
+            AUTH.write_text(json.dumps(arq, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+        return resp["access_token"], novo["user_id"]
+
     auth = json.loads(AUTH.read_text(encoding="utf-8"))
     resp = http(f"{API}/oauth/token", corpo={
         "grant_type": "refresh_token",

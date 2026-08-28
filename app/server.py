@@ -4555,6 +4555,42 @@ def api_admin_sincronizar_gasto():
         return jsonify({"erro": f"{type(e).__name__}: {e}"}), 502
 
 
+# ---------- Mercado Livre na nuvem (thread de fundo) ----------
+# O refresh_token do ML rotaciona a cada uso, entao a credencial mora no banco
+# (segredo_ml) e quem renova grava la antes de tudo — detalhes em
+# app/sincronizador_ml_nuvem.py. O script local le da mesma chave.
+try:
+    import sincronizador_ml_nuvem as _sml
+
+    def _sml_cred():
+        return ler_json(resolver_pasta_dados() / "segredo_ml.json", None)
+
+    def _sml_gravar_cred(cred):
+        escrever_json(resolver_pasta_dados() / "segredo_ml.json", cred)
+
+    def _sml_atual():
+        return ler_json(resolver_pasta_dados() / "ml_conta.json", None)
+
+    def _sml_gravar(pacote):
+        escrever_json(resolver_pasta_dados() / "ml_conta.json", pacote)
+
+    _sml.iniciar(_sml_cred, _sml_gravar_cred, _sml_atual, _sml_gravar)
+except Exception as _e:
+    print(f"[sinc-ml] não subiu: {_e}")
+
+
+@app.route("/api/admin/sincronizar-ml", methods=["POST"])
+def api_admin_sincronizar_ml():
+    """Dispara a atualizacao do Mercado Livre na hora."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    try:
+        resumo = _sml.sincronizar(_sml_cred, _sml_gravar_cred, _sml_atual, _sml_gravar)
+        return jsonify({"ok": True, "resumo": resumo})
+    except Exception as e:
+        return jsonify({"erro": f"{type(e).__name__}: {e}"}), 502
+
+
 # ---------- monitor de atendimento (thread de fundo) ----------
 # Roda dentro do proprio servidor pra nao depender do computador da loja
 # ligado — historico completo em app/monitor_atendimento.py. No gunicorn cada
