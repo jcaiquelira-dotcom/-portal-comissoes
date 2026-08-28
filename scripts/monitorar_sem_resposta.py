@@ -323,7 +323,8 @@ def main():
         "total": len(esperando),
         "paradas_antigas": len(antigas),
         "so_agradeceram": agradecimentos,
-        "conversas": esperando[:40],
+        # Sem corte — o teto global escondia conversa de vendedor no fim da fila.
+        "conversas": esperando,
         # Contagem por vendedor: o gestor ve a distribuicao sem abrir a lista,
         # e o portal de cada um usa como cabecalho.
         "por_vendedor": {

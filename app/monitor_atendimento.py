@@ -186,10 +186,17 @@ def coletar(token):
             pagina += 1
 
     esperando.sort(key=lambda e: -e["minutos"])
-    for e in esperando[:40]:
+    # O nome vem do cache quando ja foi visto; o teto vale so pras buscas NOVAS,
+    # pra uma rodada nao virar centenas de chamadas. Quem ficar sem nome nesta
+    # rodada aparece com "?" e ganha o nome na proxima — melhor que sumir.
+    novas = 0
+    for e in esperando:
         cid = e["contato_id"]
         if cid in _nomes:
             e["cliente"] = _nomes[cid]
+            continue
+        if novas >= 40:
+            e["cliente"] = "?"
             continue
         try:
             e["cliente"] = _get(token, f"/core/v1/contact/{cid}").get("name") or "?"
@@ -197,6 +204,7 @@ def coletar(token):
             e["cliente"] = "?"
         if e["cliente"] != "?":
             _nomes[cid] = e["cliente"]
+        novas += 1
         time.sleep(0.25)
     return esperando, antigas, agradecimentos
 
@@ -223,7 +231,10 @@ def montar_pacote(token):
         "total": len(esperando),
         "paradas_antigas": len(antigas),
         "so_agradeceram": agradecimentos,
-        "conversas": esperando[:40],
+        # Sem corte: com 3 vendedores dividindo a fila, um teto global fazia
+        # sumir do portal de um deles quem estava no fim da ordem por tempo.
+        # O gestor contava 23 pra Flavia e o portal dela mostrava 17.
+        "conversas": esperando,
         "por_vendedor": {
             vid: {"nome": nome,
                   "total": sum(1 for e in esperando if e["vendedor_id"] == vid),

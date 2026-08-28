@@ -2622,8 +2622,17 @@ def api_admin_atendimento_alerta():
         return jsonify({"sem_dados": True})
     resolvidos = _atd_resolvidos()
     conversas = _atd_pendentes(d.get("conversas") or [], resolvidos)
+    # por_vendedor tambem precisa descontar os resolvidos: vinha do monitor,
+    # calculado antes do filtro, e o gestor via um numero maior que o do portal
+    # do proprio vendedor.
+    por_vendedor = {}
+    for vid, info in (d.get("por_vendedor") or {}).items():
+        minhas = [c for c in conversas if c.get("vendedor_id") == vid]
+        por_vendedor[vid] = {"nome": info.get("nome"), "total": len(minhas),
+                             "critico": sum(1 for c in minhas if c["nivel"] == "critico")}
     d = {**d, "conversas": conversas, "total": len(conversas),
          "resolvidas": len(d.get("conversas") or []) - len(conversas),
+         "por_vendedor": por_vendedor,
          "contagem": {n: sum(1 for c in conversas if c["nivel"] == n)
                       for n in ("critico", "urgente", "atencao")}}
     return jsonify(d)
