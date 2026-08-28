@@ -150,6 +150,10 @@
     font-size:11px;color:var(--muted);margin:8px 2px 0;line-height:1.5;
   }
   .kpi-nota:empty{display:none;}
+  .fonte-velha{
+    font-size:9.5px;font-weight:700;color:var(--warn);margin-left:5px;
+    white-space:nowrap;cursor:help;text-transform:none;letter-spacing:0;
+  }
   .atd-acoes-td{white-space:nowrap;}
   .atd-acoes-td .btn{padding:3px 9px;font-size:11px;}
   .atd-msg{max-width:300px;color:var(--muted);font-size:12px;
@@ -3397,12 +3401,24 @@ function renderMarketing(d){
   // Investimento separado por fonte: somado, os dois viram um numero que nao
   // diz onde o dinheiro esta indo — que e a decisao que o gestor toma aqui.
   const g = m.google || {investimento: 0, clicks: 0};
-  const invGoogle = `<div class="dp-kpi"><div class="rot">Google Ads</div>
+  // No plano basico do Windsor so uma conta fica conectada por vez, entao o
+  // gestor reveza Google e Meta. A fonte desligada mantem o ultimo numero — e
+  // precisa dizer de quando ele e, senao vira um total silenciosamente velho.
+  const quandoFonte = (chave) => {
+    const iso = (m.atualizado_em || {})[chave];
+    if(!iso) return '';
+    const dia = iso.slice(0, 10), hoje = new Date().toISOString().slice(0, 10);
+    if(dia === hoje) return '';
+    const [a2, m2, d2] = dia.split('-');
+    return `<span class="fonte-velha" title="Esta fonte não está conectada no Windsor agora — o número é do último dia em que ela foi lida.">⚠ dado de ${d2}/${m2}</span>`;
+  };
+
+  const invGoogle = `<div class="dp-kpi"><div class="rot">Google Ads ${quandoFonte('google')}</div>
     <div class="num valor-money">${fmtMoeda(g.investimento)}</div>
     <span class="dp-var neutro">${g.clicks
       ? `${g.clicks.toLocaleString('pt-BR')} cliques · CPC ${m.cpc === null ? '—' : fmtMoeda(m.cpc)}`
       : 'sem cliques no período'}</span></div>`;
-  const invMeta = `<div class="dp-kpi"><div class="rot">Meta Ads</div>
+  const invMeta = `<div class="dp-kpi"><div class="rot">Meta Ads ${quandoFonte('meta')}</div>
     <div class="num valor-money">${rat ? fmtMoeda(rat.spend) : '—'}</div>
     <span class="dp-var neutro">${rat
       ? (rat.integral
@@ -3429,7 +3445,12 @@ function renderMarketing(d){
     <span class="dp-var neutro">${fontes}</span></div>`;
 
   const cardInvestimento = `<div class="card" style="margin-bottom:14px;">
-    <p class="card-titulo">Investimento em mídia</p>
+    <div class="aud-cabecalho">
+      <p class="card-titulo" style="margin:0;">Investimento em mídia</p>
+      <button class="btn btn-neutro btn-pequeno" id="mktAtualizarGasto"
+        title="Puxa Google e Meta do Windsor agora. Use depois de trocar a conta conectada lá.">Atualizar fontes</button>
+      <span class="status-msg" id="mktGastoStatus"></span>
+    </div>
     <div class="dp-kpis" style="margin-bottom:0;">${invGoogle}${invMeta}${invMl}${invAgencia}${invTotal}</div>
   </div>`;
 
@@ -3716,6 +3737,18 @@ async function carregarSiteConta(){
 }
 
 document.addEventListener('click', async ev => {
+  if(ev.target.id === 'mktAtualizarGasto'){
+    const btn = ev.target, st = document.getElementById('mktGastoStatus');
+    btn.disabled = true; btn.textContent = 'Buscando…';
+    st.className = 'status-msg';
+    const r = await fetch('/api/admin/sincronizar-gasto', {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    btn.disabled = false; btn.textContent = 'Atualizar fontes';
+    st.textContent = r.ok ? d.resumo : (d.erro || 'Falhou');
+    st.classList.add('show', ...(r.ok ? [] : ['err']));
+    if(r.ok) carregarMarketing();
+    return;
+  }
   const b = ev.target.closest('[data-resolver]');
   if(!b) return;
   b.disabled = true;

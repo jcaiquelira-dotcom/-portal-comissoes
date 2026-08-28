@@ -154,17 +154,31 @@ def sincronizar_gasto(ler_chave, ler_atual, gravar, log=print):
         raise RuntimeError("nenhuma fonte de mídia respondeu")
 
     # Fonte que falhou preserva o que ja estava gravado, em vez de zerar.
+    #
+    # Isso e o que sustenta o revezamento: no plano basico do Windsor so uma
+    # conta fica conectada por vez, entao o gestor alterna Google e Meta. A
+    # fonte desligada continua com o ultimo numero que trouxe, e a data por
+    # fonte (abaixo) deixa a tela dizer quao velho ele e — em vez de somar um
+    # dado congelado como se fosse de hoje.
     anterior = ler_atual() or {}
+    agora_iso = datetime.now(FUSO).isoformat(timespec="seconds")
+    datas = dict(anterior.get("atualizado_em") or {})
+
     if gasto is None:
         gasto = anterior.get("linhas") or []
+    else:
+        datas["google"] = agora_iso
     if meta is None:
         meta = anterior.get("meta")
+    else:
+        datas["meta"] = agora_iso
 
     corpo = {
-        "gerado_em": datetime.now(FUSO).isoformat(timespec="seconds"),
+        "gerado_em": agora_iso,
         "linhas": gasto,
         "meta": meta,
         "fontes_ausentes": ausentes,
+        "atualizado_em": datas,
         "origem": "servidor",
     }
     gravar(corpo)

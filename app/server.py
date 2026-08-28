@@ -3394,6 +3394,11 @@ def api_marketing_gestor():
             "meta": meta,
             "meta_rateio": meta_rateio,
             "ml_rateio": ml_rateio,
+            # Quando cada fonte foi atualizada pela ultima vez. No plano basico
+            # do Windsor so uma conta fica conectada por vez, entao a outra
+            # fica congelada — a tela precisa dizer isso.
+            "atualizado_em": gasto_bruto.get("atualizado_em") or {},
+            "fontes_ausentes": gasto_bruto.get("fontes_ausentes") or [],
             "agencia": {"mensal": AGENCIA_MENSAL, "no_periodo": agencia},
         },
     })
