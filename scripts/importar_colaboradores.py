@@ -67,6 +67,32 @@ IDENTIDADES = {
     "gustavo": ("João Gustavo", "Gustavo"),
 }
 
+# Setor ditado pelo gestor, pessoa por pessoa. Vale mais que a aba "Meta
+# bônus": ela cobre só metade do time e estava vencida em quatro casos —
+# Gustavo, Júlia, Japa e Matheus mudaram de área depois que ela foi escrita.
+# As chaves já são as canônicas, depois de APELIDOS.
+SETOR_DITADO = {
+    "alison": "Anúncios",          "andreia": "Administrativo",
+    "brenda": "Comercial",         "etelmilson": "Higienização",
+    "felipe": "Desmontagem",       "flavia": "Comercial",
+    "gustavo": "Comercial",        "vinicius hideki": "Estoque",
+    "josias": "Gerência",          "joao docinho": "Expedição",
+    "julia": "Administrativo",     "luan": "Expedição",
+    "lucas": "Comercial",          "marcella": "Anúncios",
+    "matheus": "Comercial",        "nego": "Desmontagem",
+    "otavio": "Cadastro",          "pedro henrique": "Anúncios",
+    "pedro paulo": "Anúncios",     "pietro": "Estoque",
+    "vagner": "Higienização",      "vinicius franca": "Comercial",
+    "vinicius lyra": "Cadastro",
+}
+
+# Quem do comercial tem portal de vendedor. Liga a ficha ao painel de
+# desempenho; Lucas e Vinicius França são do comercial mas não têm portal.
+VENDEDOR_DO_PORTAL = {
+    "brenda": "brenda", "flavia": "flavia",
+    "gustavo": "gustavo", "matheus": "matheus",
+}
+
 FUSO = timezone(timedelta(hours=-3))
 
 
@@ -143,6 +169,14 @@ def ler():
     for k, (nome, apelido) in IDENTIDADES.items():
         if k in pessoas:
             pessoas[k]["nome"], pessoas[k]["apelido"] = nome, apelido
+    for k, p in pessoas.items():
+        if k in SETOR_DITADO:
+            p["setor"] = SETOR_DITADO[k]
+        if k in VENDEDOR_DO_PORTAL:
+            p["vendedor_id"] = VENDEDOR_DO_PORTAL[k]
+    faltando = [k for k in SETOR_DITADO if k not in pessoas]
+    if faltando:
+        print("AVISO: setor ditado pra quem não está na planilha:", ", ".join(faltando))
     return [pessoas[k] for k in ordem]
 
 
@@ -190,11 +224,12 @@ def gravar(pessoas, url):
             atual[k] = {
                 **{campo: antigo.get(campo, "") for campo in
                    ("cargo", "contrato", "admissao", "nascimento", "telefone",
-                    "endereco", "emergencia", "cpf", "rg", "vendedor_id",
+                    "endereco", "emergencia", "cpf", "rg",
                     "desligamento", "motivo_desligamento")},
                 **antigo,
                 "nome": p["nome"],
                 "apelido": p.get("apelido") or antigo.get("apelido", ""),
+                "vendedor_id": p.get("vendedor_id") or antigo.get("vendedor_id", ""),
                 "situacao": p["situacao"],
                 "setor": p.get("setor") or antigo.get("setor", ""),
                 "email": p.get("email") or antigo.get("email", ""),

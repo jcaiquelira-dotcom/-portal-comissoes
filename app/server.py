@@ -1899,7 +1899,7 @@ def api_admin_auditoria_marcar(venda_id):
 # do portal — vale trocar por senha por pessoa quando der.
 
 # Setores como a empresa se organiza de fato, na ordem da planilha de folha.
-SETORES_RH = ["Vendas", "Anúncios", "Cadastro", "Desmontagem", "Expedição",
+SETORES_RH = ["Comercial", "Anúncios", "Cadastro", "Desmontagem", "Expedição",
               "Estoque", "Higienização", "Pátio", "Gerência", "Administrativo",
               "Marketing", "Outro"]
 CONTRATOS_RH = ["CLT", "PJ", "Estágio", "Temporário", "Sócio"]
