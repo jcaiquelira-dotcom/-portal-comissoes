@@ -2456,8 +2456,12 @@ def api_mb_dia():
                 do_dia[pid] = do_dia.get(pid, 0.0) + float(l.get("quantidade") or 0)
         setores[setor] = sorted((
             {"id": pid, "nome": p.get("nome") or "?",
+             "meta": p.get("meta") or 0, "meta_bonus": p.get("meta_bonus") or 0,
              "quantidade": do_dia.get(pid) or ""}
-            for pid, p in dados["pessoas"].get(setor, {}).items()),
+            # Inativo (desligado ou de funcao trocada) sai da chamada, mas
+            # continua no dicionario: o historico dele segue agregando.
+            for pid, p in dados["pessoas"].get(setor, {}).items()
+            if not p.get("inativo")),
             key=lambda x: x["nome"])
     veiculos = sorted((
         {"id": vid, "carro": v.get("carro"), "codigo": v.get("codigo"),
@@ -2465,6 +2469,86 @@ def api_mb_dia():
         for vid, v in dados["veiculos"].items() if v.get("data") == data),
         key=lambda x: x["carro"] or "")
     return jsonify({"data": data, "setores": setores, "veiculos": veiculos})
+
+
+@app.route("/api/admin/metas-bonus/pessoas", methods=["POST"])
+def api_mb_pessoa_salvar():
+    """Cria ou edita uma pessoa da chamada. Mudar de funcao nao move o
+    historico: a entrada antiga vira inativa (os meses lancados continuam
+    contando la) e nasce uma entrada ativa na funcao nova."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    nome = (corpo.get("nome") or "").strip()[:60]
+    if not nome:
+        return jsonify({"erro": "Informe o nome."}), 400
+    setor = corpo.get("setor")
+    if setor not in TIPO_META:
+        return jsonify({"erro": "Função inválida."}), 400
+
+    def num(v):
+        try:
+            return max(0.0, float(str(v or 0).replace(",", ".")))
+        except ValueError:
+            return 0.0
+    meta, bonus = num(corpo.get("meta")), num(corpo.get("meta_bonus"))
+
+    dados = _mb_bruto()
+    pid = (corpo.get("id") or "").strip()
+    setor_atual = next((st for st, gente in dados["pessoas"].items() if pid in gente), None)
+
+    if not pid or not setor_atual:
+        # Mesmo nome de alguem inativo nesta funcao? Entao e a mesma pessoa
+        # voltando (ou um engano sendo desfeito): reativa e o historico volta
+        # junto, em vez de nascer um duplicado sem passado.
+        igual = next((x for x, p in dados["pessoas"].get(setor, {}).items()
+                      if p.get("inativo") and _achatar_canal(p.get("nome") or "") == _achatar_canal(nome)),
+                     None)
+        if igual:
+            dados["pessoas"][setor][igual].update(
+                nome=nome, meta=meta, meta_bonus=bonus, inativo=False)
+        else:
+            dados["pessoas"].setdefault(setor, {})[uuid.uuid4().hex[:12]] = {
+                "nome": nome, "meta": meta, "meta_bonus": bonus}
+    elif setor_atual == setor:
+        dados["pessoas"][setor][pid].update(nome=nome, meta=meta, meta_bonus=bonus)
+    else:
+        antigo = dados["pessoas"][setor_atual][pid]
+        tipo_antigo = TIPO_META[setor_atual]
+        tem_historico = any(l.get("pessoa_id") == pid
+                            for l in (dados["lancamentos"].get(tipo_antigo) or {}).values())
+        if tem_historico:
+            antigo["nome"] = nome
+            antigo["inativo"] = True
+        else:
+            dados["pessoas"][setor_atual].pop(pid)
+        dados["pessoas"].setdefault(setor, {})[pid] = {
+            "nome": nome, "meta": meta, "meta_bonus": bonus}
+    _mb_gravar(dados)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/metas-bonus/pessoas/<setor>/<pid>", methods=["DELETE"])
+def api_mb_pessoa_remover(setor, pid):
+    """Tira da chamada. So apaga de verdade quem nunca lancou nada — apagar
+    alguem com historico faria os meses antigos dele sumirem do painel."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    dados = _mb_bruto()
+    pessoa = dados["pessoas"].get(setor, {}).get(pid)
+    if not pessoa:
+        return jsonify({"erro": "Pessoa não encontrada."}), 404
+    tipo = TIPO_META[setor]
+    tem_historico = any(l.get("pessoa_id") == pid
+                        for l in (dados["lancamentos"].get(tipo) or {}).values())
+    if tem_historico:
+        pessoa["inativo"] = True
+        modo = "inativada"
+    else:
+        dados["pessoas"][setor].pop(pid)
+        modo = "apagada"
+    _mb_gravar(dados)
+    return jsonify({"ok": True, "modo": modo})
 
 
 @app.route("/api/admin/metas-bonus/dia", methods=["POST"])

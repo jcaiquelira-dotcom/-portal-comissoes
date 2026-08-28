@@ -163,6 +163,24 @@
     text-align:right;font-variant-numeric:tabular-nums;width:100%;
   }
   .mb-pessoa input:focus{outline:none;border-color:var(--accent);}
+  .mb-edit{
+    background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;
+    padding:1px 4px;border-radius:5px;opacity:0;transition:opacity .12s;
+    vertical-align:1px;
+  }
+  .mb-pessoa:hover .mb-edit{opacity:1;}
+  .mb-edit:hover{color:var(--accent);background:var(--surface-2);}
+  .mb-add{
+    background:none;border:1px dashed var(--line);color:var(--muted);cursor:pointer;
+    border-radius:8px;padding:5px 10px;font-family:inherit;font-size:11.5px;
+    margin-top:6px;width:100%;
+  }
+  .mb-add:hover{color:var(--accent);border-color:var(--accent);}
+  #mbPessoaFicha select,#mbPessoaFicha input{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:7px 9px;font-family:inherit;font-size:12.5px;width:100%;
+  }
+  #mbPessoaFicha select:focus,#mbPessoaFicha input:focus{outline:none;border-color:var(--accent);}
   .mb-veic{margin-top:14px;padding-top:4px;border-top:1px dashed var(--line);}
   .mb-veic-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
   .mb-veic-form input{
@@ -880,6 +898,37 @@
       </div>
 
       <div id="mbCorpo"></div>
+
+      <div id="mbPessoaFicha" class="rh-ficha oculto">
+        <div class="rh-ficha-fundo" id="mbPessoaFundo"></div>
+        <div class="rh-ficha-caixa" style="max-width:420px;">
+          <div class="aud-cabecalho">
+            <p class="card-titulo" style="margin:0;" id="mbPessoaTitulo">Pessoa</p>
+            <button class="btn btn-neutro btn-pequeno" id="mbPessoaFechar">Fechar</button>
+          </div>
+          <div class="campo"><label class="campo-rotulo" for="mbPNome">Nome</label>
+            <input type="text" id="mbPNome"></div>
+          <div class="campo"><label class="campo-rotulo" for="mbPSetor">Função</label>
+            <select id="mbPSetor">
+              <option value="anunciante">Anunciante</option>
+              <option value="cadastrador">Cadastrador</option>
+            </select></div>
+          <div class="grid-2">
+            <div class="campo"><label class="campo-rotulo" for="mbPMeta">Meta do mês</label>
+              <input type="number" id="mbPMeta" min="0" step="1"></div>
+            <div class="campo"><label class="campo-rotulo" for="mbPBonus">Meta bônus</label>
+              <input type="number" id="mbPBonus" min="0" step="1"></div>
+          </div>
+          <p class="dp-aviso" style="margin:8px 0 0;">Mudar a função preserva o histórico: os meses
+            já lançados continuam contando na função antiga.</p>
+          <div class="rh-ficha-acoes">
+            <button class="btn btn-principal btn-pequeno" id="mbPessoaSalvar">Salvar</button>
+            <button class="btn btn-neutro btn-pequeno" id="mbPessoaRemover"
+              style="margin-left:auto;color:var(--bad);">Tirar da chamada</button>
+          </div>
+          <span class="status-msg" id="mbPessoaStatus"></span>
+        </div>
+      </div>
     </section>
 
     <!-- ---------- COMISSÕES / AUDITORIA ---------- -->
@@ -2255,6 +2304,7 @@ async function mbCarregarDia(data){
   const res = await fetch('/api/admin/metas-bonus/dia?data=' + mbDiaAtual);
   if(!res.ok) return;
   const d = await res.json();
+  mbDiaDados = d;
 
   document.getElementById('mbGrade').innerHTML = MB_GRUPOS.map(g => {
     const gente = d.setores[g.setor] || [];
@@ -2262,10 +2312,13 @@ async function mbCarregarDia(data){
     return `<div class="mb-grupo">
       <div class="mb-recentes-titulo">${g.titulo}</div>
       ${gente.map(p => `<label class="mb-pessoa">
-        <span class="n">${p.nome}</span>
+        <span class="n">${p.nome}
+          <button type="button" class="mb-edit" title="Editar ${p.nome}"
+            data-mbeditar="${g.setor}:${p.id}">✎</button></span>
         <input type="number" min="0" step="1" inputmode="numeric" placeholder="—"
           data-mbtipo="${g.tipo}" data-mbpid="${p.id}" value="${p.quantidade}">
       </label>`).join('')}
+      <button type="button" class="mb-add" data-mbnova="${g.setor}">+ Adicionar pessoa</button>
     </div>`;
   }).join('');
 
@@ -2301,6 +2354,62 @@ async function mbSalvarDia(){
   status.classList.add('show');
   mbCarregarDia(mbDiaAtual);
   carregarMetaBonus(document.getElementById('mbMes').value);
+}
+
+let mbDiaDados = null;
+let mbPessoaEditando = null;   // {setor, id} ou {setor} pra nova
+
+function mbAbrirPessoa(setor, pid){
+  const p = pid ? (mbDiaDados?.setores?.[setor] || []).find(x => x.id === pid) : null;
+  mbPessoaEditando = {setor, id: pid || null};
+  document.getElementById('mbPessoaTitulo').textContent = p ? p.nome : 'Nova pessoa';
+  document.getElementById('mbPNome').value = p ? p.nome : '';
+  document.getElementById('mbPSetor').value = setor;
+  document.getElementById('mbPMeta').value = p ? p.meta : '';
+  document.getElementById('mbPBonus').value = p ? p.meta_bonus : '';
+  document.getElementById('mbPessoaRemover').classList.toggle('oculto', !pid);
+  const st = document.getElementById('mbPessoaStatus');
+  st.classList.remove('show', 'err');
+  document.getElementById('mbPessoaFicha').classList.remove('oculto');
+  document.getElementById('mbPNome').focus();
+}
+
+function mbFecharPessoa(){
+  document.getElementById('mbPessoaFicha').classList.add('oculto');
+  mbPessoaEditando = null;
+}
+
+async function mbSalvarPessoa(){
+  const st = document.getElementById('mbPessoaStatus');
+  st.classList.remove('show', 'err');
+  const res = await fetch('/api/admin/metas-bonus/pessoas', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id: mbPessoaEditando?.id,
+      nome: document.getElementById('mbPNome').value,
+      setor: document.getElementById('mbPSetor').value,
+      meta: document.getElementById('mbPMeta').value,
+      meta_bonus: document.getElementById('mbPBonus').value})});
+  const d = await res.json().catch(() => ({}));
+  if(!res.ok){
+    st.textContent = d.erro || 'Erro ao salvar.';
+    st.classList.add('show', 'err');
+    return;
+  }
+  mbFecharPessoa();
+  mbCarregarDia(mbDiaAtual);
+  carregarMetaBonus(document.getElementById('mbMes').value);
+}
+
+async function mbRemoverPessoa(){
+  if(!mbPessoaEditando?.id) return;
+  const res = await fetch(
+    `/api/admin/metas-bonus/pessoas/${mbPessoaEditando.setor}/${mbPessoaEditando.id}`,
+    {method: 'DELETE'});
+  if(res.ok){
+    mbFecharPessoa();
+    mbCarregarDia(mbDiaAtual);
+    carregarMetaBonus(document.getElementById('mbMes').value);
+  }
 }
 
 async function mbAddVeiculo(){
@@ -2825,6 +2934,19 @@ document.addEventListener('click', async ev => {
   if(linha && linha.closest('#rhCorpo')){ rhAbrirFicha(linha.dataset.ficha); return; }
 
   if(ev.target.id === 'mbSalvarDia'){ mbSalvarDia(); return; }
+  const editarMb = ev.target.closest('[data-mbeditar]');
+  if(editarMb){
+    ev.preventDefault();
+    const [setor, pid] = editarMb.dataset.mbeditar.split(':');
+    mbAbrirPessoa(setor, pid); return;
+  }
+  const novaMb = ev.target.closest('[data-mbnova]');
+  if(novaMb){ mbAbrirPessoa(novaMb.dataset.mbnova, null); return; }
+  if(ev.target.id === 'mbPessoaSalvar'){ mbSalvarPessoa(); return; }
+  if(ev.target.id === 'mbPessoaRemover'){ mbRemoverPessoa(); return; }
+  if(ev.target.id === 'mbPessoaFechar' || ev.target.id === 'mbPessoaFundo'){
+    mbFecharPessoa(); return;
+  }
   if(ev.target.id === 'mbAddVeiculo'){ mbAddVeiculo(); return; }
   const apagarVeic = ev.target.closest('[data-mbveic]');
   if(apagarVeic){
