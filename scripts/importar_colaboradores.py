@@ -47,11 +47,22 @@ SETORES = {
     "ESTOQUE": "Estoque", "GERÊNCIA": "Gerência",
 }
 
-# Nome abreviado na aba de metas -> nome completo na folha.
+# Mesma pessoa escrita de dois jeitos nas abas. A chave da esquerda passa a
+# valer como a da direita, senao a mesma pessoa vira dois cadastros.
 APELIDOS = {
     "vinicius l": "vinicius lyra",
     "pedro p": "pedro paulo",
     "pedro h": "pedro henrique",
+    "joao": "joao docinho",       # o "João" da expedição é o João Docinho
+    "japa": "vinicius hideki",    # Japa é como chamam o Vinicius Hideki
+    "rozemir": "nego",            # Nego é como chamam o Rozemir
+}
+
+# Quem a empresa trata pelo apelido: a ficha guarda o nome, a lista mostra o
+# apelido — é por ele que o gestor procura a pessoa.
+IDENTIDADES = {
+    "nego": ("Rozemir", "Nego"),
+    "vinicius hideki": ("Vinicius Hideki", "Japa"),
 }
 
 FUSO = timezone(timedelta(hours=-3))
@@ -127,6 +138,9 @@ def ler():
             p["obs"] = (f"Importado só da aba {de_onde} — sem linha na folha. "
                         "Confira se não é a mesma pessoa de outro cadastro.")
         p["origens"] = sorted(p["origens"])
+    for k, (nome, apelido) in IDENTIDADES.items():
+        if k in pessoas:
+            pessoas[k]["nome"], pessoas[k]["apelido"] = nome, apelido
     return [pessoas[k] for k in ordem]
 
 
@@ -173,11 +187,12 @@ def gravar(pessoas, url):
             antigo = atual.get(k, {})
             atual[k] = {
                 **{campo: antigo.get(campo, "") for campo in
-                   ("apelido", "cargo", "contrato", "admissao", "nascimento", "telefone",
+                   ("cargo", "contrato", "admissao", "nascimento", "telefone",
                     "endereco", "emergencia", "cpf", "rg", "vendedor_id",
                     "desligamento", "motivo_desligamento")},
                 **antigo,
                 "nome": p["nome"],
+                "apelido": p.get("apelido") or antigo.get("apelido", ""),
                 "situacao": p["situacao"],
                 "setor": p.get("setor") or antigo.get("setor", ""),
                 "email": p.get("email") or antigo.get("email", ""),
