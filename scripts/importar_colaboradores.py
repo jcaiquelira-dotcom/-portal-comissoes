@@ -56,6 +56,7 @@ APELIDOS = {
     "joao": "joao docinho",       # o "João" da expedição é o João Docinho
     "japa": "vinicius hideki",    # Japa é como chamam o Vinicius Hideki
     "rozemir": "nego",            # Nego é como chamam o Rozemir
+    "joao gustavo": "gustavo",    # o Gustavo dos anúncios é o João Gustavo
 }
 
 # Quem a empresa trata pelo apelido: a ficha guarda o nome, a lista mostra o
@@ -63,6 +64,7 @@ APELIDOS = {
 IDENTIDADES = {
     "nego": ("Rozemir", "Nego"),
     "vinicius hideki": ("Vinicius Hideki", "Japa"),
+    "gustavo": ("João Gustavo", "Gustavo"),
 }
 
 FUSO = timezone(timedelta(hours=-3))
