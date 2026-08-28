@@ -130,6 +130,19 @@ def main():
         ).fetchall()
         if any("nevadaautopecas.com.br" in (t or "") for (t,) in primeiras):
             links_site.add(sid)
+    # Parte do que chega "pelo site" e na verdade Google Ads: o link traz gclid /
+    # gad_campaignid grudado. Sem separar, anuncio pago do Google era contado como
+    # site organico -- eram 990 de 1.704 leads do canal Site.
+    MARCAS_GOOGLE = ["gclid=", "gad_source=", "gad_campaignid=", "gbraid=", "wbraid="]
+    google_ads = set()
+    for sid, texto in conn.execute(
+        "SELECT session_id, text FROM mensagens WHERE direction='FROM_HUB' "
+        "AND text LIKE '%nevadaautopecas.com.br%'"
+    ):
+        t = (texto or "").lower()
+        if any(m in t for m in MARCAS_GOOGLE):
+            google_ads.add(sid)
+
     ig_organico = set(
         sid for (sid,) in conn.execute(
             "SELECT DISTINCT session_id FROM mensagens WHERE direction='FROM_HUB' "
@@ -206,6 +219,18 @@ def main():
             contatos_ja_vistos.add(contact_id)
             novo_por_sessao[sid] = "novo"
 
+    # Leitura da conversa pela IA (app/classificar_ia.py). Onde ela existe, o motivo da
+    # perda vem daqui: a heuristica de palavra-chave deixava um terco dos atendimentos
+    # como "sem sinal claro", e nao sabia distinguir "nao tinhamos" de "o cliente sumiu".
+    ia = {}
+    try:
+        ia = {r[0]: r[1:] for r in conn.execute(
+            "SELECT session_id, virou_venda, motivo_nao_venda, tinhamos_a_peca, tipo_cliente "
+            "FROM classificacao_ia")}
+        print(f"classificacao da IA disponivel para {len(ia)} sessoes")
+    except sqlite3.OperationalError:
+        print("sem tabela classificacao_ia — exportando so com a heuristica")
+
     dataset = []
     ids_ordem = []
     for sid, created_at, ended_at, status, user_id, utm, origin_sessao in conn.execute(
@@ -214,8 +239,10 @@ def main():
         if utm:
             fonte_utm = json.loads(utm).get("source")
             canal_cod = "AF" if fonte_utm == "FACEBOOK" else "AI" if fonte_utm == "INSTAGRAM" else "AO"
+        elif sid in google_ads:
+            canal_cod = "G"   # Google Ads (chegou pelo site, mas via clique pago)
         elif sid in links_site:
-            canal_cod = "S"
+            canal_cod = "S"   # site organico
         elif sid in anuncio_sem_rastreio:
             canal_cod = "AX"  # anuncio, rastreio perdido (plataforma nao identificada)
         elif sid in ig_organico:
@@ -281,10 +308,15 @@ def main():
 
         ad_content = None
         ad_source = None
+        ad_id = None
         if utm:
             u = json.loads(utm)
             ad_content = (u.get("content") or "").strip().replace("\n", " ") or None
             ad_source = u.get("source")
+            # sourceId e o id do anuncio no Meta. Agrupar por ele em vez de pelo texto
+            # do criativo: o mesmo anuncio roda no Facebook e no Instagram, e casar por
+            # palavra do criativo ja jogou 304 leads no anuncio errado (caso #tiguanrline).
+            ad_id = u.get("sourceId")
 
         ids_ordem.append(sid)
         dataset.append({
@@ -298,6 +330,12 @@ def main():
             "mv": motivos,
             "ac": ad_content,
             "as": ad_source,
+            "ai": ad_id,
+            # leitura da IA: venda / motivo da perda / tinhamos a peca / perfil do cliente
+            "iv": bool(ia[sid][0]) if sid in ia else None,
+            "im": ia[sid][1] if sid in ia else None,
+            "it": ia[sid][2] if sid in ia else None,
+            "ip": ia[sid][3] if sid in ia else None,
             "pc": categoria_peca,
             "nv": novo_por_sessao.get(sid),
             "ei": origin_sessao == "Empresa",

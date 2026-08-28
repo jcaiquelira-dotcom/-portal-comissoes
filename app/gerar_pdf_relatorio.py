@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FONTE = ROOT / "relatorio_marketing.html"
 TEMP = ROOT / "_relatorio_print.html"
-SAIDA = ROOT / "Relatorio_Marketing_Nevada_jul-ago2026.pdf"
+SAIDA = ROOT / "Relatorio_Criativos_Nevada_jul-ago2026.pdf"
 
 CHROME = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
 

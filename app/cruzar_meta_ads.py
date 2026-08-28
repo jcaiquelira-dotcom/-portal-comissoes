@@ -29,7 +29,60 @@ def limpa(t):
     return "".join(c for c in t if not unicodedata.combining(c))
 
 
+# O lado do painel casa por ID do anuncio (utm.sourceId), nao por palavra do criativo.
+# Conferido um a um contra o texto completo do criativo e o volume de conversas do CSV.
+# Dois IDs podem apontar pro mesmo anuncio do Gerenciador (o Meta recria o id quando o
+# anuncio e duplicado ou reativado) -- por isso o mapa e id -> grupo, e nao o contrario.
+ID_PARA_GRUPO = {
+    "52509186577037":     "golf_gti_sucata",  # SUCATA GOLF GTI PARA RETIRADA DE PECAS
+    "6871280648833":      "golf_gti_particular",  # Golf GTI upgrades, comprado particular
+    "6799548503233":      "polo_gts",         # "Chegou mais uma sucata... Polo GTS 1.4 TSI"
+    "6799548503433":      "audi_a3",          # "Chegaram novas oportunidades... Audi A3 2.0"
+    "6884312340633":      "jetta_gli",        # 3x Sucata Jetta GLI
+    "6889623313633":      "jetta_gli_2024",   # Sucata Jetta GLI 2024
+    "6867328840433":      "tiguan",           # "Voce iria de qual?" Tiguan 250 + 350
+    "6978276826633":      "tiguan_rline",     # Sucata Tiguan RLine 2024
+    "6978278137033":      "up_tsi",           # UP TSI COM KIT SWAP TCROSS 1.4
+    "6940613678033":      "up_tsi",           # mesmo criativo, id novo
+    "6897389934233":      "nivus",            # A PRIMEIRA SUCATA DE NIVUS GTS DO BRASIL
+    "6978131810433":      "tera",             # SUCATA VW TERA HIGHLINE 2026
+    "6941429410433":      "camaro",           # SUCATA DE CAMARO SS 2011 V8 6.2
+    "52510074274037":     "motor_gaiola",     # Projeto Gaiola com motor 1.4 TSI
+    "120252467672870730": "motor_thp",        # MOTOR 1.6 THP FLEX OU GASOLINA
+    "6886650442233":      "mercedes",         # Sucata Mercedes C200 Kompressor 2010
+}
+
+# Nome do anuncio no Gerenciador -> mesmo grupo. Os nomes sao livres e repetidos
+# ("motor" e "MOtor" sao anuncios diferentes), entao o casamento tambem e explicito.
+NOME_PARA_GRUPO = {
+    "ADV01 -  GOLF GTI — Cópia":              "golf_gti_sucata",
+    "ADV01 -  GOLF GTI":                      "golf_gti_particular",
+    "ADV08 - Polo GTS":                       "polo_gts",
+    "ADV07 - Audi A3":                        "audi_a3",
+    "ADV01 -  Jetta GLI":                     "jetta_gli",
+    "ADV01 -  Jetta GLI — Cópia":             "jetta_gli_2024",
+    "ADV01 - Tiguan 250 TSI  +Tiguan 350 TSI": "tiguan",
+    "Sucata Tiguan RLine 2024 para retirada da peças": "tiguan_rline",
+    "UP TSI COM KIT SWAP TCROSS":             "up_tsi",
+    "ADV01 -  NIVUS GTS":                     "nivus",
+    "SUCATA VW TERA HIGHLINE 2026":           "tera",
+    "SUCATA DE CAMARO SS":                    "camaro",
+    "motor":                                  "motor_gaiola",
+    "MOtor":                                  "motor_thp",
+}
+
+ROTULO = {
+    "golf_gti_sucata": "Golf GTI (sucata)", "golf_gti_particular": "Golf GTI (particular)",
+    "polo_gts": "Polo GTS", "audi_a3": "Audi A3", "jetta_gli": "Jetta GLI (3x sucata)",
+    "jetta_gli_2024": "Jetta GLI 2024", "tiguan": "Tiguan 250/350",
+    "tiguan_rline": "Tiguan RLine", "up_tsi": "Up TSI / T-Cross", "nivus": "Nivus GTS",
+    "tera": "VW Tera Highline", "camaro": "Camaro SS", "motor_gaiola": "Projeto Gaiola 1.4 TSI",
+    "motor_thp": "Motor 1.6 THP", "mercedes": "Mercedes C200",
+}
+
+
 # chave de casamento -> (rotulo, termos que identificam o veiculo/tema)
+# Mantido so como plano B pra criativo novo que ainda nao esta no mapa de IDs.
 GRUPOS = [
     ("polo_gts",    "Polo GTS",        ["polo gts"]),
     ("nivus",       "Nivus GTS",       ["nivus"]),
@@ -74,7 +127,7 @@ def main():
             if not nome:  # linha sem nome = total da conta
                 total_meta = {"gasto": gasto, "conversas": conversas, "novos": novos}
                 continue
-            chave = classificar(nome)
+            chave = NOME_PARA_GRUPO.get(nome) or classificar(nome)
             if chave is None:
                 print(f"  [aviso] anuncio sem grupo: {nome!r}")
                 continue
@@ -89,9 +142,10 @@ def main():
     painel = defaultdict(lambda: {"leads": 0, "vendas": 0, "criativos": set()})
     sem_grupo = defaultdict(int)
     for d in dados:
-        if d["c"] not in ("AF", "AI") or not d["ac"]:
+        if d["c"] not in ("AF", "AI", "AO") or not d["ac"]:
             continue
-        chave = classificar(d["ac"])
+        # ID primeiro. So cai no texto se for anuncio novo, fora do mapa.
+        chave = ID_PARA_GRUPO.get(d.get("ai")) or classificar(d["ac"])
         if chave is None:
             sem_grupo[d["ac"][:45]] += 1
             continue
@@ -105,6 +159,7 @@ def main():
 
     # --- resultado ---
     rotulos = {c: r for c, r, _ in GRUPOS}
+    rotulos.update(ROTULO)  # os grupos por id sao mais especificos e ganham
     chaves = sorted(set(meta) | set(painel),
                     key=lambda k: -meta.get(k, {}).get("gasto", 0))
 
@@ -113,7 +168,7 @@ def main():
     print("=" * 108)
     print(f"{'Anúncio':20s} {'Gasto':>10s} {'Conv.Meta':>10s} {'Leads':>7s} "
           f"{'Vendas':>7s} {'Receita':>11s} {'Custo/venda':>12s} {'Retorno':>9s}")
-    print("-" * 108)
+    print("-" * 111)
 
     tot_gasto = tot_leads = tot_vendas = 0
     for k in chaves:
@@ -125,12 +180,12 @@ def main():
         tot_vendas += p["vendas"]
         cpv = f"R$ {m['gasto']/p['vendas']:,.0f}" if p["vendas"] else "— sem venda"
         roi = f"{receita/m['gasto']:.1f}x" if m["gasto"] else "—"
-        print(f"{rotulos.get(k,k)[:20]:20s} R$ {m['gasto']:>7,.0f} {m['conversas']:>10d} "
+        print(f"{rotulos.get(k,k)[:23]:23s} R$ {m['gasto']:>7,.0f} {m['conversas']:>10d} "
               f"{p['leads']:>7d} {p['vendas']:>7d} R$ {receita:>8,.0f} {cpv:>12s} {roi:>9s}")
 
-    print("-" * 108)
+    print("-" * 111)
     receita_tot = tot_vendas * TICKET
-    print(f"{'TOTAL':20s} R$ {tot_gasto:>7,.0f} {total_meta['conversas']:>10d} "
+    print(f"{'TOTAL':23s} R$ {tot_gasto:>7,.0f} {total_meta['conversas']:>10d} "
           f"{tot_leads:>7d} {tot_vendas:>7d} R$ {receita_tot:>8,.0f} "
           f"{'R$ '+format(tot_gasto/tot_vendas, ',.0f'):>12s} {receita_tot/tot_gasto:>8.1f}x")
 

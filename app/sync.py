@@ -8,24 +8,51 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from config import env
+
 ROOT = Path(__file__).resolve().parent.parent
-TOKEN = os.environ.get("TOTALK_API_TOKEN")
+TOKEN = env("TOTALK_TOKEN", obrigatorio=False) or os.environ.get("TOTALK_API_TOKEN")
 BASE_URL = "https://api.wts.chat"
 SQLITE_PATH = ROOT / "vendas.db"
 
 # Rate limit real da API: 1000 req/5min (~3,3/s) e 200 req/5s de burst.
-# 0.4s entre chamadas fica bem abaixo dos dois, sem precisar de lógica de retry.
+# 0.4s entre chamadas fica bem abaixo dos dois.
 PAUSA_ENTRE_REQUISICOES = 0.4
+# Queda de rede não pode derrubar uma sincronização de 40 minutos. Já aconteceu:
+# o Wi-Fi oscilou no meio da rodada, o DNS parou de resolver api.wts.chat e o
+# script morreu com getaddrinfo failed, perdendo o resto da fila.
+TENTATIVAS_REDE = 6
 PAGE_SIZE = 100
 DIAS_PARA_TRAS = int(os.environ.get("DIAS_PARA_TRAS", "45"))
 
 
 def _requisitar(path: str, params: dict) -> dict:
+    """Uma chamada à API, com espera crescente quando a rede cai.
+
+    Só repete o que é transitório: queda de rede, 429 (excesso de chamadas) e
+    erro 5xx do servidor. 401 e 404 sobem na hora -- repetir não conserta token
+    errado nem sessão que não existe, e mascararia o problema real.
+    """
     query = urllib.parse.urlencode(params, doseq=True)
     url = f"{BASE_URL}{path}?{query}"
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {TOKEN}"})
-    with urllib.request.urlopen(req) as resp:
-        return json.loads(resp.read())
+    for tentativa in range(TENTATIVAS_REDE):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 500, 502, 503, 504) or tentativa == TENTATIVAS_REDE - 1:
+                raise
+            espera = min(60, 2 ** tentativa * 5)
+            print(f"  [rede] HTTP {e.code}, tentando de novo em {espera}s")
+            time.sleep(espera)
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            if tentativa == TENTATIVAS_REDE - 1:
+                raise
+            espera = min(60, 2 ** tentativa * 5)
+            motivo = getattr(e, "reason", e)
+            print(f"  [rede] {motivo} — tentando de novo em {espera}s", flush=True)
+            time.sleep(espera)
 
 
 def _conectar_db() -> sqlite3.Connection:
@@ -141,7 +168,7 @@ def buscar_mensagens_de_todas_as_sessoes():
 
 if __name__ == "__main__":
     if not TOKEN:
-        raise SystemExit("Defina TOTALK_API_TOKEN no ambiente antes de rodar.")
+        raise SystemExit("Defina TOTALK_TOKEN no .env antes de rodar.")
 
     desde = (datetime.now(timezone.utc) - timedelta(days=DIAS_PARA_TRAS)).strftime("%Y-%m-%dT%H:%M:%SZ")
     print(f"Buscando sessoes criadas desde {desde}...")

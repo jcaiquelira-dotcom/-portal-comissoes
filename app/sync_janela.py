@@ -78,7 +78,7 @@ def buscar_mensagens(ids):
 
 if __name__ == "__main__":
     if not TOKEN:
-        raise SystemExit("defina TOTALK_API_TOKEN")
+        raise SystemExit("defina TOTALK_TOKEN no .env")
     inicio, fim = sys.argv[1], sys.argv[2]
     print(f"buscando janela {inicio} -> {fim}")
     ids = buscar_janela(inicio, fim)

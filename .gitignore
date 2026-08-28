@@ -12,3 +12,14 @@ _relatorio_print.html
 *.pdf
 session_ids.json
 *.xlsx
+
+# rascunhos de investigacao e dumps de API — nao sao parte do projeto
+_*.py
+_*.json
+_*.txt
+app/_*.py
+
+# fila de CRM: nome e telefone de cliente, nunca vai pro git
+Fila_CRM_CONFIDENCIAL.json
+vendas_backup_*.db
+COMO_LIGAR_O_WEBHOOK.txt

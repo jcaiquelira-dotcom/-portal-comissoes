@@ -53,6 +53,14 @@ if DATABASE_URL:
             )
             conn.commit()
 
+    def listar_eventos(limite: int):
+        with _db_conectar() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT recebido_em, tipo_evento, payload FROM eventos_totalk "
+                "ORDER BY id DESC LIMIT %s", (limite,))
+            return [{"recebido_em": str(r[0]), "tipo": r[1], "payload": r[2]}
+                    for r in cur.fetchall()]
+
 else:
     def _sqlite_conectar():
         conn = sqlite3.connect(SQLITE_PATH)
@@ -73,6 +81,14 @@ else:
                 (_agora_iso(), tipo_evento, json.dumps(payload, ensure_ascii=False)),
             )
             conn.commit()
+
+    def listar_eventos(limite: int):
+        with _sqlite_conectar() as conn:
+            linhas = conn.execute(
+                "SELECT recebido_em, tipo_evento, payload FROM eventos_totalk "
+                "ORDER BY id DESC LIMIT ?", (limite,)).fetchall()
+        return [{"recebido_em": r[0], "tipo": r[1], "payload": json.loads(r[2])}
+                for r in linhas]
 
 
 def _tipo_evento_de(payload: dict) -> str | None:
@@ -96,6 +112,30 @@ def receber_webhook(secret):
 
     salvar_evento(_tipo_evento_de(payload), payload)
     return jsonify({"ok": True}), 200
+
+
+@app.route("/webhook/totalk/<secret>/ultimos", methods=["GET"])
+def inspecionar_eventos(secret):
+    """Mostra os últimos eventos crus recebidos.
+
+    Existe porque o formato do payload do Totalk não é documentado: sem ver um
+    evento real não dá pra saber em que campo vem o id da sessão nem como
+    distinguir mensagem do cliente de mensagem da loja. Assim que o parsing
+    estiver fechado, este endpoint pode sair.
+
+    Devolve conteúdo de conversa de cliente, então fica atrás do mesmo segredo
+    do webhook e limitado a poucos eventos por chamada.
+    """
+    if not WEBHOOK_SECRET or not secrets.compare_digest(secret, WEBHOOK_SECRET):
+        return jsonify({"error": "not found"}), 404
+    try:
+        limite = min(int(request.args.get("n", 10)), 50)
+    except ValueError:
+        limite = 10
+    try:
+        return jsonify({"eventos": listar_eventos(limite)})
+    except Exception as e:  # tabela ainda não existe = nada chegou
+        return jsonify({"eventos": [], "aviso": f"{type(e).__name__}: {e}"})
 
 
 @app.route("/health", methods=["GET"])

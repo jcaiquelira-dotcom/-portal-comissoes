@@ -4,15 +4,32 @@ Fila de retomada: os melhores clientes pra cada vendedor ligar de volta.
 ATENCAO -- contem dados pessoais (nome e telefone). Fica fora do git de proposito.
 Entregue direto ao vendedor responsavel, nao publique.
 
-Quem ENTRA (todas as condicoes):
-  1. nao comprou (sem sinal de pagamento + entrega na conversa)
-  2. teve conversa de verdade (6+ respostas do vendedor) ou perguntou e ficou sem resposta
-  3. o vendedor NUNCA disse que nao tinha a peca -- se nao temos, ligar nao adianta
-  4. o cliente nao avisou que ja comprou ou desistiu
-  5. da pra saber QUAL peca ele queria
-  6. nao e alguem querendo vender carro pra gente
+Quem decide agora e a leitura da conversa pela IA (tabela classificacao_ia), nao
+mais palavra-chave. A diferenca que importa: a heuristica so sabia dizer "o
+vendedor nunca escreveu 'nao tenho'"; a IA responde se a peca existia e POR QUE
+a venda nao saiu. Sem isso a lista enchia de gente que nunca teve chance.
 
-Depois disso, cada um recebe uma nota e so os 30 melhores de cada vendedor entram
+Quem ENTRA (todas as condicoes):
+  1. NEM a leitura NEM a heuristica indicam venda. Os dois sinais tem que
+     concordar: a leitura exige a compra visivel na conversa e por isso perde as
+     que fecham no balcao (acha 236 das 352 vendas reais do portal, 67%), enquanto
+     a heuristica de palavra-chave acha 340, 97%. Ligar pra quem ja comprou custa
+     mais caro que perder um candidato duvidoso, entao vale o mais abrangente.
+  2. a leitura diz que TINHAMOS a peca ('sim') ou algo proximo ('parcial')
+  3. o motivo da perda e recuperavel -- quem so pesquisava preco, ou pediu peca
+     que nao servia no carro dele, fica de fora
+  4. da pra saber QUAL peca ele queria
+  5. o cliente nao avisou que ja comprou / desistiu, e nao e alguem querendo
+     vender carro pra gente
+
+O que NAO deu certo: cruzar os candidatos contra as vendas reais do portal-comissoes
+pra excluir quem comprou. O portal registra so produto, valor, data e vendedor -- nao
+tem chave de cliente. Casar por nome de peca gera falso match demais ("capa de antena
+de TETO" casa com "luz cortesia TETO solar"), porque um desmonte vende dezenas de
+pecas do mesmo carro pra pessoas diferentes. Pra fechar esse furo o portal precisaria
+guardar quem comprou.
+
+Depois disso cada um recebe uma nota e so os 30 melhores de cada vendedor entram
 na planilha -- a ideia e uma lista curta que da pra trabalhar de verdade num dia,
 nao um cadastro de mil linhas que ninguem abre.
 """
@@ -20,40 +37,64 @@ nao um cadastro de mil linhas que ninguem abre.
 import json
 import re
 import sqlite3
+import sys
 import time
 import unicodedata
 import urllib.parse
 import urllib.request
-from collections import defaultdict
-from datetime import datetime, timezone
+from collections import defaultdict, deque
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from config import env
+
 ROOT = Path(__file__).resolve().parent.parent
-TOKEN = "pn_ZnbNaPSAB1ldG6AhmNhXxAjaq9F2UPmFVw4EXk6Z9s4"
+TOKEN = env("TOTALK_TOKEN")
 BASE = "https://api.wts.chat"
-INICIO = "2026-07-07T00:00:00Z"
 HOJE = datetime.now(timezone.utc)  # "dias parado" conta ate hoje, nao ate o fim do sync
 PAUSA = 0.4
 POR_VENDEDOR = 30
 SAIDA = ROOT / "Fila_Retomada_CONFIDENCIAL.xlsx"
 
+# A mesma fila tambem sai em JSON, pra alimentar o painel de CRM dentro do
+# portal-comissoes (app/static/retomada.html la). O painel leva bem mais gente que
+# a planilha: o teto de 30 existia porque ninguem trabalha uma planilha de mil
+# linhas, mas na tela o vendedor ve os pendentes de maior nota primeiro e a fila
+# so precisa nao secar no meio do mes.
+POR_VENDEDOR_CRM = 200
+# Só entra no painel quem parou de falar com a gente nos últimos DIAS_MAX_CRM
+# dias: lead frio de mês passado já resolveu a vida em outro lugar, e uma fila
+# curta e recente é a que o vendedor consegue trabalhar de verdade no dia.
+DIAS_MAX_CRM = 10
+SAIDA_CRM = ROOT / "Fila_CRM_CONFIDENCIAL.json"
+# nome que o Totalk usa pro atendente -> id do vendedor no portal-comissoes
+ID_PORTAL = {"Flávia": "flavia", "Gustavo": "gustavo", "Matheus": "matheus"}
+
+# motivos onde nao ha o que reverter numa segunda tentativa
+MOTIVO_MORTO = {"so_pesquisando", "peca_errada"}
+
+# como cada motivo vira abordagem, e quanto vale a ligacao
+MOTIVO = {
+    "sem_resposta":  ("A conversa parou do nosso lado", 38),
+    "cliente_sumiu": ("Respondemos tudo e ele sumiu", 30),
+    "preco":         ("Achou caro — cabe negociar", 24),
+    "frete":         ("Travou no frete ou no prazo", 18),
+    "pagamento":     ("Travou na forma de pagamento", 18),
+    "outro":         ("Conversou e não fechou", 10),
+}
+
 
 def limpa(t):
     """Minuscula e sem acento. Tirar os combining chars e obrigatorio: sem isso
-    'nao temos' nunca casa com o texto decomposto e o filtro deixa passar."""
+    'ja comprei' nunca casa com o texto decomposto e o filtro deixa passar."""
     t = unicodedata.normalize("NFKD", (t or "").lower())
     return "".join(c for c in t if not unicodedata.combining(c))
 
 
-SEM_ESTOQUE = [limpa(x) for x in [
-    "não tenho", "não temos", "não vou ter", "não vamos ter", "já vendi",
-    "não tem disponível", "esgotado", "infelizmente não", "não trabalho com",
-    "não trabalhamos", "não possuo", "não ficou", "só tenho do", "não achei",
-]]
 JA_COMPROU = [limpa(x) for x in [
     "já comprei", "já consegui", "já achei", "comprei em outro", "consegui em outro",
     "achei em outro", "já resolvi", "não precisa mais", "já peguei", "desisti",
@@ -62,36 +103,16 @@ QUER_VENDER = [limpa(x) for x in [
     "vcs compram carro", "vocês compram carro", "compram carro batido", "vendo meu carro",
     "quero vender meu", "comprar meu carro",
 ]]
-RUIDO = [limpa(x) for x in [
-    "tenho interesse e queria mais informa", "posso ter mais informa", "vim do instagram",
-    "gostaria de ajuda com uma compra no site", "gostaria de informações sobre esse produto",
-    "não há preferência", "olá nevada ecopeças",
-]]
-SAUDACAO = {limpa(x) for x in [
-    "oi", "ola", "olá", "bom dia", "boa tarde", "boa noite", "opa", "blz", "beleza",
-    "tudo bem", "sim", "não", "ok", "obrigado", "obrigada", "boa", "certo", "e ai",
-]}
-PECAS = [limpa(x) for x in [
-    "motor", "cambio", "câmbio", "farol", "lanterna", "porta", "parachoque", "para-choque",
-    "pára-choque", "paralama", "capo", "capô", "roda", "banco", "volante", "painel",
-    "cabecote", "cabeçote", "turbina", "bico", "injetor", "radiador", "compressor",
-    "alternador", "bomba", "modulo", "módulo", "chicote", "retrovisor", "vidro", "teto",
-    "amortecedor", "suspensao", "suspensão", "escapamento", "catalisador", "diferencial",
-    "embreagem", "virabrequim", "coletor", "intercooler", "multimidia", "multimídia",
-    "airbag", "fechadura", "maçaneta", "coxim", "bandeja", "manga de eixo", "carter",
-    "cárter", "tanque", "caixa", "sensor", "central", "peça", "kit", "coluna", "eixo",
-]]
-VEICULOS = [limpa(x) for x in [
-    "golf", "jetta", "polo", "tiguan", "nivus", "virtus", "gol", "saveiro", "amarok",
-    "audi", "a3", "a4", "q3", "q5", "bmw", "320i", "x1", "x5", "x6", "mercedes",
-    "civic", "hrv", "hr-v", "fit", "corolla", "hilux", "rav4", "onix", "cruze", "tracker",
-    "s10", "montana", "ka", "fiesta", "focus", "ranger", "fusion", "hb20", "creta", "ix35",
-    "azera", "sportage", "cerato", "renegade", "compass", "toro", "argo", "cronos", "pulse",
-    "kwid", "duster", "sandero", "logan", "captur", "peugeot", "citroen", "c3", "c4",
-    "land rover", "evoque", "discovery", "freelander", "volvo", "jeep", "nissan", "kicks",
-    "frontier", "versa", "march", "up", "fox", "voyage", "cobalt", "spin", "tcross",
-    "t-cross", "taos", "stilo", "palio", "uno", "strada", "doblo", "gti", "gts", "gli",
-]]
+# O que aparece no lugar da fala quando o cliente mandou midia em vez de texto.
+# BUTTONS fica de fora de proposito: e escolha de menu do bot, nao fala dele.
+MIDIA = {"IMAGE": "[foto]", "AUDIO": "[áudio]", "VIDEO": "[vídeo]",
+         "DOCUMENT": "[arquivo]", "STICKER": "[figurinha]", "LOCATION": "[localização]"}
+# Quem chega pelo site ou pelo anuncio manda um texto pronto ("Ola NEVADA
+# ECOPECAS, gostaria de ajuda com uma compra no site" + link). Isso e o
+# formulario falando, nao o cliente -- na caixinha do painel so ocupa a linha
+# que deveria mostrar o que ele realmente disse. Sao ~1.900 mensagens.
+ENTRADA_SITE = "ola nevada ecopecas"
+RE_URL = re.compile(r"https?://\S+")
 RE_PRECO = re.compile(r"r\$\s*\d|(?<![\d,.])\d{2,5}[,.]00\b|\bpix\b", re.IGNORECASE)
 
 
@@ -103,13 +124,13 @@ def api(path, params):
         return json.loads(r.read())
 
 
-def buscar_contatos():
+def buscar_contatos(desde):
     """Nome/telefone nao foram salvos no sync -- rebusca as sessoes so pra isso."""
     print("buscando contatos na API...")
     contatos, pagina = {}, 1
     while True:
         d = api("/chat/v2/session", {
-            "CreatedAt.After": INICIO, "PageNumber": pagina, "PageSize": 100,
+            "CreatedAt.After": desde, "PageNumber": pagina, "PageSize": 100,
             "IncludeDetails": "ContactDetails", "OrderBy": "createdat",
             "OrderDirection": "ASCENDING",
         })
@@ -131,32 +152,50 @@ def buscar_contatos():
     return contatos
 
 
-def peca_procurada(msgs):
-    """A frase em que o cliente diz o que quer, escolhida por conteudo e nao por
-    tamanho -- senao 'chega em quantos dias?' ganha da descricao da peca."""
-    melhor, melhor_score, tem_carro, tem_ano = "", 0, False, False
-    for t in msgs:
-        tl = limpa(t)
-        if any(r in tl for r in RUIDO) or "http" in tl:
-            continue
-        if tl.strip().strip(".!?,") in SAUDACAO or len(t.strip()) < 8:
-            continue
-        limpo = " ".join(t.split())
-        n_peca = sum(1 for p in PECAS if p in tl)
-        n_carro = sum(1 for v in VEICULOS if re.search(rf"\b{re.escape(v)}\b", tl))
-        ano = bool(re.search(r"\b(19|20)\d{2}\b", tl))
-        score = 3 * n_peca + 2 * n_carro + (1 if ano else 0)
-        if score == 0:
-            continue
-        score += min(len(limpo) / 100, 1)
-        if score > melhor_score:
-            melhor, melhor_score = limpo, score
-            tem_carro, tem_ano = n_carro > 0, ano
-    return melhor[:180], tem_carro, tem_ano
+def fala_do_cliente(tipo, txt):
+    """Uma fala pronta pra aparecer no painel, ou "" quando nao ha o que mostrar.
+
+    Tira o link inteiro: uma URL de produto ocupa a linha toda e nao diz nada
+    que a coluna da peca ja nao diga. Se a mensagem era so o link, sobra a
+    marca de que ele mandou um."""
+    if tipo != "TEXT":
+        return MIDIA.get(tipo, "")
+    t = (txt or "").strip()
+    if not t or limpa(t).startswith(ENTRADA_SITE):
+        return ""
+    t = RE_URL.sub("", t).strip()
+    return (t or "[link do produto]")[:200]
+
+
+def exportar_json(fila, datas):
+    """Mesma fila da planilha, em JSON, separada por vendedor.
+
+    Um arquivo por vendedor (e não um bloco único) porque é assim que o
+    portal-comissoes guarda dado de vendedor -- cada um carrega só o seu.
+
+    O período que sai aqui é o da fila, não o que a IA leu: com o corte de
+    DIAS_MAX_CRM dias eles deixaram de ser a mesma coisa, e é o da fila que o
+    vendedor vê na tela.
+    """
+    inicio = (HOJE - timedelta(days=DIAS_MAX_CRM)).date().isoformat()
+    saida = {"gerado_em": HOJE.isoformat(), "de": max(inicio, datas[0]),
+             "ate": datas[-1], "vendedores": {}}
+    print("\njson pro painel de CRM:")
+    for vend, vid in ID_PORTAL.items():
+        # O corte por data vem ANTES do teto de POR_VENDEDOR_CRM: filtrar depois
+        # deixaria de fora um cliente recente só porque a nota dele não entrou
+        # entre as maiores do período inteiro.
+        todos = [it for it in fila.get(vend, []) if it["dias"] <= DIAS_MAX_CRM]
+        itens = sorted(todos, key=lambda x: -x["nota"])[:POR_VENDEDOR_CRM]
+        saida["vendedores"][vid] = {"nome": vend, "itens": itens}
+        print(f"  {vend}: {len(itens)} de {len(todos)} elegíveis nos últimos "
+              f"{DIAS_MAX_CRM} dias")
+    SAIDA_CRM.write_text(json.dumps(saida, ensure_ascii=False), encoding="utf-8")
+    print(f"salvo: {SAIDA_CRM.name} ({SAIDA_CRM.stat().st_size/1024:.0f} KB)")
 
 
 def main():
-    conn = sqlite3.connect("vendas.db")
+    conn = sqlite3.connect(ROOT / "vendas.db")
     dados = json.loads((ROOT / "dataset.json").read_text(encoding="utf-8"))
     ids = json.loads((ROOT / "session_ids.json").read_text(encoding="utf-8"))
     por_id = dict(zip(ids, dados))
@@ -168,48 +207,76 @@ def main():
         assert d and d["d"] == created_at[:10], f"pareamento furado em {sid}"
     print("pareamento dataset<->banco: OK")
 
-    sem_estoque, ja_comprou, quer_vender = set(), set(), set()
-    msgs_cliente = defaultdict(list)
-    tem_preco, foto_cliente = set(), set()
+    ia = {r[0]: {"venda": r[1], "motivo": r[2], "peca": (r[3] or "").strip(),
+                 "tinha": r[4], "tipo": r[5], "resumo": r[6]}
+          for r in conn.execute(
+              "SELECT session_id, virou_venda, motivo_nao_venda, peca_procurada, "
+              "tinhamos_a_peca, tipo_cliente, resumo FROM classificacao_ia")}
+    if not ia:
+        raise SystemExit("classificacao_ia esta vazia — rode app/classificar_ia.py antes")
+    datas = sorted(por_id[s]["d"] for s in ia if s in por_id)
+    print(f"conversas lidas pela IA: {len(ia):,} ({datas[0]} a {datas[-1]})")
+
+    ja_comprou, quer_vender, tem_preco, foto_cliente = set(), set(), set(), set()
+    # Só as 3 últimas falas do cliente: é o suficiente pro vendedor lembrar da
+    # conversa sem abrir o Totalk, e um deque com teto evita carregar 156 mil
+    # mensagens na memória pra jogar quase todas fora depois.
+    ultimas = defaultdict(lambda: deque(maxlen=3))
     for sid, direcao, tipo, txt, raw in conn.execute(
         "SELECT session_id, direction, type, text, raw FROM mensagens ORDER BY created_at ASC"
     ):
+        if sid not in ia:
+            continue
         tl = limpa(txt) if txt else ""
         if direcao == "TO_HUB":
-            if txt and json.loads(raw).get("userId"):
-                if any(k in tl for k in SEM_ESTOQUE):
-                    sem_estoque.add(sid)
-                if RE_PRECO.search(txt):
-                    tem_preco.add(sid)
+            if txt and json.loads(raw).get("userId") and RE_PRECO.search(txt):
+                tem_preco.add(sid)
         else:
             if tipo in ("IMAGE", "VIDEO"):
                 foto_cliente.add(sid)
+            fala = fala_do_cliente(tipo, txt)
+            if fala:
+                ultimas[sid].append(fala)
             if txt:
                 if any(k in tl for k in JA_COMPROU):
                     ja_comprou.add(sid)
                 if any(k in tl for k in QUER_VENDER):
                     quer_vender.add(sid)
-                if tipo == "TEXT":
-                    msgs_cliente[sid].append(txt)
 
-    contatos = buscar_contatos()
-    CANAL = {"S": "Site", "AF": "Facebook Ads", "AI": "Instagram Ads",
+    contatos = buscar_contatos(datas[0] + "T00:00:00Z")
+    CANAL = {"S": "Site orgânico", "G": "Google Ads", "AX": "Anúncio s/ rastreio",
+             "AF": "Facebook Ads", "AI": "Instagram Ads", "AO": "Meta (outro)",
              "I": "Instagram bio", "D": "Direto"}
-    ALTA_INTENCAO = {"S", "D"}
+    ALTA_INTENCAO = {"S", "D", "G"}
 
     fila = defaultdict(list)
     descartes = defaultdict(int)
     for sid, created_at, raw in conn.execute("SELECT id, created_at, raw FROM sessoes"):
+        a = ia.get(sid)
+        if not a:
+            descartes["fora do período lido pela IA"] += 1
+            continue
         m = por_id[sid]
+        if a["venda"]:
+            descartes["a leitura confirma que comprou"] += 1
+            continue
+        # A leitura sozinha nao basta. Ela exige a compra visivel na conversa, e boa
+        # parte das vendas fecha fora dela (o cliente some do chat e aparece no balcao):
+        # contra o portal de comissoes a leitura acha 236 das 352 vendas reais, 67%.
+        # A heuristica de palavra-chave acha 340, 97%. Entao quem a heuristica marca
+        # como venda fica de fora mesmo que a leitura discorde -- ligar pra quem ja
+        # comprou custa mais caro que perder um candidato duvidoso.
         if m["cv"] == "P":
-            descartes["já comprou"] += 1
+            descartes["a heurística indica compra (fechou fora do chat)"] += 1
             continue
-        esperando = m["ab"]
-        if not esperando and m["nm"] < 6:
-            descartes["conversa rasa demais"] += 1
+        if a["tinha"] not in ("sim", "parcial"):
+            descartes[f"não tínhamos a peça ({a['tinha']})"] += 1
             continue
-        if sid in sem_estoque:
-            descartes["não tínhamos a peça"] += 1
+        if a["motivo"] in MOTIVO_MORTO:
+            descartes[f"motivo sem volta ({a['motivo']})"] += 1
+            continue
+        if not a["peca"]:
+            descartes["não dá pra saber que peça queria"] += 1
             continue
         if sid in ja_comprou:
             descartes["cliente disse que já comprou"] += 1
@@ -217,40 +284,39 @@ def main():
         if sid in quer_vender:
             descartes["queria vender carro pra gente"] += 1
             continue
-        peca, tem_carro, tem_ano = peca_procurada(msgs_cliente.get(sid, []))
-        if not peca:
-            descartes["não dá pra saber que peça queria"] += 1
-            continue
 
         dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
         dias = max(0, (HOJE - dt).days)
         c = contatos.get(sid, {})
         tags = c.get("tags", "")
+        gancho, peso_motivo = MOTIVO.get(a["motivo"], MOTIVO["outro"])
 
         # nota: o que faz valer a ligacao
-        nota = 0
-        nota += 30 if esperando else 0            # ninguem disse nao, so ninguem voltou
-        nota += 20 if sid in tem_preco else 0     # ja teve preco na mesa
-        nota += 12 if sid in foto_cliente else 0  # cliente mandou foto = interesse real
-        nota += 10 if (tem_carro and tem_ano) else (5 if tem_carro else 0)
+        nota = peso_motivo
+        nota += 20 if a["tinha"] == "sim" else 8     # tinha em maos > tinha parecida
+        nota += 18 if sid in tem_preco else 0        # ja teve preco na mesa
+        nota += 12 if a["tipo"] == "oficina" else 0  # oficina recompra
+        nota += 10 if sid in foto_cliente else 0     # cliente mandou foto = interesse real
         nota += 10 if m["c"] in ALTA_INTENCAO else 0
         nota += 10 if "oportunidade" in limpa(tags) else 0
-        nota += max(0, 15 - dias // 3)            # quanto mais recente, melhor
-        nota += min(m["nm"] // 3, 8)              # conversa que andou de verdade
+        nota += max(0, 15 - dias // 3)               # quanto mais recente, melhor
+        nota += min(m["nm"] // 3, 8)                 # conversa que andou de verdade
 
         fila[m["u"]].append({
+            "sid": sid,
             "nota": nota,
-            "prio": "ALTA" if esperando else "MÉDIA",
+            "prio": "ALTA" if a["motivo"] == "sem_resposta" else "MÉDIA",
             "data": dt.strftime("%d/%m/%Y"),
             "dias": dias,
             "nome": c.get("nome", "(não encontrado)"),
             "fone": c.get("fone", ""),
-            "peca": peca,
-            "gancho": ("Perguntou e ficou sem resposta" if esperando
-                       else ("Negociou preço e não fechou" if sid in tem_preco
-                             else "Conversou e não fechou")),
+            "peca": a["peca"][:180],
+            "gancho": gancho,
+            "tinha": "Sim" if a["tinha"] == "sim" else "Parecida",
+            "tipo": {"oficina": "Oficina", "consumidor": "Consumidor"}.get(a["tipo"], "—"),
+            "resumo": (a["resumo"] or "")[:220],
             "canal": CANAL.get(m["c"], m["c"]),
-            "etiquetas": tags,
+            "ultimas": list(ultimas.get(sid, ())),
             "link": json.loads(raw).get("previewUrl") or "",
         })
 
@@ -258,34 +324,52 @@ def main():
     for k, v in sorted(descartes.items(), key=lambda x: -x[1]):
         print(f"  {v:5d}  {k}")
 
+    exportar_json(fila, datas)
+    if "--somente-json" in sys.argv:
+        return
+
     wb = Workbook()
     ws0 = wb.active
     ws0.title = "Como usar"
     ws0.column_dimensions["A"].width = 108
+    periodo = (f"{datas[0][8:10]}/{datas[0][5:7]} a {datas[-1][8:10]}/{datas[-1][5:7]}"
+               f"/{datas[-1][:4]}")
     INSTRU = [
         ("Fila de retomada — clientes pra ligar", "titulo"),
-        (f"Gerado em {HOJE.strftime('%d/%m/%Y')} · atendimentos de 07/07 a 21/08/2026", "sub"),
+        (f"Gerado em {HOJE.strftime('%d/%m/%Y')} · atendimentos de {periodo}", "sub"),
         ("", ""),
         ("O que é esta lista", "h"),
         ("Os 30 clientes de cada vendedor com maior chance de virar venda numa segunda tentativa. "
          "Cada aba tem o nome de um vendedor — são os atendimentos dele.", "p"),
+        ("Cada conversa foi lida inteira, uma por uma. Não é filtro de palavra-chave: a leitura "
+         "responde se a peça existia no nosso estoque e por que a venda não saiu.", "p"),
         ("", ""),
         ("Todo mundo aqui passou por estes filtros", "h"),
-        ("• Não comprou — nenhum sinal de pagamento e entrega na conversa", "p"),
-        ("• Nós TÍNHAMOS a peça — quem ouviu \"não tenho\" ficou de fora, ligar não adianta", "p"),
+        ("• Não comprou — nem a leitura da conversa nem a detecção automática indicam venda. "
+         "Os dois critérios tiveram que concordar, justamente pra tirar da lista quem fechou "
+         "a compra fora do WhatsApp.", "p"),
+        ("• Nós TÍNHAMOS a peça (ou uma bem parecida) — quem ouviu \"não tenho\" ficou de fora", "p"),
+        ("• O motivo da perda dá pra reverter — quem só pesquisava preço, ou pediu peça que não "
+         "servia no carro dele, ficou de fora", "p"),
         ("• O cliente não avisou que já comprou em outro lugar nem que desistiu", "p"),
         ("• Dá pra saber qual peça ele queria — está na coluna \"Peça que o cliente procurava\"", "p"),
-        ("• A conversa andou de verdade (ou ele perguntou algo e ficou sem resposta)", "p"),
         ("", ""),
         ("Como ler a prioridade", "h"),
-        ("ALTA (vermelho) — o cliente perguntou alguma coisa e ninguém respondeu. Ninguém disse não pra "
-         "ele: só ficou no vácuo. É o mais fácil de recuperar, comece por aqui.", "p"),
-        ("MÉDIA (amarelo) — conversou de verdade e não fechou. Muitos já tinham preço na mesa.", "p"),
+        ("ALTA (vermelho) — a conversa parou do nosso lado. Quase sempre houve resposta antes; o que "
+         "faltou foi o último passo. Ninguém disse não pra ele, então é o mais fácil de "
+         "recuperar. Comece por aqui.", "p"),
+        ("MÉDIA (amarelo) — conversou de verdade e não fechou. A coluna \"Por que ligar\" diz onde travou.", "p"),
         ("", ""),
         ("Dica pra abordagem", "h"),
-        ("A coluna \"Peça que o cliente procurava\" traz a frase dele. Use isso na abertura — retomar "
-         "citando exatamente o que a pessoa pediu funciona melhor que um \"oi, tudo bem?\" genérico.", "p"),
-        ("A última coluna abre a conversa original no Totalk, pra você ver onde parou antes de ligar.", "p"),
+        ("A coluna \"Peça que o cliente procurava\" traz a peça com veículo e ano. Use isso na abertura — "
+         "retomar citando exatamente o que a pessoa pediu funciona melhor que um \"oi, tudo bem?\" genérico.", "p"),
+        ("\"O que aconteceu\" resume o atendimento em uma linha, pra você chegar na ligação sabendo onde parou.", "p"),
+        ("A última coluna abre a conversa original no Totalk.", "p"),
+        ("", ""),
+        ("Uma ressalva honesta", "h"),
+        ("Ainda pode aparecer aqui alguém que comprou no balcão ou pelo site, porque o registro "
+         "de vendas não guarda quem foi o cliente — só o produto. Não dá pra cruzar as duas "
+         "pontas. Se você reconhecer alguém que já levou a peça, é só pular.", "p"),
         ("", ""),
         ("Documento confidencial — contém nome e telefone de cliente. Não encaminhe para fora da equipe.", "aviso"),
     ]
@@ -305,10 +389,12 @@ def main():
             c.font = Font(size=10)
             ws0.row_dimensions[ws0.max_row].height = 28
 
-    COLS = [("#", 4), ("Prioridade", 11), ("Data", 11), ("Dias", 6), ("Cliente", 26),
-            ("WhatsApp", 17), ("Peça que o cliente procurava", 60),
-            ("Por que ligar", 29), ("Canal", 13), ("Conversa", 10)]
+    COLS = [("#", 4), ("Prioridade", 11), ("Data", 11), ("Dias", 6), ("Cliente", 24),
+            ("WhatsApp", 17), ("Peça que o cliente procurava", 52), ("Temos?", 10),
+            ("Por que ligar", 27), ("Perfil", 12), ("O que aconteceu", 58),
+            ("Canal", 13), ("Conversa", 10)]
     CORES = {"ALTA": "F8D7DA", "MÉDIA": "FFF9E6"}
+    QUEBRA = {7, 11}  # peca e resumo precisam de wrap
 
     for vend in ["Flávia", "Gustavo", "Matheus"]:
         todos = fila.get(vend, [])
@@ -325,14 +411,16 @@ def main():
         ws.freeze_panes = "A2"
         for i, it in enumerate(itens, start=1):
             ws.append([i, it["prio"], it["data"], it["dias"], it["nome"], it["fone"],
-                       it["peca"], it["gancho"], it["canal"], ""])
+                       it["peca"], it["tinha"], it["gancho"], it["tipo"], it["resumo"],
+                       it["canal"], ""])
             r = ws.max_row
             fill = PatternFill("solid", fgColor=CORES[it["prio"]])
             for c in range(1, len(COLS) + 1):
                 cel = ws.cell(row=r, column=c)
                 cel.fill = fill
-                cel.alignment = Alignment(vertical="top", wrap_text=(c == 7))
+                cel.alignment = Alignment(vertical="top", wrap_text=(c in QUEBRA))
             ws.cell(row=r, column=2).font = Font(bold=True, size=9)
+            ws.cell(row=r, column=11).font = Font(size=9, color="5C5348")
             if it["link"]:
                 cel = ws.cell(row=r, column=len(COLS))
                 cel.value = "abrir"
@@ -343,8 +431,17 @@ def main():
         print(f"  {vend}: {len(itens)} de {len(todos)} elegíveis "
               f"(alta {alta}, média {len(itens)-alta}) — nota {itens[-1]['nota']} a {itens[0]['nota']}")
 
-    wb.save(SAIDA)
-    print(f"\nsalvo: {SAIDA.name} ({SAIDA.stat().st_size/1024:.0f} KB)")
+    # O Excel trava o arquivo enquanto esta aberto. Perder a rodada inteira (que
+    # rebusca 9 mil contatos na API) por causa disso nao faz sentido: grava ao lado.
+    destino = SAIDA
+    try:
+        wb.save(destino)
+    except PermissionError:
+        destino = SAIDA.with_name(
+            f"{SAIDA.stem}_{HOJE.strftime('%d-%m_%Hh%M')}{SAIDA.suffix}")
+        wb.save(destino)
+        print(f"\n[aviso] {SAIDA.name} esta aberto no Excel e nao pode ser sobrescrito.")
+    print(f"\nsalvo: {destino.name} ({destino.stat().st_size/1024:.0f} KB)")
 
 
 if __name__ == "__main__":
