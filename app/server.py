@@ -1660,6 +1660,26 @@ def api_admin_resumo():
                  "dias_corridos": dias_corridos,
                  "pct_do_mes": round(100 * dias_corridos / dias_no_mes)}
 
+    # Vendas de marketplace somadas no MESMO periodo do filtro, a partir da
+    # serie diaria que o sincronizador acumula. Lista, nao campo unico: quando
+    # a Shopee chegar, e mais um item aqui e o painel ja mostra. Filtrando um
+    # vendedor especifico o bloco sai — marketplace nao e de ninguem do time.
+    marketplaces = []
+    if not filtro_vendedor:
+        ml = ler_json(resolver_pasta_dados() / "ml_conta.json", None) or {}
+        serie_ml = (ml.get("vendas") or {}).get("serie_dia") or {}
+        desde_ml = (ml.get("vendas") or {}).get("serie_desde") or "9999"
+        soma = round(sum(x.get("total", 0) for d, x in serie_ml.items() if de <= d <= ate), 2)
+        qtd = sum(x.get("qtd", 0) for d, x in serie_ml.items() if de <= d <= ate)
+        if qtd:
+            marketplaces.append({
+                "id": "mercado_livre", "nome": "Mercado Livre",
+                "total": soma, "qtd": qtd,
+                # Serie comeca em serie_desde: periodo pedido antes disso vem
+                # incompleto, e a tela avisa em vez de fingir que ML nao vendia.
+                "cobre_periodo": desde_ml <= de,
+            })
+
     return jsonify({
         "de": de,
         "ate": ate,
@@ -1674,6 +1694,7 @@ def api_admin_resumo():
         "ticket_medio": ticket_medio,
         "serie_mensal": serie_mensal,
         "serie_diaria": serie_diaria,
+        "marketplaces": marketplaces,
     })
 
 

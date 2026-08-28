@@ -138,7 +138,7 @@ def coletar_pos_venda(token, user_id):
     }
 
 
-def coletar_vendas(token, user_id):
+def coletar_vendas(token, user_id, desde=None):
     """Faturamento real pelos pagamentos do Mercado Pago (/collections): a
     permissao de Orders o app nao tem, mas o dinheiro aprovado conta a mesma
     historia. So marketplace=MELI e status=approved entram — pagamento de
@@ -146,6 +146,8 @@ def coletar_vendas(token, user_id):
     portal. Uma paginacao cobre 30 dias e o mes corrente."""
     agora = datetime.now(FUSO)
     inicio = min(agora - timedelta(days=30), agora.replace(day=1, hour=0, minute=0, second=0))
+    if desde:
+        inicio = datetime.fromisoformat(desde + "T00:00:00-03:00")
     begin = inicio.strftime("%Y-%m-%dT%H:%M:%SZ")
     end = agora.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -156,7 +158,7 @@ def coletar_vendas(token, user_id):
         pagamentos.extend(x.get("collection") or {} for x in d.get("results") or [])
         offset += 50
         total = (d.get("paging") or {}).get("total", 0)
-        if offset >= total or offset >= 3000:
+        if offset >= total or offset >= 20000:
             break
 
     validos = [c for c in pagamentos
@@ -171,11 +173,26 @@ def coletar_vendas(token, user_id):
         return {"pagamentos": len(grupo), "total": soma,
                 "ticket": round(soma / len(grupo), 2) if grupo else 0}
 
+    # Serie por dia (fuso de Brasilia — o carimbo do ML vem em -04:00): e ela
+    # que deixa o painel somar marketplace em qualquer periodo filtrado, e e o
+    # molde que a Shopee vai seguir quando chegar.
+    serie = {}
+    for c in validos:
+        try:
+            dia = datetime.fromisoformat(c["date_approved"]).astimezone(FUSO).date().isoformat()
+        except (KeyError, ValueError, TypeError):
+            continue
+        d = serie.setdefault(dia, {"total": 0.0, "qtd": 0})
+        d["total"] = round(d["total"] + float(c.get("transaction_amount") or 0), 2)
+        d["qtd"] += 1
+
     return {
         "dias30": resumo([c for c in validos if (c.get("date_approved") or "") >= corte_30d]),
         "mes_atual": resumo([c for c in validos if (c.get("date_approved") or "")[:7] == mes]),
         "fora_meli_30d": len([c for c in pagamentos
                               if c.get("status") == "approved" and c.get("marketplace") != "MELI"]),
+        "serie_dia": serie,
+        "serie_desde": inicio.date().isoformat(),
     }
 
 
@@ -230,12 +247,21 @@ def gravar(pacote, url):
     from psycopg2.extras import Json
     conn = psycopg2.connect(url)
     with conn, conn.cursor() as cur:
+        # A serie diaria acumula entre execucoes: a rodada de hoje so cobre a
+        # janela baixada, e os dias antigos ja gravados nao podem sumir. Dia
+        # rebaixado agora substitui o antigo (pega estorno recente); o resto fica.
+        cur.execute("SELECT valor FROM dados_json WHERE chave='ml_conta' FOR UPDATE")
+        linha = cur.fetchone()
+        antiga = ((linha[0].get("vendas") or {}).get("serie_dia") or {}) if linha else {}
+        nova = pacote["vendas"].get("serie_dia") or {}
+        pacote["vendas"]["serie_dia"] = {**antiga, **nova}
+        if pacote["vendas"]["serie_dia"]:
+            pacote["vendas"]["serie_desde"] = min(pacote["vendas"]["serie_dia"])
         cur.execute("INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
                     "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
                     ("ml_conta", Json(pacote)))
     conn.close()
-    print("\n  gravado ml_conta")
-
+    print(f"\n  gravado ml_conta ({len(pacote['vendas']['serie_dia'])} dias de serie)")
 
 def main():
     token, user_id = renovar_token()
@@ -249,7 +275,11 @@ def main():
     print(f"30d  : {pos['dias30']['mediacoes']} mediações, {pos['dias30']['devolucoes']} devoluções, "
           f"{pos['dias30']['cancel_comprador']}+{pos['dias30']['cancel_vendedor']} cancelamentos")
 
-    vendas = coletar_vendas(token, user_id)
+    desde = None
+    for arg in sys.argv[1:]:
+        if arg.startswith("--desde="):
+            desde = arg.split("=", 1)[1]
+    vendas = coletar_vendas(token, user_id, desde)
     print(f"vendas: mês R$ {vendas['mes_atual']['total']:,.0f} em "
           f"{vendas['mes_atual']['pagamentos']} pagamentos | "
           f"30d R$ {vendas['dias30']['total']:,.0f}")

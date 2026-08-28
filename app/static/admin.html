@@ -141,6 +141,12 @@
   .rh-tag.bad{color:var(--bad);border-color:var(--bad);}
   .rh-tag.ok{color:var(--good);border-color:var(--good);}
   .rh-num{text-align:right;font-variant-numeric:tabular-nums;}
+  .kpi-quebra{
+    font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.35;
+    font-variant-numeric:tabular-nums;
+  }
+  .kpi-quebra:empty{display:none;}
+
   /* ---- Conta Mercado Livre ---- */
   .ml-selo{
     font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
@@ -1622,10 +1628,38 @@ async function carregarResumo(){
   if(res.status === 401){ sairDoGestor(); return; }
   resumoAtual = await res.json();
 
-  document.getElementById('totalGeralValue').textContent = fmtMoeda(resumoAtual.total_geral);
+  // Consolidado: comercial (portal) + marketplaces (serie diaria do ML, e o
+  // que mais chegar). A quebra por origem fica pequena embaixo de cada numero.
+  const mkts = resumoAtual.marketplaces || [];
+  const mktTotal = mkts.reduce((t, m) => t + m.total, 0);
+  const mktQtd = mkts.reduce((t, m) => t + m.qtd, 0);
+  const consTotal = resumoAtual.total_geral + mktTotal;
+  const consQtd = resumoAtual.qtd_vendas_geral + mktQtd;
+  const sub = (id, txt) => { document.getElementById(id).innerHTML = txt || ''; };
+  const nomeCurto = {mercado_livre: 'ML'};
+
+  document.getElementById('totalGeralValue').textContent = fmtMoeda(consTotal);
+  sub('totalGeralValueSub', mkts.length
+    ? `Comercial ${fmtMoeda(resumoAtual.total_geral)} · ` +
+      mkts.map(m => `${nomeCurto[m.id] || m.nome} ${fmtMoeda(m.total)}`).join(' · ')
+    : '');
   document.getElementById('comissaoGeralValue').textContent = fmtMoeda(resumoAtual.comissao_geral);
-  document.getElementById('qtdVendasValue').textContent = resumoAtual.qtd_vendas_geral;
-  document.getElementById('ticketMedioValue').textContent = fmtMoeda(resumoAtual.ticket_medio);
+  sub('comissaoGeralValueSub', mkts.length ? 'do time comercial' : '');
+  document.getElementById('qtdVendasValue').textContent = consQtd;
+  sub('qtdVendasValueSub', mkts.length
+    ? `${resumoAtual.qtd_vendas_geral} comercial · ` +
+      mkts.map(m => `${m.qtd} ${nomeCurto[m.id] || m.nome}`).join(' · ')
+    : '');
+  document.getElementById('ticketMedioValue').textContent =
+    fmtMoeda(consQtd ? consTotal / consQtd : 0);
+  sub('ticketMedioValueSub', mkts.length
+    ? `Comercial ${fmtMoeda(resumoAtual.ticket_medio)} · ` +
+      mkts.map(m => `${nomeCurto[m.id] || m.nome} ${fmtMoeda(m.qtd ? m.total / m.qtd : 0)}`).join(' · ')
+    : '');
+  const incompleto = mkts.some(m => m.cobre_periodo === false);
+  if(incompleto) sub('totalGeralValueSub',
+    document.getElementById('totalGeralValueSub').innerHTML +
+    ' <span title="A série do marketplace não cobre o período inteiro filtrado.">⚠</span>');
   document.getElementById('footTotal').textContent = fmtMoeda(resumoAtual.total_geral);
   document.getElementById('footComissao').textContent = fmtMoeda(resumoAtual.comissao_geral);
 
@@ -1921,7 +1955,8 @@ function montarKpisGestor(){
     '<div class="kpi"><div class="icone ' + cor + '">' + icone + '</div>'
     + '<div class="rotulo">' + rotulo + '</div>'
     + '<div class="numero' + (money ? ' valor-money' : '') + '" id="' + id + '">'
-    + (money ? 'R$ 0,00' : '0') + '</div></div>';
+    + (money ? 'R$ 0,00' : '0') + '</div>'
+    + '<div class="kpi-quebra" id="' + id + 'Sub"></div></div>';
   grid.innerHTML =
       cartao('Total vendido', 'totalGeralValue', ICG.dinheiro, 'i-laranja', true)
     + cartao('Comissões a receber', 'comissaoGeralValue', ICG.comissao, 'i-verde', true)
