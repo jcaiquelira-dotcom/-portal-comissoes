@@ -349,7 +349,11 @@
           </div>
           <div>
             <label class="campo-rotulo" for="canalInput">Canal</label>
-            <input type="text" id="canalInput" placeholder="B / ML">
+            <input type="text" id="canalInput" list="canaisConhecidos" placeholder="Balcão, Mercado Livre…">
+            <datalist id="canaisConhecidos">
+              <option value="Balcão"><option value="Mercado Livre"><option value="Itaú">
+              <option value="Crediário"><option value="Dinheiro"><option value="Site">
+            </datalist>
           </div>
           <button class="btn btn-principal" id="addBtn">Adicionar</button>
         </div>
@@ -1004,7 +1008,7 @@ function criarLinhaSheet(dataPadrao){
     <td><input type="text" class="sheet-produto" placeholder="Ex: Motor de arranque Gol G5"></td>
     <td><input type="number" class="sheet-valor" min="0" step="0.01" placeholder="0,00"></td>
     <td><input type="text" class="sheet-sku" placeholder="SKU"></td>
-    <td><input type="text" class="sheet-canal" placeholder="B / ML"></td>
+    <td><input type="text" class="sheet-canal" list="canaisConhecidos" placeholder="Balcão, ML…"></td>
     <td><button type="button" class="sheet-row-del" title="Remover linha">&times;</button></td>
   `;
   tr.querySelector('.sheet-row-del').addEventListener('click', () => tr.remove());

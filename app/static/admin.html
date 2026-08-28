@@ -3025,12 +3025,13 @@ async function abrirEscolhaDesempenho(){
   document.getElementById('desempenhoEscolha').classList.remove('oculto');
   const el = document.getElementById('dpCards');
   let lista = vendedoresAtuais.length ? vendedoresAtuais : (resumoAtual?.vendedores || []);
+  lista = lista.filter(v => !v.oculto);
   if(!lista.length){
     // Entrada direta por #desempenho: o painel ainda nao carregou a lista.
     el.innerHTML = '<div class="vazio">Carregando…</div>';
     try{
-      lista = await fetch('/api/admin/vendedores').then(r => r.ok ? r.json() : []);
-      vendedoresAtuais = lista;
+      vendedoresAtuais = await fetch('/api/admin/vendedores').then(r => r.ok ? r.json() : []);
+      lista = vendedoresAtuais.filter(v => !v.oculto);
     }catch(e){ lista = []; }
   }
   if(!lista.length){
@@ -3050,7 +3051,8 @@ async function abrirEscolhaDesempenho(){
 
 async function carregarComparativoTime(){
   const el = document.getElementById('dpComparativo');
-  const lista = vendedoresAtuais.length ? vendedoresAtuais : (resumoAtual?.vendedores || []);
+  const lista = (vendedoresAtuais.length ? vendedoresAtuais : (resumoAtual?.vendedores || []))
+    .filter(v => !v.oculto);
   if(!lista.length){ el.innerHTML = ''; return; }
   el.innerHTML = '<div class="vazio">Montando o comparativo…</div>';
   const mes = new Date().toISOString().slice(0,7);

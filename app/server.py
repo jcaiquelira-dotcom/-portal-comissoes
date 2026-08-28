@@ -10,6 +10,7 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+import unicodedata
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -968,6 +969,48 @@ def api_listar_vendas():
     return jsonify(minhas)
 
 
+# O canal era texto livre e virou 19 grafias pra meia duzia de canais reais —
+# "ITAU" de quatro jeitos, "B" pra balcao. Normaliza na entrada, que e a unica
+# porta: o historico foi corrigido uma vez por script, e daqui pra frente toda
+# venda ja chega com o nome canonico. Grafia desconhecida passa como veio,
+# porque inventar mapeamento e pior que fragmentar.
+CANAIS_CANONICOS = {
+    "b": "Balcão", "balcao": "Balcão",
+    "ml": "Mercado Livre", "mercado livre": "Mercado Livre",
+    "itau": "Itaú",
+    "cred": "Crediário", "crediario": "Crediário",
+    "din": "Dinheiro", "dinh": "Dinheiro", "dinheiro": "Dinheiro",
+    "site": "Site", "loja integrada": "Site",
+    "itau / cred": "Itaú / Crediário",
+}
+
+
+def _achatar_canal(x: str) -> str:
+    """minusculo, sem acento, espacos colapsados. O NFKD pode CRIAR espaco —
+    o acento morto (U+00B4, tecla morta do ABNT) vira espaco + combinante —
+    entao colapsa de novo no fim, senao "ML" + acento morto vira "ml " e nao
+    casa com nada (e ja rendeu um 500 no lancamento)."""
+    x = "".join(c for c in unicodedata.normalize("NFKD", x.lower())
+                if not unicodedata.combining(c))
+    return " ".join(x.split())
+
+
+def normalizar_canal(texto) -> str:
+    t = " ".join(str(texto or "").split())
+    if not t:
+        return ""
+    chave = _achatar_canal(t)
+    if chave in CANAIS_CANONICOS:
+        return CANAIS_CANONICOS[chave]
+    # "Cred 4x" -> "Crediário 4x": a primeira palavra e o canal, o resto e
+    # detalhe (parcelamento) que nao se joga fora. Divide o texto REAL, nao a
+    # chave achatada — os dois podem ter contagens de espaco diferentes.
+    partes = t.split(" ", 1)
+    if len(partes) == 2 and _achatar_canal(partes[0]) in CANAIS_CANONICOS:
+        return CANAIS_CANONICOS[_achatar_canal(partes[0])] + " " + partes[1]
+    return t
+
+
 def validar_valor_produto(body: dict) -> tuple[float, str, str, str]:
     try:
         valor = round(float(body.get("valor")), 2)
@@ -978,7 +1021,7 @@ def validar_valor_produto(body: dict) -> tuple[float, str, str, str]:
     produto = (body.get("produto") or "").strip()
     if not produto:
         raise ValueError("Informe o que foi vendido.")
-    canal = (body.get("canal") or "").strip()
+    canal = normalizar_canal(body.get("canal"))
     sku = (body.get("sku") or "").strip()
     return valor, produto, canal, sku
 
@@ -1204,6 +1247,10 @@ def api_editar_venda(venda_id):
         atualizada["canal"] = canal
     else:
         atualizada.pop("canal", None)
+    # canal_original documenta a grafia que a migracao corrigiu. Se o vendedor
+    # trocou o canal de verdade, a grafia antiga nao descreve mais esta venda.
+    if canal != atual.get("canal"):
+        atualizada.pop("canal_original", None)
     if sku:
         atualizada["sku"] = sku
     else:
@@ -1323,6 +1370,11 @@ def api_minha_confirmacao():
 
 @app.route("/api/metas")
 def api_metas():
+    # So o gestor consome esta rota (tela de configuracao). Aberta, ela
+    # entregava a meta individual de cada vendedor a qualquer um sem login —
+    # dado que o resto do portal esconde de proposito.
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
     return jsonify(carregar_metas())
 
 
@@ -1346,6 +1398,10 @@ def api_painel_ranking():
         hoje_v = total_vendido(vid, hoje.isoformat(), hoje.isoformat(), vendas)
         semana_v = total_vendido(vid, inicio_semana.isoformat(), hoje.isoformat(), vendas)
         mes_v = total_vendido(vid, inicio_mes.isoformat(), hoje.isoformat(), vendas)
+        # Conta oculta so aparece na TV se tiver movimento — dinheiro na tela
+        # sempre, cartao vazio de conta de teste nunca.
+        if info.get("oculto") and not (hoje_v or semana_v or mes_v):
+            continue
         grupo_hoje += hoje_v
         grupo_semana += semana_v
         grupo_mes += mes_v
@@ -1537,6 +1593,11 @@ def api_admin_resumo():
 
     for vid in sorted(ids_alvo, key=lambda x: vendedores[x]["nome"]):
         info = vendedores[vid]
+        # Conta oculta (gestor/teste) sai das listas — MAS so enquanto nao tem
+        # venda no periodo. Se um dia tiver, aparece: dinheiro nunca some da tela.
+        if (info.get("oculto") and not por_vendedor.get(vid)
+                and not info.get("overrides") and vid != filtro_vendedor):
+            continue
         lista_vendas = [v for v in por_vendedor.get(vid, []) if v.get("tipo", "venda") == "venda"]
         lista_vendas.sort(key=lambda v: v["data"], reverse=True)
         lista_bonus = [v for v in por_vendedor.get(vid, []) if v.get("tipo") == "bonus"]
@@ -1726,17 +1787,20 @@ def api_admin_auditoria():
         if not busca:
             return True
         valor = float(v.get("valor") or 0)
-        alvo = " ".join(str(x) for x in (
+        alvo = _achatar_canal(" ".join(str(x) for x in (
             v.get("produto"), v.get("sku"), v.get("canal"),
+            # A grafia antiga do canal continua achavel: quem sempre digitou
+            # "ITAU" nao pode perder a venda porque ela virou "Itaú".
+            v.get("canal_original"),
             nomes_vend.get(v.get("vendedor_id"), ""), v.get("data"),
             # Tres jeitos de escrever o mesmo valor. Quem procura digita como le
             # na tela ("1.200,00"), como pensa ("1200") ou como o teclado dá.
             f"{valor:.2f}".replace(".", ","), f"{valor:,.2f}".replace(",", "."),
             f"{int(valor)}",
-        ) if x).lower()
-        # Todas as palavras precisam aparecer: "farol sorento" nao traz farol de
-        # outro carro.
-        return all(termo in alvo for termo in busca.split())
+        ) if x))
+        # Todas as palavras precisam aparecer (sem acento dos dois lados):
+        # "farol sorento" nao traz farol de outro carro, "itau" acha "Itaú".
+        return all(termo in alvo for termo in _achatar_canal(busca).split())
 
     todas = carregar_vendas_todos(vendedores)
     vendas = [{**v, "id": vid} for vid, v in todas.items()
@@ -2497,7 +2561,8 @@ def api_marketing_gestor():
     # Quem de fato tem lead no periodo — e o universo que pode entrar na
     # conversao. Fora dele a venda nao tem lead correspondente.
     universo = {l["vendedor"] for l in linhas if l["vendedor"]}
-    fora = sorted(nomes[vid] for vid in nomes if vid not in universo)
+    fora = sorted(nomes[vid] for vid in nomes
+                  if vid not in universo and not vendedores[vid].get("oculto"))
     if filtro_canal:
         linhas = [l for l in linhas if l["canal"] == filtro_canal]
     if filtro_vendedor:
@@ -2753,6 +2818,9 @@ def montar_desempenho(vid, mes, vendedores):
                            and v["data"][:7] == mes), 2))
          for outro in vendedores),
         key=lambda kv: kv[1], reverse=True)
+    # Conta oculta zerada nao entra no "2º de 5": inflava o tamanho do time.
+    totais_time = [(o, t) for o, t in totais_time
+                   if t or not vendedores[o].get("oculto") or o == vid]
     posicao = next((i + 1 for i, (outro, _) in enumerate(totais_time) if outro == vid), None)
     total_time = round(sum(t for _, t in totais_time), 2)
 
@@ -2861,6 +2929,10 @@ def api_admin_exportar_mes_xlsx():
             if v["vendedor_id"] == vid and de <= v["data"] <= ate and v.get("tipo", "venda") == "venda"
         ]
         lista.sort(key=lambda v: v["data"])
+        # Conta oculta sem venda no mes nao vira aba vazia no arquivo que o
+        # gestor distribui. Com venda, a aba sai — dinheiro nunca some.
+        if not lista and vendedores[vid].get("oculto"):
+            continue
 
         ws = wb.create_sheet(_nome_aba_excel(vendedores[vid]["nome"]))
         ws.append(cabecalho)
@@ -2908,6 +2980,7 @@ def api_admin_listar_vendedores():
             "overrides": v.get("overrides", []),
             "foto": v.get("foto"),
             "avatar": v.get("avatar", ""),
+            "oculto": bool(v.get("oculto")),
             "liberacao_retroativa": retroativo_ativo(v),
             "liberacao_retroativa_ate": v.get("liberacao_retroativa_ate") if retroativo_ativo(v) else None,
         }
@@ -2980,6 +3053,12 @@ def api_admin_salvar_vendedor():
     }
     if existente.get("foto"):
         vendedores[vendedor_id]["foto"] = existente["foto"]
+    # Flags que a tela de edicao nao conhece sobrevivem a edicao. Sem isso,
+    # editar a senha do caique ressuscitava a conta nas listas (oculto sumia) e
+    # editar qualquer vendedor cancelava a liberacao retroativa em silencio.
+    for flag in ("oculto", "liberacao_retroativa_ate"):
+        if existente.get(flag):
+            vendedores[vendedor_id][flag] = existente[flag]
     # Avatar generico usado quando nao ha foto. E escolha do gestor, nunca
     # deduzida do nome — nome nao diz genero de ninguem.
     avatar = (body.get("avatar") or "").strip().lower()
