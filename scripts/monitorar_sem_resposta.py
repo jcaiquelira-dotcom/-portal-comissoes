@@ -79,11 +79,12 @@ def so_agradeceu(texto: str) -> bool:
     palavras = [p for p in re.split(r"[\W_]+", limpo) if p]
     return bool(palavras) and all(p in ENCERRAMENTOS or p in reforco for p in palavras)
 
-# userId do Totalk -> nome que o portal usa. Mesmo mapa do vendas-insights.
+# userId do Totalk -> (id no portal, nome). Mesmo mapa do vendas-insights; o
+# id e o que deixa cada vendedor ver so a fila dele no proprio portal.
 ATENDENTES = {
-    "75f20108-887e-47c1-b245-b1c12565e484": "Flávia",
-    "1d6778d5-d482-43bc-9d5b-dcbb4ed0528d": "Matheus",
-    "26ccb5d3-df37-429b-b509-7a122a2deb2d": "Gustavo",
+    "75f20108-887e-47c1-b245-b1c12565e484": ("flavia", "Flávia"),
+    "1d6778d5-d482-43bc-9d5b-dcbb4ed0528d": ("matheus", "Matheus"),
+    "26ccb5d3-df37-429b-b509-7a122a2deb2d": ("gustavo", "Gustavo"),
 }
 
 
@@ -160,7 +161,9 @@ def coletar():
                     "minutos": minutos,
                     "desde": entrada.astimezone(FUSO).isoformat(timespec="minutes"),
                     "status": status,
-                    "atendente": ATENDENTES.get(s.get("userId")) or ("—" if s.get("userId") else "sem atendente"),
+                    "vendedor_id": (ATENDENTES.get(s.get("userId")) or ("", ""))[0],
+                    "atendente": (ATENDENTES.get(s.get("userId")) or
+                                  (None, "—" if s.get("userId") else "sem atendente"))[1],
                     "ultima_msg": (s.get("lastMessageText") or "")[:120],
                     "nunca_respondida": saida is None,
                     "nivel": ("critico" if minutos >= CRITICO
@@ -209,6 +212,17 @@ def main():
         "paradas_antigas": len(antigas),
         "so_agradeceram": agradecimentos,
         "conversas": esperando[:40],
+        # Contagem por vendedor: o gestor ve a distribuicao sem abrir a lista,
+        # e o portal de cada um usa como cabecalho.
+        "por_vendedor": {
+            vid: {
+                "nome": nome,
+                "total": sum(1 for e in esperando if e["vendedor_id"] == vid),
+                "critico": sum(1 for e in esperando
+                               if e["vendedor_id"] == vid and e["nivel"] == "critico"),
+            }
+            for vid, nome in {v[0]: v[1] for v in ATENDENTES.values()}.items()
+        },
     }
     if "--seco" in sys.argv:
         print("\n(--seco: nada gravado)")

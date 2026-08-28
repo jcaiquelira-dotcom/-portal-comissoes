@@ -199,6 +199,16 @@
             background:var(--surface-2);color:var(--muted);cursor:pointer;font-family:inherit;font-size:13px;}
   .tipo-btn.ativo{border-color:var(--accent);background:var(--accent-suave);color:var(--accent);font-weight:600;}
   .modal-acoes{display:flex;gap:9px;justify-content:flex-end;margin-top:18px;}
+  .atd-resumo{display:flex;align-items:baseline;gap:10px;margin-top:6px;}
+  .atd-num{font-size:34px;font-weight:800;line-height:1;}
+  .atd-txt{font-size:13px;color:var(--muted);}
+  .atd-item{margin-bottom:8px;padding:12px 14px;}
+  .atd-linha{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+  .atd-nome{font-size:14px;}
+  .atd-tempo{font-size:12.5px;font-weight:700;white-space:nowrap;}
+  .atd-msg{font-size:12.5px;color:var(--muted);margin-top:4px;
+           overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .atd-pe{font-size:11px;color:var(--muted);margin-top:5px;opacity:.85;}
 </style>
 </head>
 <body>
@@ -405,6 +415,13 @@
         <button class="btn btn-neutro btn-pequeno" id="confirmBtn">Confirmar vendas do mês</button>
       </div>
     </section>
+    <!-- Quem esta esperando ESTE vendedor responder. Nao usa a bolinha de
+         "nao lida" do Totalk: o bot atende primeiro e zera ela antes de
+         alguem ver. Aqui a conta e quem falou por ultimo. -->
+    <section id="secaoAtendimento" class="oculto">
+      <div id="atdVendedor"><div class="vazio">Carregando…</div></div>
+    </section>
+
 
     <section id="secaoPerformance" class="oculto">
       <div class="dp-topo">
@@ -1555,6 +1572,55 @@ document.addEventListener('click', () => {
    Mesmo painel que o gestor vê deste vendedor, desenhado por desempenho.js.
    O servidor é que decide o que ele pode ver: /api/desempenho devolve tudo
    menos a participação no faturamento do time. */
+async function carregarMeuAtendimento(){
+  const el = document.getElementById('atdVendedor');
+  const res = await fetch('/api/meu-atendimento');
+  if(!res.ok){ el.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  const d = await res.json();
+  if(d.sem_dados){
+    el.innerHTML = '<div class="card"><div class="vazio">O monitor ainda não rodou hoje.</div></div>';
+    return;
+  }
+  if(!d.total){
+    el.innerHTML = `<div class="card">
+      <div class="vazio">Ninguém esperando resposta sua. Tudo em dia 👏</div>
+      <div class="dp-aviso">Atualizado às ${(d.gerado_em || '').slice(11, 16)}.
+        A lista se renova sozinha a cada 10 minutos.</div></div>`;
+    return;
+  }
+  const COR = {critico: 'var(--bad)', urgente: 'var(--warn)', atencao: 'var(--muted)'};
+  const tempo = (m) => m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + 'min';
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;">
+      <p class="card-titulo">Esperando você responder</p>
+      <div class="atd-resumo">
+        <span class="atd-num" style="color:${d.critico ? 'var(--bad)' : 'var(--warn)'}">${d.total}</span>
+        <span class="atd-txt">cliente${d.total > 1 ? 's' : ''} sem resposta
+          ${d.critico ? `· <b style="color:var(--bad)">${d.critico} há mais de 1 hora</b>` : ''}</span>
+      </div>
+    </div>
+    ${d.conversas.map(c => {
+      const [dia, hora] = c.desde.split('T');
+      const quando = dia === hoje ? hora.slice(0, 5)
+        : `${dia.slice(8, 10)}/${dia.slice(5, 7)} ${hora.slice(0, 5)}`;
+      return `<div class="card atd-item" style="border-left:3px solid ${COR[c.nivel]}">
+        <div class="atd-linha">
+          <b class="atd-nome">${c.cliente || '?'}</b>
+          <span class="atd-tempo" style="color:${COR[c.nivel]}">${tempo(c.minutos)} esperando</span>
+        </div>
+        <div class="atd-msg">${(c.ultima_msg || '(sem texto — pode ser áudio ou imagem)')
+          .replace(/</g, '&lt;')}</div>
+        <div class="atd-pe">última mensagem dele às ${quando}${
+          c.nunca_respondida ? ' · <b>nunca respondida</b>' : ''}</div>
+      </div>`;
+    }).join('')}
+    <div class="dp-aviso">Atualiza sozinho a cada 10 minutos. Quem aparece aqui mandou
+      mensagem e ainda não teve resposta — não depende da bolinha de "não lida" do Totalk,
+      que some sozinha quando o bot atende primeiro.</div>`;
+}
+
 async function carregarPerformance(){
   // Usa o seletor de mes do topo, o mesmo do painel e das vendas: dois campos
   // de mes na tela sao duas fontes de verdade pra mesma pergunta.
@@ -1585,9 +1651,11 @@ document.getElementById('mesInput').addEventListener('change', () => {
 });
 
 /* ---------- troca de seção ---------- */
-const TITULOS = {painel: 'Painel', vendas: 'Minhas vendas', performance: 'Performance'};
+const TITULOS = {painel: 'Painel', vendas: 'Minhas vendas', performance: 'Performance',
+                 atendimento: 'Esperando você'};
 const SECOES_VENDEDOR = {painel: 'secaoPainel', vendas: 'secaoVendas',
-                         performance: 'secaoPerformance'};
+                         performance: 'secaoPerformance',
+                         atendimento: 'secaoAtendimento'};
 
 // Roda assim que SECOES_VENDEDOR existe: se a URL trouxe um hash que nao e
 // secao, cai no painel — mas '#performance' agora e reconhecido.
@@ -1599,6 +1667,7 @@ function irParaSecao(chave){
     document.getElementById(el).classList.toggle('oculto', k !== secaoAtual);
   });
   if(secaoAtual === 'performance') carregarPerformance();
+  if(secaoAtual === 'atendimento') carregarMeuAtendimento();
   document.getElementById('tituloSecao').textContent = TITULOS[secaoAtual];
   document.querySelectorAll('.nav-item[data-nav]').forEach(a => {
     a.classList.toggle('ativo', a.dataset.nav === secaoAtual);

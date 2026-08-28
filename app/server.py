@@ -859,6 +859,32 @@ def exigir_vendedor():
     return vendedor_id
 
 
+@app.route("/api/meu-atendimento")
+def api_meu_atendimento():
+    """Os clientes que estao esperando ESTE vendedor responder.
+
+    Mesma fonte do painel do gestor (atendimento_alerta), filtrada pelo id de
+    quem esta logado: cada um ve so a propria fila. Quem age e o vendedor, por
+    isso o alerta vive aqui e nao so na area do gestor.
+    """
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    d = ler_json(resolver_pasta_dados() / "atendimento_alerta.json", None)
+    if not d:
+        return jsonify({"sem_dados": True})
+    minhas = [c for c in (d.get("conversas") or [])
+              if c.get("vendedor_id") == vendedor_id]
+    return jsonify({
+        "gerado_em": d.get("gerado_em"),
+        "limites": d.get("limites"),
+        "total": len(minhas),
+        "critico": sum(1 for c in minhas if c["nivel"] == "critico"),
+        "urgente": sum(1 for c in minhas if c["nivel"] == "urgente"),
+        "conversas": minhas,
+    })
+
+
 @app.route("/api/meu-painel")
 def api_meu_painel():
     """Tudo que o painel do vendedor mostra, numa chamada só — evita a tela
