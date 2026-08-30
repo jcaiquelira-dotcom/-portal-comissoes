@@ -1845,20 +1845,43 @@ def api_admin_resumo():
                                   <= max({**serie_shp, **{k[:7]: 1 for k in serie_shp_dia}})),
             })
         elif serie_shp or serie_shp_dia:
-            ultimo = max(list(serie_shp) + [k[:7] for k in serie_shp_dia])
+            # A serie diaria e mais precisa que a mensal pra dizer ate quando o
+            # dado vai; misturar as duas gerava "ate 08/2026" quando na verdade
+            # havia dado diario ate 27/08.
+            if serie_shp_dia:
+                ult = max(serie_shp_dia)
+                ate_quando = f"{ult[8:10]}/{ult[5:7]}"
+            else:
+                ult = max(serie_shp)
+                ate_quando = f"{ult[5:7]}/{ult[:4]}"
             marketplaces_ausentes.append({
                 "id": "shopee", "nome": "Shopee",
-                "motivo": f"relatório importado vai até {ultimo[5:7]}/{ultimo[:4]}",
+                "motivo": (f"sem venda neste período" if de <= ult
+                           else f"planilha importada — dados até {ate_quando}"),
             })
 
         # Mesma regra pros canais de serie diaria: existe historico, mas nada
         # dentro do periodo filtrado.
+        # "Nao vendeu" e "ainda nao sincronizamos esse dia" sao coisas
+        # diferentes, e confundir as duas faz o gestor achar que o dia foi
+        # zerado quando na verdade o dado nao chegou. O ultimo dia da serie
+        # decide qual das duas e.
         if not qtd and serie_ml:
-            marketplaces_ausentes.append({"id": "mercado_livre", "nome": "Mercado Livre",
-                                          "motivo": "sem pagamento no período"})
+            ultimo_ml = max(serie_ml)
+            marketplaces_ausentes.append({
+                "id": "mercado_livre", "nome": "Mercado Livre",
+                "motivo": ("sem venda registrada neste período"
+                           if de <= ultimo_ml
+                           else f"ainda não sincronizado — dados até {ultimo_ml[8:10]}/{ultimo_ml[5:7]}"),
+            })
         if not qtd_t and serie_st:
-            marketplaces_ausentes.append({"id": "site", "nome": "Site próprio",
-                                          "motivo": "sem pedido pago no período"})
+            ultimo_st = max(serie_st)
+            marketplaces_ausentes.append({
+                "id": "site", "nome": "Site próprio",
+                "motivo": ("sem pedido pago neste período"
+                           if de <= ultimo_st
+                           else f"leitura manual — dados até {ultimo_st[8:10]}/{ultimo_st[5:7]}"),
+            })
 
     return jsonify({
         "de": de,

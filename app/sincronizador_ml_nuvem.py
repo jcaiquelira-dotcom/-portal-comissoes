@@ -29,7 +29,12 @@ from datetime import datetime, timedelta, timezone
 
 API = "https://api.mercadolibre.com"
 FUSO = timezone(timedelta(hours=-3))
-HORA_DIARIA = "06:20"     # antes do gasto de midia e do expediente
+# Antes rodava 1x as 06:20 — e ai a venda de hoje so aparecia amanha, que foi
+# exatamente a queixa do gestor em 30/08/2026 ("coloquei pra atualizar as
+# vendas de hoje e nao consta nada"). Agora roda de hora em hora das 6h as 22h;
+# com o access_token reaproveitado isso quase nao gasta refresh a mais.
+INTERVALO_MIN = 60
+HORA_INICIO, HORA_FIM = 6, 22
 
 MOTIVOS = {
     "PDD9939": "Arrependimento", "PDD9829": "Arrependimento",
@@ -52,6 +57,21 @@ def _http(url, token=None, corpo=None, cabecalhos=None):
         return json.loads(r.read().decode("utf-8"))
 
 
+def token_valido(cred, gravar_cred):
+    """Devolve um access_token usavel, renovando so quando precisa.
+
+    O access_token do ML dura ~6h. Guardar ele (com a hora de expiracao) deixa
+    o coletor rodar de hora em hora sem gastar um refresh_token a cada vez —
+    e o refresh ROTACIONA, entao cada uso e uma chance de erro. Com isso a
+    rotacao cai de ~12x/dia pra ~4x, e a venda de hoje aparece hoje.
+    """
+    agora = datetime.now(timezone.utc).timestamp()
+    # 5 min de folga: token que expira no meio da coleta daria 401 no fim.
+    if cred.get("access_token") and float(cred.get("access_expira_em") or 0) > agora + 300:
+        return cred["access_token"], cred["user_id"]
+    return renovar(cred, gravar_cred)
+
+
 def renovar(cred, gravar_cred):
     """Troca o refresh_token por um par novo e GRAVA na hora.
 
@@ -68,6 +88,9 @@ def renovar(cred, gravar_cred):
     })
     novo = dict(cred)
     novo["refresh_token"] = resp["refresh_token"]
+    novo["access_token"] = resp["access_token"]
+    novo["access_expira_em"] = (datetime.now(timezone.utc).timestamp()
+                                + float(resp.get("expires_in") or 21600))
     novo["last_updated"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     novo["rotacionado_por"] = "servidor"
     gravar_cred(novo)
@@ -247,7 +270,7 @@ def sincronizar(ler_cred, gravar_cred, ler_atual, gravar, log=print):
     if not cred or not cred.get("refresh_token"):
         raise RuntimeError("sem credencial do ML (segredo_ml)")
 
-    token, user_id = renovar(cred, gravar_cred)
+    token, user_id = token_valido(cred, gravar_cred)
     rep = coletar_reputacao(token, user_id)
     pos = coletar_pos_venda(token, user_id)
     vendas = coletar_vendas(token, user_id)
@@ -278,13 +301,16 @@ def iniciar(ler_cred, gravar_cred, ler_atual, gravar, log=print):
         while True:
             try:
                 agora = datetime.now(FUSO)
-                if agora.strftime("%H:%M") >= HORA_DIARIA:
+                if HORA_INICIO <= agora.hour < HORA_FIM:
                     atual = ler_atual() or {}
-                    if str(atual.get("gerado_em", ""))[:10] != agora.date().isoformat():
+                    # Uma vez por hora: se a ultima gravacao ja e desta hora,
+                    # espera a proxima.
+                    ultima = str(atual.get("gerado_em", ""))[:13]
+                    if ultima != agora.isoformat()[:13]:
                         sincronizar(ler_cred, gravar_cred, ler_atual, gravar, log)
             except Exception as e:
                 log(f"[sinc-ml] {type(e).__name__}: {str(e)[:140]}")
-            time.sleep(30 * 60)
+            time.sleep(INTERVALO_MIN * 60)
 
     t = threading.Thread(target=laco, daemon=True, name="sincronizador-ml")
     t.start()
