@@ -3648,6 +3648,9 @@ async function carregarMlConta(){
       <p class="card-titulo" style="margin:0;">Conta Mercado Livre</p>
       <span class="ml-selo${nivelOk ? ' ok' : ''}">${medalha}</span>
       <span class="aud-conta">${rep.vendas_60d ? rep.vendas_60d.toLocaleString('pt-BR') + ' vendas em 60 dias' : ''}</span>
+      <button class="btn btn-neutro btn-pequeno" id="mlAtualizar"
+        title="Busca no Mercado Livre agora. Sozinho ele já atualiza de hora em hora.">Atualizar</button>
+      <span class="status-msg" id="mlStatus"></span>
     </div>
     <div class="dp-kpis" style="margin-bottom:0;">
       ${vm ? tile('Faturamento no mês', fmtMoeda(vm.total),
@@ -3670,7 +3673,7 @@ async function carregarMlConta(){
              (ads.acos ? ` · ACOS ${String(ads.acos).replace('.', ',')}%` : '')) : ''}
     </div>
     ${motivos ? `<div class="dp-aviso" style="margin-top:10px;">Principais motivos de reclamação (30d):
-      ${motivos}. Faturamento = pagamentos aprovados no Mercado Pago com origem no ML — valor real.
+      ${motivos}. Atualiza sozinho de hora em hora (6h–22h), no servidor — não depende deste computador. Faturamento = pagamentos aprovados no Mercado Pago com origem no ML — valor real.
       Percentuais e limites são os oficiais do ML para manter a medalha.
       Sincronizado às ${(d.gerado_em || '').slice(11, 16)} de ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>` : ''}
   </div>`;
@@ -3737,6 +3740,17 @@ async function carregarSiteConta(){
 }
 
 document.addEventListener('click', async ev => {
+  if(ev.target.id === 'mlAtualizar'){
+    const btn = ev.target, st = document.getElementById('mlStatus');
+    btn.disabled = true; btn.textContent = 'Buscando…'; st.className = 'status-msg';
+    const r = await fetch('/api/admin/sincronizar-ml', {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    btn.disabled = false; btn.textContent = 'Atualizar';
+    st.textContent = r.ok ? d.resumo : (d.erro || 'Falhou');
+    st.classList.add('show', ...(r.ok ? [] : ['err']));
+    if(r.ok){ mlContaCarregado = false; carregarMlConta(); carregarResumo(); }
+    return;
+  }
   if(ev.target.id === 'mktAtualizarGasto'){
     const btn = ev.target, st = document.getElementById('mktGastoStatus');
     btn.disabled = true; btn.textContent = 'Buscando…';
