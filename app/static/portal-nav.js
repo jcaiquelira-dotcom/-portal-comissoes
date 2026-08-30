@@ -98,6 +98,7 @@ const PORTAIS = {
     itens: [
       {chave: 'painel',    texto: 'Painel',                href: '/#painel', icone: 'painel'},
       {chave: 'atendimento', texto: 'Esperando você',      href: '/#atendimento', icone: 'retomada'},
+      {chave: 'expedicao',   texto: 'Expedição',           href: '/#expedicao', icone: 'expedicao'},
       {chave: 'vendas',    texto: 'Minhas vendas',         href: '/#vendas', icone: 'vendas'},
       {chave: 'simulador', texto: 'Simulação',             href: '/simulador', icone: 'cifrao'},
       {chave: 'retomada',  texto: 'Follow-up',              href: '/follow-up', icone: 'retomada'},

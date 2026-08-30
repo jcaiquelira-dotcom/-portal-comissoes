@@ -849,6 +849,27 @@ def api_minha_comissao():
     return jsonify(calcular_comissao(vendedor_id, de, ate, vendedores, vendas))
 
 
+def perfil_de(vendedor_id: str) -> str:
+    """"vendedor" (padrao) ou "expedicao".
+
+    O portal nasceu so com vendedores; a expedicao entrou depois e reaproveita
+    o mesmo login. Quem e da expedicao nao vende — some das listas de venda,
+    comissao e meta — e em troca ve a fila de pedidos pra liberar.
+    """
+    v = carregar_vendedores().get(vendedor_id) or {}
+    return v.get("perfil") or "vendedor"
+
+
+def exigir_expedicao():
+    """Id de quem esta logado, se for da expedicao ou o gestor."""
+    vid = exigir_vendedor()
+    if vid and perfil_de(vid) == "expedicao":
+        return vid
+    if exigir_admin():
+        return "gestor"
+    return None
+
+
 def exigir_vendedor():
     vendedor_id = session.get("vendedor_id")
     if not vendedor_id:
@@ -1684,6 +1705,10 @@ def api_admin_resumo():
         # venda no periodo. Se um dia tiver, aparece: dinheiro nunca some da tela.
         if (info.get("oculto") and not por_vendedor.get(vid)
                 and not info.get("overrides") and vid != filtro_vendedor):
+            continue
+        # Quem e da expedicao nao vende: fora das listas de venda e comissao,
+        # a nao ser que tenha lancamento (dinheiro nunca some de tela).
+        if info.get("perfil") == "expedicao" and not por_vendedor.get(vid):
             continue
         lista_vendas = [v for v in por_vendedor.get(vid, []) if v.get("tipo", "venda") == "venda"]
         lista_vendas.sort(key=lambda v: v["data"], reverse=True)
@@ -2631,6 +2656,177 @@ def api_admin_site_conta():
     if not d or not (d.get("vendas") or {}).get("serie_dia"):
         return jsonify({"sem_dados": True})
     return jsonify(d)
+
+
+# ============================================================
+# Pedidos de expedição — o vendedor lança, a expedição libera
+# ============================================================
+# Nasceu em 30/08/2026: o vendedor precisa avisar a expedição que uma peça vai
+# sair, com quem vai buscar e se já foi paga. A pergunta que a tela da
+# expedição responde é uma só — "posso entregar essa peça pra esse motoboy?" —
+# então pagamento e status ficam no topo do registro.
+#
+# Peça NÃO PAGA não trava a liberação, mas quem liberou fica registrado: em
+# loja de autopeças pagar na entrega é comum, e uma trava dura faria o time
+# contornar o sistema, que é pior que registrar.
+
+FORMAS_PAGAMENTO = ["Pix", "Dinheiro", "Cartão", "Boleto", "Na entrega", "Faturado"]
+STATUS_PEDIDO = {"aguardando": "Aguardando separação",
+                 "separado": "Separado, aguardando retirada",
+                 "liberado": "Liberado / entregue",
+                 "cancelado": "Cancelado"}
+
+
+def _exp_ler() -> dict:
+    return ler_json(resolver_pasta_dados() / "expedicao_pedidos.json", None) or {}
+
+
+def _exp_gravar(dados: dict) -> None:
+    escrever_json(resolver_pasta_dados() / "expedicao_pedidos.json", dados)
+
+
+def _exp_visivel(p: dict, dias=3) -> bool:
+    """Pedido fechado some da fila depois de alguns dias; o aberto fica sempre.
+    Sem isso a tela da expedição viraria histórico e ninguém acharia o que
+    precisa separar agora."""
+    if p.get("status") in ("aguardando", "separado"):
+        return True
+    corte = (agora_br() - timedelta(days=dias)).isoformat(timespec="seconds")
+    return (p.get("liberado_em") or p.get("criado_em") or "") >= corte
+
+
+def _exp_texto(v, limite=120) -> str:
+    return str(v or "").strip()[:limite]
+
+
+@app.route("/api/expedicao/pedidos")
+def api_exp_listar():
+    """A fila da expedição. Vendedor vê os próprios; expedição e gestor veem
+    todos."""
+    vid = exigir_vendedor()
+    if not vid and not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+
+    ve_tudo = bool(exigir_admin()) or (vid and perfil_de(vid) == "expedicao")
+    nomes = {k: x["nome"] for k, x in carregar_vendedores().items()}
+    itens = []
+    for pid, p in _exp_ler().items():
+        if not ve_tudo and p.get("criado_por") != vid:
+            continue
+        if not _exp_visivel(p):
+            continue
+        itens.append({**p, "id": pid,
+                      "vendedor": nomes.get(p.get("criado_por"), "?"),
+                      "liberado_por_nome": nomes.get(p.get("liberado_por"),
+                                                     p.get("liberado_por") or "")})
+    # Aguardando primeiro, e dentro disso o mais antigo no topo: a fila é FIFO,
+    # quem chegou antes espera menos.
+    ordem = {"aguardando": 0, "separado": 1, "liberado": 2, "cancelado": 3}
+    itens.sort(key=lambda p: (ordem.get(p.get("status"), 9), p.get("criado_em") or ""))
+    abertos = [p for p in itens if p["status"] in ("aguardando", "separado")]
+    return jsonify({
+        "pedidos": itens,
+        "abertos": len(abertos),
+        "nao_pagos_abertos": sum(1 for p in abertos if not p.get("pago")),
+        "opcoes": {"pagamento": FORMAS_PAGAMENTO, "status": STATUS_PEDIDO},
+        "sou_expedicao": ve_tudo,
+    })
+
+
+@app.route("/api/expedicao/pedidos", methods=["POST"])
+def api_exp_criar():
+    vid = exigir_vendedor()
+    if not vid:
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    peca = _exp_texto(corpo.get("peca"), 200)
+    if not peca:
+        return jsonify({"erro": "Informe a peça."}), 400
+    quem_retira = _exp_texto(corpo.get("quem_retira"), 80)
+    if not quem_retira:
+        return jsonify({"erro": "Informe quem vai retirar."}), 400
+    forma = _exp_texto(corpo.get("forma_pagamento"), 30)
+    if forma and forma not in FORMAS_PAGAMENTO:
+        return jsonify({"erro": "Forma de pagamento inválida."}), 400
+    try:
+        valor = round(float(str(corpo.get("valor") or 0).replace(",", ".")), 2)
+    except ValueError:
+        return jsonify({"erro": "Valor inválido."}), 400
+
+    dados = _exp_ler()
+    pid = uuid.uuid4().hex[:12]
+    dados[pid] = {
+        "criado_em": agora_br().isoformat(timespec="seconds"),
+        "criado_por": vid,
+        "peca": peca,
+        "sku": _exp_texto(corpo.get("sku"), 40),
+        "cliente": _exp_texto(corpo.get("cliente"), 80),
+        "quem_retira": quem_retira,
+        "telefone_retira": _exp_texto(corpo.get("telefone_retira"), 30),
+        "forma_pagamento": forma,
+        "pago": bool(corpo.get("pago")),
+        "valor": valor,
+        "obs": _exp_texto(corpo.get("obs"), 300),
+        "status": "aguardando",
+    }
+    _exp_gravar(dados)
+    return jsonify({"ok": True, "id": pid})
+
+
+@app.route("/api/expedicao/pedidos/<pid>", methods=["POST"])
+def api_exp_atualizar(pid):
+    """Muda o status ou marca como pago. Vendedor mexe só no próprio pedido e
+    só enquanto ele não saiu; a expedição mexe em qualquer um."""
+    vid = exigir_vendedor()
+    eh_exp = bool(exigir_admin()) or (vid and perfil_de(vid) == "expedicao")
+    if not vid and not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+
+    dados = _exp_ler()
+    p = dados.get(pid)
+    if not p:
+        return jsonify({"erro": "Pedido não encontrado."}), 404
+    if not eh_exp and p.get("criado_por") != vid:
+        return jsonify({"erro": "Esse pedido não é seu."}), 403
+
+    corpo = request.get_json(silent=True) or {}
+    if "pago" in corpo:
+        p["pago"] = bool(corpo["pago"])
+        p["pago_marcado_por"] = vid or "gestor"
+        p["pago_marcado_em"] = agora_br().isoformat(timespec="seconds")
+
+    novo = corpo.get("status")
+    if novo:
+        if novo not in STATUS_PEDIDO:
+            return jsonify({"erro": "Status inválido."}), 400
+        if novo in ("separado", "liberado") and not eh_exp:
+            return jsonify({"erro": "Só a expedição pode separar ou liberar."}), 403
+        p["status"] = novo
+        if novo == "liberado":
+            p["liberado_em"] = agora_br().isoformat(timespec="seconds")
+            p["liberado_por"] = vid or "gestor"
+            # Saiu sem pagamento: fica gravado no proprio pedido, nao so no log.
+            p["liberado_sem_pagamento"] = not p.get("pago")
+    _exp_gravar(dados)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/expedicao/pedidos/<pid>", methods=["DELETE"])
+def api_exp_apagar(pid):
+    """Só quem criou (e só antes de sair) ou o gestor."""
+    vid = exigir_vendedor()
+    dados = _exp_ler()
+    p = dados.get(pid)
+    if not p:
+        return jsonify({"erro": "Pedido não encontrado."}), 404
+    if not exigir_admin():
+        if p.get("criado_por") != vid:
+            return jsonify({"erro": "Esse pedido não é seu."}), 403
+        if p.get("status") == "liberado":
+            return jsonify({"erro": "Pedido já liberado não pode ser apagado."}), 400
+    dados.pop(pid)
+    _exp_gravar(dados)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/admin/atendimento-alerta")
@@ -3737,6 +3933,7 @@ def api_admin_listar_vendedores():
             "foto": v.get("foto"),
             "avatar": v.get("avatar", ""),
             "oculto": bool(v.get("oculto")),
+            "perfil": v.get("perfil") or "vendedor",
             "liberacao_retroativa": retroativo_ativo(v),
             "liberacao_retroativa_ate": v.get("liberacao_retroativa_ate") if retroativo_ativo(v) else None,
         }
@@ -3815,6 +4012,11 @@ def api_admin_salvar_vendedor():
     for flag in ("oculto", "liberacao_retroativa_ate"):
         if existente.get(flag):
             vendedores[vendedor_id][flag] = existente[flag]
+    perfil = (body.get("perfil") or "").strip().lower()
+    if perfil in ("vendedor", "expedicao"):
+        vendedores[vendedor_id]["perfil"] = perfil
+    elif existente.get("perfil") and "perfil" not in body:
+        vendedores[vendedor_id]["perfil"] = existente["perfil"]
     # Avatar generico usado quando nao ha foto. E escolha do gestor, nunca
     # deduzida do nome — nome nao diz genero de ninguem.
     avatar = (body.get("avatar") or "").strip().lower()

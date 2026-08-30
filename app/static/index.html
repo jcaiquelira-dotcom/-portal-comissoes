@@ -214,6 +214,33 @@
   .atd-uteis{font-size:10px;color:var(--muted);white-space:nowrap;cursor:help;}
   .atd-rodape{display:flex;align-items:center;gap:10px;justify-content:space-between;
               flex-wrap:wrap;margin-top:10px;font-size:11.5px;color:var(--muted);}
+  .exp-form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;}
+  .exp-form .campo{margin:0;flex:1;min-width:130px;}
+  .exp-form input,.exp-form select{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:7px 9px;font-family:inherit;font-size:12.5px;width:100%;
+  }
+  .exp-form input:focus,.exp-form select:focus{outline:none;border-color:var(--accent);}
+  .exp-pago{display:flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap;
+            padding-bottom:8px;cursor:pointer;}
+  .exp-item{margin-bottom:8px;padding:12px 14px;border-left:3px solid var(--line);}
+  .exp-item.aguardando{border-left-color:var(--warn);}
+  .exp-item.separado{border-left-color:var(--accent);}
+  .exp-item.liberado{border-left-color:var(--good);opacity:.72;}
+  .exp-item.cancelado{opacity:.5;}
+  .exp-topo{display:flex;justify-content:space-between;gap:10px;align-items:baseline;}
+  .exp-peca{font-size:14px;}
+  .exp-tag{font-size:10px;font-weight:800;letter-spacing:.04em;padding:2px 8px;
+           border-radius:20px;white-space:nowrap;}
+  .exp-tag.pago{color:var(--good);border:1px solid var(--good);}
+  .exp-tag.naopago{color:#fff;background:var(--bad);}
+  .exp-linhas{display:flex;flex-direction:column;gap:2px;margin-top:6px;
+              font-size:12.5px;color:var(--muted);}
+  .exp-linhas b{color:var(--text);font-weight:600;}
+  .exp-obs{font-style:italic;}
+  .exp-saiu{font-size:11.5px;}
+  .exp-acoes{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
+  .exp-status{font-size:11px;color:var(--muted);margin-left:auto;}
   .atd-badge{
     background:var(--bad);color:#fff;font-size:10.5px;font-weight:800;
     border-radius:20px;padding:1px 7px;margin-left:auto;line-height:1.6;
@@ -427,6 +454,13 @@
     <!-- Quem esta esperando ESTE vendedor responder. Nao usa a bolinha de
          "nao lida" do Totalk: o bot atende primeiro e zera ela antes de
          alguem ver. Aqui a conta e quem falou por ultimo. -->
+    <!-- Pedido de expedição. A mesma seção serve vendedor e expedição: o dado
+         é o mesmo, e duas telas separadas seriam duas coisas pra manter em
+         sincronia. O que muda é quem vê o quê, decidido pelo servidor. -->
+    <section id="secaoExpedicao" class="oculto">
+      <div id="expCorpo"><div class="vazio">Carregando…</div></div>
+    </section>
+
     <section id="secaoAtendimento" class="oculto">
       <div id="atdVendedor"><div class="vazio">Carregando…</div></div>
     </section>
@@ -1633,6 +1667,195 @@ document.addEventListener('visibilitychange', () => {
   if(!document.hidden && secaoAtual === 'atendimento') carregarMeuAtendimento(true);
 });
 
+let expDados = null;
+let expTimer = null;
+
+function expAutoAtualizar(ligar){
+  clearInterval(expTimer);
+  // A expedição precisa ver pedido novo sem ficar recarregando; 20s é curto o
+  // suficiente pra não deixar motoboy esperando na porta.
+  expTimer = ligar ? setInterval(() => carregarExpedicao(true), 20000) : null;
+}
+
+function expBadge(n){
+  const item = document.querySelector('.nav-item[data-nav="expedicao"]');
+  if(!item) return;
+  item.querySelector('.atd-badge')?.remove();
+  if(!n) return;
+  const b = document.createElement('span');
+  b.className = 'atd-badge';
+  b.textContent = n;
+  item.appendChild(b);
+}
+
+async function carregarExpedicao(silencioso){
+  const el = document.getElementById('expCorpo');
+  if(!silencioso) el.innerHTML = '<div class="vazio">Carregando…</div>';
+  const res = await fetch('/api/expedicao/pedidos');
+  if(!res.ok){ el.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  const d = await res.json();
+  expDados = d;
+  expBadge(d.abertos);
+
+  const fmt = v => 'R$ ' + (Number(v) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+  const hora = iso => {
+    if(!iso) return '';
+    const [dia, h] = iso.split('T');
+    const hoje = new Date().toISOString().slice(0, 10);
+    return dia === hoje ? h.slice(0, 5) : `${dia.slice(8, 10)}/${dia.slice(5, 7)} ${h.slice(0, 5)}`;
+  };
+
+  // Formulário só pra quem vende — a expedição não lança pedido, libera.
+  const form = d.sou_expedicao ? '' : `
+    <div class="card" style="margin-bottom:14px;">
+      <details class="dobra" id="expNovoDobra" open>
+        <summary><span class="card-titulo">Pedir à expedição</span></summary>
+        <div class="exp-form">
+          <div class="campo" style="flex:2;"><label class="campo-rotulo" for="expPeca">Peça *</label>
+            <input type="text" id="expPeca" placeholder="Farol direito Onix 2018"></div>
+          <div class="campo"><label class="campo-rotulo" for="expSku">SKU</label>
+            <input type="text" id="expSku" placeholder="opcional"></div>
+          <div class="campo"><label class="campo-rotulo" for="expCliente">Cliente</label>
+            <input type="text" id="expCliente" placeholder="nome do cliente"></div>
+          <div class="campo"><label class="campo-rotulo" for="expQuem">Quem retira *</label>
+            <input type="text" id="expQuem" placeholder="motoboy João / o próprio cliente"></div>
+          <div class="campo"><label class="campo-rotulo" for="expTel">Telefone de quem retira</label>
+            <input type="text" id="expTel" placeholder="opcional"></div>
+          <div class="campo"><label class="campo-rotulo" for="expValor">Valor</label>
+            <input type="number" id="expValor" step="0.01" min="0" placeholder="0,00"></div>
+          <div class="campo"><label class="campo-rotulo" for="expForma">Pagamento</label>
+            <select id="expForma">
+              <option value="">—</option>
+              ${d.opcoes.pagamento.map(f => `<option>${f}</option>`).join('')}
+            </select></div>
+          <label class="exp-pago"><input type="checkbox" id="expPago"> <b>Já está pago</b></label>
+          <div class="campo" style="flex:3;"><label class="campo-rotulo" for="expObs">Observação</label>
+            <input type="text" id="expObs" placeholder="ex.: separar com a nota, cliente confere na hora"></div>
+          <button class="btn btn-principal btn-pequeno" id="expEnviar">Enviar pra expedição</button>
+          <span class="status-msg" id="expStatus"></span>
+        </div>
+      </details>
+    </div>`;
+
+  const cartao = (p) => {
+    const trava = !p.pago && p.status !== 'liberado';
+    return `<div class="card exp-item ${p.status}">
+      <div class="exp-topo">
+        <div>
+          <b class="exp-peca">${(p.peca || '').replace(/</g, '&lt;')}</b>
+          ${p.sku ? `<span class="dp-var neutro">${p.sku}</span>` : ''}
+        </div>
+        <span class="exp-tag ${p.pago ? 'pago' : 'naopago'}">${p.pago ? 'PAGO' : 'NÃO PAGO'}</span>
+      </div>
+      <div class="exp-linhas">
+        <span><b>Retira:</b> ${p.quem_retira}${p.telefone_retira ? ' · ' + p.telefone_retira : ''}</span>
+        ${p.cliente ? `<span><b>Cliente:</b> ${p.cliente}</span>` : ''}
+        ${p.valor ? `<span><b>Valor:</b> ${fmt(p.valor)}${p.forma_pagamento ? ' · ' + p.forma_pagamento : ''}</span>`
+          : (p.forma_pagamento ? `<span><b>Pagamento:</b> ${p.forma_pagamento}</span>` : '')}
+        <span><b>Pedido por:</b> ${p.vendedor} às ${hora(p.criado_em)}</span>
+        ${p.obs ? `<span class="exp-obs">${p.obs.replace(/</g, '&lt;')}</span>` : ''}
+        ${p.status === 'liberado' ? `<span class="exp-saiu">Liberado ${hora(p.liberado_em)}
+          por ${p.liberado_por_nome}${p.liberado_sem_pagamento
+            ? ' · <b style="color:var(--bad)">saiu sem pagamento</b>' : ''}</span>` : ''}
+      </div>
+      <div class="exp-acoes">
+        ${d.sou_expedicao ? `
+          ${p.status === 'aguardando'
+            ? `<button class="btn btn-neutro btn-pequeno" data-exp="separado" data-id="${p.id}">Separei</button>` : ''}
+          ${p.status !== 'liberado'
+            ? `<button class="btn ${trava ? 'btn-neutro' : 'btn-principal'} btn-pequeno"
+                 data-exp="liberado" data-id="${p.id}"
+                 ${trava ? 'data-semp="1" title="Este pedido não está pago — vai ficar registrado que você liberou assim."' : ''}
+               >Liberar${trava ? ' sem pagamento' : ''}</button>` : ''}
+          ${!p.pago ? `<button class="btn btn-neutro btn-pequeno" data-exppago="${p.id}">Marcar pago</button>` : ''}
+        ` : `
+          ${!p.pago ? `<button class="btn btn-neutro btn-pequeno" data-exppago="${p.id}">Marcar pago</button>` : ''}
+          ${p.status !== 'liberado'
+            ? `<button class="btn btn-neutro btn-pequeno" data-expdel="${p.id}">Cancelar</button>` : ''}
+        `}
+        <span class="exp-status">${d.opcoes.status[p.status] || p.status}</span>
+      </div>
+    </div>`;
+  };
+
+  const abertos = d.pedidos.filter(p => ['aguardando', 'separado'].includes(p.status));
+  const fechados = d.pedidos.filter(p => !['aguardando', 'separado'].includes(p.status));
+
+  el.innerHTML = form + `
+    ${d.sou_expedicao ? `<div class="dp-kpis">
+      <div class="dp-kpi"><div class="rot">Esperando</div>
+        <div class="num valor-money" style="color:${abertos.length ? 'var(--warn)' : 'var(--good)'}">${abertos.length}</div>
+        <span class="dp-var neutro">pedidos na fila</span></div>
+      <div class="dp-kpi"><div class="rot">Não pagos na fila</div>
+        <div class="num valor-money" style="color:${d.nao_pagos_abertos ? 'var(--bad)' : 'var(--good)'}">${d.nao_pagos_abertos}</div>
+        <span class="dp-var neutro">confira antes de liberar</span></div>
+    </div>` : ''}
+    ${abertos.length ? abertos.map(cartao).join('')
+      : `<div class="card"><div class="vazio">${d.sou_expedicao
+          ? 'Nenhum pedido na fila. Tudo liberado 👏'
+          : 'Você não tem pedido aberto na expedição.'}</div></div>`}
+    ${fechados.length ? `<div class="mb-recentes-titulo">Fechados recentemente</div>`
+      + fechados.map(cartao).join('') : ''}
+    <div class="dp-aviso">A lista atualiza sozinha. Pedido fechado sai daqui depois de 3 dias.
+      Peça <b>não paga</b> pode ser liberada — mas fica registrado quem liberou.</div>`;
+}
+
+async function expEnviar(){
+  const st = document.getElementById('expStatus');
+  st.classList.remove('show', 'err');
+  const val = id => document.getElementById(id).value.trim();
+  const corpo = {
+    peca: val('expPeca'), sku: val('expSku'), cliente: val('expCliente'),
+    quem_retira: val('expQuem'), telefone_retira: val('expTel'),
+    valor: val('expValor'), forma_pagamento: val('expForma'),
+    pago: document.getElementById('expPago').checked, obs: val('expObs'),
+  };
+  const r = await fetch('/api/expedicao/pedidos', {method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)});
+  const d = await r.json().catch(() => ({}));
+  if(!r.ok){
+    st.textContent = d.erro || 'Erro ao enviar.';
+    st.classList.add('show', 'err');
+    return;
+  }
+  ['expPeca','expSku','expCliente','expQuem','expTel','expValor','expObs']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('expPago').checked = false;
+  st.textContent = 'Enviado pra expedição.';
+  st.classList.add('show');
+  carregarExpedicao(true);
+}
+
+document.addEventListener('click', async ev => {
+  const acao = ev.target.closest('[data-exp]');
+  if(acao){
+    if(acao.dataset.semp &&
+       !confirm('Este pedido NÃO está pago. Liberar assim mesmo?\n\nVai ficar registrado que você autorizou.')) return;
+    acao.disabled = true;
+    await fetch(`/api/expedicao/pedidos/${acao.dataset.id}`, {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({status: acao.dataset.exp})});
+    carregarExpedicao(true);
+    return;
+  }
+  const pago = ev.target.closest('[data-exppago]');
+  if(pago){
+    pago.disabled = true;
+    await fetch(`/api/expedicao/pedidos/${pago.dataset.exppago}`, {method: 'POST',
+      headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pago: true})});
+    carregarExpedicao(true);
+    return;
+  }
+  const del = ev.target.closest('[data-expdel]');
+  if(del){
+    if(!confirm('Cancelar este pedido?')) return;
+    await fetch(`/api/expedicao/pedidos/${del.dataset.expdel}`, {method: 'DELETE'});
+    carregarExpedicao(true);
+    return;
+  }
+  if(ev.target.id === 'expEnviar'){ expEnviar(); return; }
+});
+
 async function carregarMeuAtendimento(silencioso){
   const el = document.getElementById('atdVendedor');
   if(!silencioso) el.innerHTML = '<div class="vazio">Carregando…</div>';
@@ -1742,8 +1965,10 @@ document.getElementById('mesInput').addEventListener('change', () => {
 
 /* ---------- troca de seção ---------- */
 const TITULOS = {painel: 'Painel', vendas: 'Minhas vendas', performance: 'Performance',
+                 expedicao: 'Expedição',
                  atendimento: 'Esperando você'};
 const SECOES_VENDEDOR = {painel: 'secaoPainel', vendas: 'secaoVendas',
+                         expedicao: 'secaoExpedicao',
                          performance: 'secaoPerformance',
                          atendimento: 'secaoAtendimento'};
 
@@ -1761,6 +1986,8 @@ function atdConferirBadge(){
     .catch(() => {});
 }
 atdConferirBadge();
+fetch('/api/expedicao/pedidos').then(r => r.ok ? r.json() : null)
+  .then(d => { if(d) expBadge(d.abertos); }).catch(() => {});
 setInterval(() => { if(secaoAtual !== 'atendimento') atdConferirBadge(); }, 60000);
 document.addEventListener('visibilitychange', () => {
   if(!document.hidden && secaoAtual !== 'atendimento') atdConferirBadge();
@@ -1773,6 +2000,8 @@ function irParaSecao(chave){
   });
   if(secaoAtual === 'performance') carregarPerformance();
   if(secaoAtual === 'atendimento') carregarMeuAtendimento();
+  if(secaoAtual === 'expedicao') carregarExpedicao();
+  expAutoAtualizar(secaoAtual === 'expedicao');
   atdAutoAtualizar(secaoAtual === 'atendimento');
   document.getElementById('tituloSecao').textContent = TITULOS[secaoAtual];
   document.querySelectorAll('.nav-item[data-nav]').forEach(a => {
