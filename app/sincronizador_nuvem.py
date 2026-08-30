@@ -43,31 +43,73 @@ def _windsor(chave_api, conector, campos, preset):
         return json.loads(r.read().decode())["data"]
 
 
+# Tipo de campanha do Google -> o que ela busca de verdade. Campanha que leva
+# o cliente ate a LOJA (mapa, ligacao, visita) nao pode ser medida pela mesma
+# regua de quem vende no site: ela converte em telefone tocando e gente
+# entrando na porta, coisas que o site nao registra. Sem separar, o custo por
+# venda do site sai inflado e a campanha local parece ruim sem ser.
+TIPO_CAMPANHA = {
+    "SEARCH": "Busca", "SHOPPING": "Shopping", "DISPLAY": "Display",
+    "PERFORMANCE_MAX": "Performance Max", "VIDEO": "Vídeo",
+    "LOCAL": "Loja física", "LOCAL_SERVICES": "Serviços locais",
+    "SMART": "Smart", "DISCOVERY": "Descoberta", "DEMAND_GEN": "Demand Gen",
+}
+# Os tipos que existem pra trazer gente ate a loja, nao pro site.
+TIPOS_LOCAIS = {"LOCAL", "LOCAL_SERVICES"}
+
+
 def coletar_gasto_google(chave_api):
     """Mesma fusao do sincronizar_marketing local: o ano inteiro da o gasto,
-    os 60 dias recentes dao clique e impressao."""
+    os 60 dias recentes dao clique e impressao.
+
+    Desde 30/08/2026 traz tambem o TIPO da campanha, ligacoes e o total de
+    conversoes — e o que permite separar campanha de loja (mapa/telefone) de
+    campanha de site, a pedido do gestor.
+    """
     amplo = _windsor(chave_api, "google_ads",
-                     "date,datasource,account_name,campaign,campaign_id,spend",
+                     "date,datasource,account_name,campaign,campaign_id,spend,"
+                     "campaign_type,advertising_channel_sub_type",
                      "this_yearT")
     detalhe = _windsor(chave_api, "google_ads",
                        "date,datasource,account_name,campaign,campaign_id,"
-                       "spend,clicks,impressions", "last_60dT")
+                       "spend,clicks,impressions,phone_calls,all_conversions,"
+                       "campaign_type", "last_60dT")
+
+    def vazio():
+        return {"spend": 0.0, "clicks": 0, "impressions": 0,
+                "ligacoes": 0, "conversoes": 0.0, "tipo": ""}
 
     por_chave = {}
     for r in amplo:
         k = (r["date"], r.get("datasource", "google_ads"), r.get("campaign", "—"))
-        d = por_chave.setdefault(k, {"spend": 0.0, "clicks": 0, "impressions": 0})
+        d = por_chave.setdefault(k, vazio())
         d["spend"] += float(r.get("spend") or 0)
+        d["tipo"] = d["tipo"] or (r.get("campaign_type") or "")
     for r in detalhe:
         k = (r["date"], r.get("datasource", "google_ads"), r.get("campaign", "—"))
-        d = por_chave.setdefault(k, {"spend": 0.0, "clicks": 0, "impressions": 0})
-        d["clicks"] += int(r.get("clicks") or 0)
-        d["impressions"] += int(r.get("impressions") or 0)
+        d = por_chave.setdefault(k, vazio())
+        d["clicks"] += int(float(r.get("clicks") or 0))
+        d["impressions"] += int(float(r.get("impressions") or 0))
+        d["ligacoes"] += int(float(r.get("phone_calls") or 0))
+        d["conversoes"] += float(r.get("all_conversions") or 0)
+        d["tipo"] = d["tipo"] or (r.get("campaign_type") or "")
 
-    return [{"data": dt, "fonte": f, "campanha": c,
-             "spend": round(v["spend"], 2),
-             "clicks": v["clicks"], "impressions": v["impressions"]}
-            for (dt, f, c), v in sorted(por_chave.items())]
+    saida = []
+    for (dt, f, c), v in sorted(por_chave.items()):
+        tipo = (v["tipo"] or "").upper()
+        saida.append({
+            "data": dt, "fonte": f, "campanha": c,
+            "spend": round(v["spend"], 2),
+            "clicks": v["clicks"], "impressions": v["impressions"],
+            "ligacoes": v["ligacoes"],
+            "conversoes": round(v["conversoes"], 2),
+            "tipo": tipo,
+            "tipo_nome": TIPO_CAMPANHA.get(tipo, tipo.title().replace("_", " ") if tipo else ""),
+            # O objetivo e o que muda a leitura: "loja" se mede em telefone
+            # tocando e gente na porta; "site" se mede em venda online.
+            "objetivo": "loja" if tipo in TIPOS_LOCAIS else "site",
+        })
+    return saida
 
 
 def coletar_meta(chave_api):

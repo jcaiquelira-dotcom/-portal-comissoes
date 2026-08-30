@@ -3426,6 +3426,48 @@ def _cobertura(linhas):
     return {"de": min(datas), "ate": max(datas)}
 
 
+def _google_por_objetivo(linhas):
+    """Separa o gasto do Google entre trazer gente pra LOJA e vender no SITE.
+
+    Linha antiga (antes de 30/08/2026) nao tem o campo `objetivo` — cai em
+    "site", que era o unico tipo de campanha que existia ate entao.
+    """
+    saida = {}
+    for g in linhas:
+        alvo = g.get("objetivo") or "site"
+        d = saida.setdefault(alvo, {"investimento": 0.0, "clicks": 0,
+                                    "ligacoes": 0, "conversoes": 0.0})
+        d["investimento"] += g.get("spend", 0)
+        d["clicks"] += g.get("clicks", 0)
+        d["ligacoes"] += g.get("ligacoes", 0)
+        d["conversoes"] += g.get("conversoes", 0)
+    for d in saida.values():
+        d["investimento"] = round(d["investimento"], 2)
+        d["conversoes"] = round(d["conversoes"], 2)
+    return saida
+
+
+def _google_por_campanha(linhas):
+    """Uma linha por campanha, com tipo e objetivo — pro gestor ver onde o
+    dinheiro esta e o que cada uma entrega."""
+    saida = {}
+    for g in linhas:
+        nome = g.get("campanha") or "—"
+        d = saida.setdefault(nome, {"campanha": nome, "investimento": 0.0,
+                                    "clicks": 0, "ligacoes": 0, "conversoes": 0.0,
+                                    "tipo_nome": g.get("tipo_nome") or "",
+                                    "objetivo": g.get("objetivo") or "site"})
+        d["investimento"] += g.get("spend", 0)
+        d["clicks"] += g.get("clicks", 0)
+        d["ligacoes"] += g.get("ligacoes", 0)
+        d["conversoes"] += g.get("conversoes", 0)
+    for d in saida.values():
+        d["investimento"] = round(d["investimento"], 2)
+        d["conversoes"] = round(d["conversoes"], 2)
+        d["cpc"] = round(d["investimento"] / d["clicks"], 2) if d["clicks"] else None
+    return sorted(saida.values(), key=lambda x: -x["investimento"])
+
+
 @app.route("/api/admin/marketing")
 def api_marketing_gestor():
     if not exigir_admin():
@@ -3618,7 +3660,14 @@ def api_marketing_gestor():
             "por_dia": [{"data": k, "spend": v} for k, v in sorted(gasto_dia.items())],
             "fontes_ausentes": gasto_bruto.get("fontes_ausentes", []),
             "google": {"investimento": round(sum(g["spend"] for g in gasto_linhas), 2),
-                       "clicks": cliques},
+                       "clicks": cliques,
+                       # Campanha que traz gente ate a LOJA (mapa, ligacao) nao
+                       # se mede pela regua do site: ela converte em telefone
+                       # tocando e gente na porta, que o site nao registra.
+                       # Somadas, elas inflavam o custo por venda online e
+                       # faziam a campanha local parecer ruim sem ser.
+                       "por_objetivo": _google_por_objetivo(gasto_linhas),
+                       "por_campanha": _google_por_campanha(gasto_linhas)},
             "meta": meta,
             "meta_rateio": meta_rateio,
             "ml_rateio": ml_rateio,
