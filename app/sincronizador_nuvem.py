@@ -182,11 +182,20 @@ def coletar_perfil_google(chave_api):
     Guarda serie diaria (12 meses) e as palavras que as pessoas digitaram —
     essas valem tanto quanto os numeros: dizem como o cliente PROCURA a loja.
     """
-    linhas = _windsor(chave_api, "google_my_business",
-                      "date,impressions,impressions_mobile_maps,"
-                      "impressions_mobile_search,impressions_desktop_maps,"
-                      "impressions_desktop_search,call_clicks,website_clicks,"
-                      "direction_requests", "last_12m")
+    campos = ("date,impressions,impressions_mobile_maps,"
+              "impressions_mobile_search,impressions_desktop_maps,"
+              "impressions_desktop_search,call_clicks,website_clicks,"
+              "direction_requests")
+    # DUAS janelas de proposito: `last_12m` traz os 12 meses ANTERIORES e para
+    # no fim do mes passado — sem o mes corrente, o card aparecia zerado pra
+    # quem filtrava o mes atual, que e o filtro padrao da tela. `this_yearT`
+    # cobre do dia 1o de janeiro ate hoje e fecha esse buraco.
+    linhas = []
+    for preset in ("last_12m", "this_yearT"):
+        try:
+            linhas += _windsor(chave_api, "google_my_business", campos, preset)
+        except Exception:
+            continue
     if not linhas:
         return None
 

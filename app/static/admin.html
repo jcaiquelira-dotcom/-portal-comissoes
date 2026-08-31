@@ -3908,6 +3908,11 @@ async function carregarPerfilGoogle(){
   const imp = som('impressoes'), lig = som('ligacoes'),
         rot = som('rotas'), site = som('cliques_site');
   const acao = lig + rot + site;
+  // Zero pode ser "nao teve" ou "o dado nao chega ate aqui" — e a diferenca
+  // muda tudo. O ultimo dia da serie decide qual dos dois e.
+  const todos = Object.keys(d.serie_dia).sort();
+  const ultimo = todos[todos.length - 1] || '';
+  const foraDoAlcance = !dias.length && de && ultimo && ultimo < de;
 
   const tile = (rot_, valor, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot_}</div>
     <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${valor}</div>
@@ -3938,9 +3943,14 @@ async function carregarPerfilGoogle(){
         </div>`).join('')}
       </div>
     </div>
-    <div class="dp-aviso">Canal <b>orgânico</b> — não gasta mídia e não vende no site: converte em
-      telefone tocando e gente na porta. ${imp ? `<b>${(100 * acao / imp).toFixed(0)}%</b> de quem
-      viu o perfil fez alguma ação.` : ''} Atualizado ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>
+    <div class="dp-aviso">${foraDoAlcance
+      ? `<b style="color:var(--warn)">Sem dado neste período</b> — a leitura do perfil vai até
+         ${ultimo.slice(8, 10)}/${ultimo.slice(5, 7)}/${ultimo.slice(0, 4)}. Clique em Atualizar
+         para buscar o período mais recente.`
+      : `Canal <b>orgânico</b> — não gasta mídia e não vende no site: converte em telefone
+         tocando e gente na porta.${imp ? ` <b>${(100 * acao / imp).toFixed(0)}%</b> de quem viu
+         o perfil fez alguma ação.` : ''}`}
+      Atualizado ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>
   </div>`;
 }
 
