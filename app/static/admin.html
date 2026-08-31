@@ -3481,7 +3481,8 @@ function renderMarketing(d){
         <span class="nome">${c.canal}${naoLido(c) ? ' <span style="color:var(--warn)">(não lido)</span>' : ''}</span>
         <span class="v">${c.leads} conversa${c.leads === 1 ? '' : 's'} · ${naoLido(c)
           ? '<span style="color:var(--warn)">sinal não apurado</span>'
-          : `<b>${c.sinal}</b> com sinal de compra (${c.leads ? (100 * c.sinal / c.leads).toFixed(0) : 0}%)`}</span>
+          : `<b>${c.sinal}</b> com sinal (${c.leads ? (100 * c.sinal / c.leads).toFixed(0) : 0}%)`
+            + (c.receita_provavel ? ` · <b style="color:var(--good)">${fmtMoeda(c.receita_provavel)}</b> prováveis` : '')}</span>
         <span class="t"><span class="f"${naoLido(c) ? ' style="width:' + (c.leads / maxCanal * 100).toFixed(1) + '%;background:var(--muted);opacity:.45"' : ' style="width:' + (c.leads / maxCanal * 100).toFixed(1) + '%"'}></span></span>
       </div>`).join('')}</div>
     <div class="dp-aviso"><b>Sinal de compra</b> é a conversa em que o cliente
@@ -3489,6 +3490,17 @@ function renderMarketing(d){
       a placa, falou de frete ou pagamento. Não é venda: o fechamento acontece
       fora do chat, e a venda o portal conta separado, na tabela abaixo. Serve
       para separar quem só perguntou o horário de quem estava comprando de verdade.
+      ${d.total.receita_provavel ? `<br><b>A receita provável</b> é uma <b>estimativa</b>, não
+      o faturamento: a venda é lançada no portal e a conversa fica no Totalk, e nada liga uma
+      à outra — então não dá pra saber de que canal veio cada real. O cálculo é
+      <b>${(d.total.provavel || 0).toLocaleString('pt-BR')} conversas que chegaram a acertar
+      pagamento e entrega × ${fmtMoeda(d.ticket_estimativa?.valor || 0)}</b>${
+        d.ticket_estimativa?.de_vendas_reais
+          ? `, o ticket médio real das ${d.ticket_estimativa.base_qtd.toLocaleString('pt-BR')}
+             vendas lançadas neste período`
+          : ' (ticket padrão — não houve venda lançada no período pra calcular a média)'}.
+      Tende a ficar <b>abaixo</b> do real: parte das vendas fecha sem deixar rastro de
+      pagamento e entrega no chat. Serve pra comparar canais entre si, não pra fechar caixa.` : ''}
       ${semOrigem ? `<br><b style="color:var(--warn)">"Sem origem" são ${semOrigem.leads.toLocaleString('pt-BR')}
       conversas que a IA ainda não leu</b> — por isso não têm canal nem sinal. Não
       é que ninguém demonstrou interesse nelas: é que ninguém olhou ainda. Elas

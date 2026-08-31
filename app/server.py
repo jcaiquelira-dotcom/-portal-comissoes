@@ -3343,16 +3343,18 @@ def _recortar(linhas, de, ate, campo_data="data"):
 
 def _agregar_marketing(linhas, vendedores_nome=None):
     """Soma um conjunto de linhas de lead em vários cortes de uma vez."""
-    total = {"leads": 0, "sinal": 0}
+    total = {"leads": 0, "sinal": 0, "provavel": 0}
     por_canal, por_dia, por_vendedor = {}, {}, {}
     for l in linhas:
         total["leads"] += l["leads"]
         total["sinal"] += l["sinal"]
+        total["provavel"] += l.get("provavel", 0)
         for destino, chave in ((por_canal, l["canal"]), (por_dia, l["data"]),
                                (por_vendedor, l["vendedor"] or "sem_atendente")):
-            d = destino.setdefault(chave, {"leads": 0, "sinal": 0})
+            d = destino.setdefault(chave, {"leads": 0, "sinal": 0, "provavel": 0})
             d["leads"] += l["leads"]
             d["sinal"] += l["sinal"]
+            d["provavel"] += l.get("provavel", 0)
 
     def lista(dic, rotulo, ordenar_por_chave=False):
         itens = [{rotulo: k, **v} for k, v in dic.items()]
@@ -3629,7 +3631,27 @@ def api_marketing_gestor():
                              if item["leads"] else None)
 
     total_leads = agregado["total"]["leads"]
+
+    # Receita provavel por canal. A venda nao carrega o canal de origem — o
+    # chat esta no Totalk, a venda esta no portal, e nada liga um ao outro.
+    # Entao o unico jeito de saber que canal traz dinheiro e estimar: quantas
+    # conversas daquele canal chegaram ao fechamento, vezes o ticket real.
+    #
+    # O ticket sai das vendas REAIS do proprio periodo, nao de um valor fixo:
+    # assim ele acompanha o mes em vez de envelhecer. So cai num padrao quando
+    # o periodo nao tem venda lancada suficiente pra sustentar uma media.
+    TICKET_PADRAO = 968.0   # calibrado em ago/2026 contra 519 vendas reais
+    ticket = (round(vendas["total"] / vendas["qtd"], 2)
+              if vendas.get("qtd") else TICKET_PADRAO)
+    for item in agregado["por_canal"]:
+        item["receita_provavel"] = round(item.get("provavel", 0) * ticket, 2)
+    agregado["total"]["receita_provavel"] = round(
+        agregado["total"].get("provavel", 0) * ticket, 2)
+
     return jsonify({
+        "ticket_estimativa": {"valor": ticket,
+                              "de_vendas_reais": bool(vendas.get("qtd")),
+                              "base_qtd": vendas.get("qtd", 0)},
         "de": de, "ate": ate,
         "periodo_efetivo": {"de": ef_de, "ate": ef_ate},
         "gerado_em": leads_bruto.get("gerado_em"),
