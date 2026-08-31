@@ -3797,8 +3797,16 @@ def api_marketing_gestor():
         }
         anterior["midia"]["atual_comparavel"] = atual_comparavel
 
+    # O periodo pedido pode estar inteiro fora do que o Totalk cobre — a
+    # leitura comeca em 28/06/2026, entao maio nao tem lead nenhum. Sem avisar,
+    # a tela mostrava 0 lead ao lado de R$ 10.323 de investimento: parecia que
+    # o dinheiro foi gasto e ninguem apareceu. E falta de medicao, nao de
+    # resultado, e a tela precisa dizer qual dos dois.
+    sem_cobertura = bool(ef_de and ef_ate and ef_de > ef_ate)
+
     return jsonify({
         "anterior": anterior,
+        "sem_cobertura": sem_cobertura,
         "ticket_estimativa": {"valor": ticket,
                               "de_vendas_reais": bool(vendas.get("qtd")),
                               "base_qtd": vendas.get("qtd", 0)},

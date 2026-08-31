@@ -3557,7 +3557,8 @@ function renderMarketing(d){
           vc.relativo === null ? '' : ` (${vc.relativo > 0 ? '+' : ''}${
             vc.relativo.toLocaleString('pt-BR', {maximumFractionDigits: 1})}%)`}</span>`;
     return `<div class="dp-kpi"><div class="rot">Conversão</div>
-      <div class="num valor-money">${(d.conversao ?? 0)}%</div>
+      <div class="num valor-money">${d.sem_cobertura || d.conversao === null
+        ? '—' : d.conversao + '%'}</div>
       <span class="dp-var neutro">venda ÷ lead${
         ant?.conversao !== null && ant?.conversao !== undefined
           ? ` · antes ${ant.conversao}%` : ''}</span>
@@ -3565,9 +3566,12 @@ function renderMarketing(d){
   };
 
   const tv = t.var || {};
+  // Fora da cobertura, "0" seria uma afirmacao falsa — vira travessao.
+  const nc = (v) => d.sem_cobertura ? '—' : v;
   const kpis = [
-    kpi('Leads', t.leads, `${d.por_canal.length} canais`, tv.leads),
-    kpi('Com sinal de compra', t.sinal, t.leads ? (100 * t.sinal / t.leads).toFixed(1) + '% dos leads' : '', tv.sinal),
+    kpi('Leads', nc(t.leads), d.sem_cobertura ? 'sem medição' : `${d.por_canal.length} canais`, tv.leads),
+    kpi('Com sinal de compra', nc(t.sinal), d.sem_cobertura ? 'sem medição'
+        : (t.leads ? (100 * t.sinal / t.leads).toFixed(1) + '% dos leads' : ''), tv.sinal),
     kpi('Vendas', d.vendas.qtd, fmtMoeda(d.vendas.total), ant?.var_vendas?.qtd),
     kpiConversao(),
     kpi('Custo por lead', m.custo_por_lead === null ? '—' : fmtMoeda(m.custo_por_lead), '', null, false),
@@ -3808,7 +3812,24 @@ function renderMarketing(d){
   avisos.push(`Faturamento por real de mídia no período: <b>${m.faturamento_por_real ?? '—'}×</b>.
     Não é ROAS: o faturamento é o total do período, não o atribuído a anúncio.`);
 
+  // Periodo inteiro fora do que o Totalk cobre. Sem esse aviso a tela mostrava
+  // 0 lead ao lado do investimento real do mes — parecia dinheiro jogado fora,
+  // quando o que falta e a medicao. O gasto continua na tela porque ele
+  // aconteceu de verdade; o que sai sao os numeros que dependem de lead.
+  const avisoCobertura = d.sem_cobertura ? `<div class="card" style="margin-bottom:14px;
+    border-left:4px solid var(--warn);">
+    <p class="card-titulo" style="margin:0 0 6px;">Sem dado de atendimento neste período</p>
+    <div class="dp-aviso" style="margin:0;">A leitura das conversas do Totalk começa em
+      <b>${(d.cobertura?.de || '').split('-').reverse().join('/')}</b> e vai até
+      <b>${(d.cobertura?.ate || '').split('-').reverse().join('/')}</b>. O período que você
+      escolheu está fora disso, então <b>não existem leads registrados</b> — os zeros abaixo
+      são falta de medição, não falta de resultado. O investimento em mídia continua aparecendo
+      porque ele foi gasto de verdade, mas não dá pra cruzar com lead nem calcular custo por
+      lead, conversão ou receita provável nesse recorte.</div>
+  </div>` : '';
+
   document.getElementById('mktCorpo').innerHTML = `
+    ${avisoCobertura}
     <div class="dp-kpis">${kpis}</div>
     ${cardInvestimento}
     <div class="card" style="margin-bottom:14px;">
