@@ -867,6 +867,11 @@ AREAS = {
     "atendimento": "Atendimento agora",
     "retomada": "Follow-up do time",
     "fechamento": "Fechamento de mes",
+    # Estes dois nao sao secoes da tela do gestor, sao links pra outras
+    # paginas. Entram aqui pra o gestor poder decidir quem ve o atalho — o
+    # menu nao deve oferecer porta que a pessoa nao usa.
+    "ranking": "Ranking de vendas (TV)",
+    "expedicao": "Painel de expedicao",
 }
 
 
@@ -883,7 +888,12 @@ def areas_do_usuario() -> list:
     if not vid:
         return []
     v = carregar_vendedores().get(vid) or {}
-    return [a for a in (v.get("areas") or []) if a in AREAS]
+    areas = [a for a in (v.get("areas") or []) if a in AREAS]
+    # Quem E da expedicao nao precisa que ninguem marque a caixa: o painel de
+    # expedicao e o trabalho dele.
+    if v.get("perfil") == "expedicao" and "expedicao" not in areas:
+        areas.append("expedicao")
+    return areas
 
 
 def exigir_area(area: str) -> bool:

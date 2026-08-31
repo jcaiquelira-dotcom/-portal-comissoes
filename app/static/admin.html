@@ -1317,8 +1317,13 @@ function montarCaixasDeArea(marcadas){
 
 function filtrarMenuPorArea(){
   if(sessaoAtual.gestor) return;
-  document.querySelectorAll('.nav-item[href^="#"]').forEach(el => {
-    const chave = el.getAttribute('href').slice(1);
+  // Todos os itens, nao so os `#secao`: os links pra outras paginas (ranking,
+  // expedicao) tambem precisam sumir de quem nao usa. A chave vem do data-chave
+  // que a barra escreve; o href serve de reserva pros itens de secao.
+  document.querySelectorAll('.nav-item').forEach(el => {
+    const href = el.getAttribute('href') || '';
+    const chave = el.dataset.nav || (href.startsWith('#') ? href.slice(1) : '');
+    if(!chave) return;
     if(!sessaoAtual.areas.includes(chave)) el.style.display = 'none';
   });
 }
