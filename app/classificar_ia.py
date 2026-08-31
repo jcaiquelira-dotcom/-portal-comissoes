@@ -223,6 +223,8 @@ def main():
     client = anthropic.Anthropic()
 
     def tarefa(sid):
+        if _custo.get("parar"):   # a conta acabou; nao adianta tentar o resto
+            return None
         try:
             res, ent, sai, cache_r, cache_w = classificar_uma(client, sid, conversas[sid])
             with _lock:
@@ -239,6 +241,18 @@ def main():
                           f"({ritmo*60:.0f}/min, faltam ~{falta:.0f} min)", flush=True)
             return sid, res, ent, sai
         except Exception as e:  # rede, rate limit, recusa — registra e segue
+            # Credito acabado ou chave invalida nao e falha de uma conversa: e
+            # falha de todas. Sem isso a rodada percorria as 2.550 restantes
+            # falhando uma a uma e terminava dizendo "2.550 erros" sem explicar
+            # o motivo — parecia problema no dado, era so a conta zerada.
+            texto = str(e).lower()
+            if isinstance(e, (anthropic.AuthenticationError,
+                              anthropic.PermissionDeniedError)) or "credit" in texto:
+                with _lock:
+                    if not _custo.get("parar"):
+                        _custo["parar"] = str(e)[:200]
+                        print(chr(10) + "  PARANDO: " + str(e)[:200])
+                return None
             with _lock:
                 _custo["erros"] += 1
                 if _custo["erros"] <= 3:
@@ -281,6 +295,10 @@ def main():
              + _custo["saida"] / 1e6 * p_sai
              + _custo["cache_lido"] / 1e6 * p_ent * 0.1
              + _custo["cache_escrito"] / 1e6 * p_ent * 1.25)
+    if _custo.get("parar"):
+        print(chr(10) + "INTERROMPIDO — a API recusou: " + _custo["parar"])
+        print(f"  {total} conversas foram lidas e salvas antes de parar.")
+        print("  Ponha credito e rode de novo: ele pula o que ja foi feito.")
     print(f"\nclassificadas: {len(resultados)} | erros: {_custo['erros']}")
     print(f"tokens: entrada {_custo['entrada']:,} | saida {_custo['saida']:,}")
     print(f"cache: lido {_custo['cache_lido']:,} | escrito {_custo['cache_escrito']:,}")
