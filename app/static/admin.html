@@ -3914,6 +3914,21 @@ async function carregarPerfilGoogle(){
   const ultimo = todos[todos.length - 1] || '';
   const foraDoAlcance = !dias.length && de && ultimo && ultimo < de;
 
+  // As metricas do perfil NAO consolidam juntas. Impressoes e rotas aparecem
+  // em ~1 dia; ligacoes e cliques no site levam ate uma semana. Somar o mes
+  // corrente sem contar isso inventa uma queda que nao aconteceu — em ago/2026
+  // as ligacoes zeraram do dia 22 em diante e o mes "caiu" 35% contra julho,
+  // sem nada ter acontecido. Aqui: se a metrica teve movimento no periodo mas
+  // termina numa sequencia de zeros, esses dias ainda estao subindo.
+  const defasagem = campo => {
+    if (!dias.length || !dias.some(([, v]) => v[campo] > 0)) return 0;
+    let n = 0;
+    for (let i = dias.length - 1; i >= 0 && !(dias[i][1][campo] > 0); i--) n++;
+    return n > 1 ? n : 0;   // 1 dia zerado e rotina; 2+ e o Google atrasando
+  };
+  const atraso = Math.max(defasagem('ligacoes'), defasagem('cliques_site'));
+  const parcial = atraso ? dias[dias.length - atraso][0] : '';
+
   const tile = (rot_, valor, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot_}</div>
     <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${valor}</div>
     ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
@@ -3949,7 +3964,11 @@ async function carregarPerfilGoogle(){
          para buscar o período mais recente.`
       : `Canal <b>orgânico</b> — não gasta mídia e não vende no site: converte em telefone
          tocando e gente na porta.${imp ? ` <b>${(100 * acao / imp).toFixed(0)}%</b> de quem viu
-         o perfil fez alguma ação.` : ''}`}
+         o perfil fez alguma ação.` : ''}${atraso ? `<br><b style="color:var(--warn)">Ligações e
+         cliques no site ainda estão fechando</b> — o Google consolida essas duas com alguns dias
+         de atraso, e daqui não vem nada desde ${parcial.slice(8, 10)}/${parcial.slice(5, 7)}.
+         Impressões e rotas já estão completas. Não leia como queda: esses ${atraso} dias sobem
+         sozinhos.` : ''}`}
       Atualizado ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>
   </div>`;
 }
