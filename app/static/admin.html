@@ -3544,6 +3544,21 @@ function renderMarketing(d){
         <span class="dp-var neutro">${mt.alcance_deduplicado
           ? 'pessoas diferentes' : 'soma dos anúncios — repete quem viu mais de um'}</span></div>
     </div>
+    ${(rat?.plataformas || []).length ? `<div class="dp-lista" style="margin-bottom:14px;">
+      <div class="mb-recentes-titulo" style="margin-top:0;">Facebook × Instagram</div>
+      ${rat.plataformas.map(p => `<div class="dp-linha">
+        <span class="nome">${p.nome}</span>
+        <span class="v"><b>${fmtMoeda(p.spend)}</b> (${p.fatia}%) · ${p.conversas.toLocaleString('pt-BR')}
+          conversas · ${p.custo_por_conversa === null ? '—' : fmtMoeda(p.custo_por_conversa)}/conversa</span>
+        <span class="t"><span class="f" style="width:${p.fatia}%${
+          p.nome === 'Instagram' ? ';background:#C13584' : ';background:#1877F2'}"></span></span>
+      </div>`).join('')}
+      <div class="dp-aviso" style="margin-top:8px;">Mesmo anúncio, mesma verba — o Meta decide
+        sozinho onde entregar. Este recorte mostra <b>onde o dinheiro caiu de fato</b> e o que
+        cada lado devolveu em conversa. Alcance não aparece aqui de propósito: é a única
+        métrica que não pode ser somada entre as duas, porque quem vê nos dois seria contado
+        duas vezes.</div>
+    </div>` : ''}
     <div class="tabela-rolante"><table>
       <thead><tr><th>Anúncio</th><th>Investido</th><th>Conversas</th><th>Custo/conversa</th><th>Impressões</th></tr></thead>
       <tbody>${mt.anuncios.map(a => `<tr>

@@ -3558,6 +3558,32 @@ def api_marketing_gestor():
                 "integral": True,
                 "por_dia": True,
             }
+            # Facebook x Instagram. A quebra vem dentro de cada dia, entao ela
+            # acompanha o filtro de periodo em vez de depender de um total ja
+            # fechado. Alcance fica de fora de proposito: e a unica metrica que
+            # nao pode ser somada entre as duas, porque a mesma pessoa aparece
+            # nas duas e o total viraria gente que nao existe.
+            plataformas = {}
+            for v_dia in dentro.values():
+                for nome, p in (v_dia.get("plataforma") or {}).items():
+                    if nome == "—":       # "unknown" do Meta, sempre zerado
+                        continue
+                    acc = plataformas.setdefault(nome, {"spend": 0.0, "clicks": 0,
+                                                        "impressions": 0, "conversas": 0})
+                    acc["spend"] = round(acc["spend"] + p.get("spend", 0), 2)
+                    acc["clicks"] += p.get("clicks", 0)
+                    acc["impressions"] += p.get("impressions", 0)
+                    acc["conversas"] += p.get("conversas", 0)
+            if plataformas:
+                for nome, p in plataformas.items():
+                    p["nome"] = {"facebook": "Facebook",
+                                 "instagram": "Instagram"}.get(nome, nome.title())
+                    p["custo_por_conversa"] = (round(p["spend"] / p["conversas"], 2)
+                                               if p["conversas"] else None)
+                    p["fatia"] = (round(100 * p["spend"] / gasto_meta, 1)
+                                  if gasto_meta else 0)
+                meta_rateio["plataformas"] = sorted(
+                    plataformas.values(), key=lambda p: -p["spend"])
             investimento = round(investimento + gasto_meta, 2)
             impressoes += meta_rateio["impressions"]
     elif meta and meta.get("de") and meta.get("ate"):
