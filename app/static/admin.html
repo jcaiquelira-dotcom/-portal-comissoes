@@ -211,6 +211,10 @@
   .canal-grid .canal-nome{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .canal-grid .barra{height:6px;border-radius:20px;background:var(--surface-2);overflow:hidden;}
   .canal-grid .barra span{display:block;height:100%;border-radius:20px;background:var(--accent);}
+  /* Dica abaixo de um campo do formulario. Existe porque "Desligado em" e um
+     campo cujo efeito nao e obvio pelo rotulo — e a diferenca entre desligar e
+     excluir precisa estar escrita ali, nao so na cabeca de quem programou. */
+  .campo-dica{display:block;margin-top:4px;font-size:11.5px;color:var(--muted);line-height:1.45;}
 
   /* Funil do site ate a venda. As barras sao proporcionais entre si, pra
      comparacao visual — os numeros exatos ficam ao lado, porque barra e boa
@@ -881,6 +885,13 @@
           <div class="campo">
             <label class="campo-rotulo" for="vFotoInput">Foto</label>
             <input type="file" id="vFotoInput" accept="image/*">
+          </div>
+          <div class="campo">
+            <label class="campo-rotulo" for="vDesligadoInput">Desligado em (deixe vazio se está ativo)</label>
+            <input type="date" id="vDesligadoInput">
+            <span class="campo-dica">A pessoa continua em todo relatório dos dias em que
+              trabalhou. A partir desta data ela sai das telas de lançamento e do ranking.
+              Nada é apagado — desligar não é excluir.</span>
           </div>
           <div class="campo">
             <label class="campo-rotulo" for="vAvatarInput">Avatar (usado quando não há foto)</label>
@@ -2085,6 +2096,7 @@ async function carregarVendedores(){
         document.getElementById('vCodigoRecuperacaoInput').value = '';
         document.getElementById('vPercentualInput').value = v.percentual;
         document.getElementById('vAvatarInput').value = v.avatar || '';
+        document.getElementById('vDesligadoInput').value = v.desligado_em || '';
         document.getElementById('vFotoInput').value = '';
         renderOverridesEditor(v.overrides);
         window.scrollTo({top:0, behavior:'smooth'});
@@ -2138,6 +2150,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
   const codigo_recuperacao = document.getElementById('vCodigoRecuperacaoInput').value.trim();
   const percentual = document.getElementById('vPercentualInput').value;
   const avatar = document.getElementById('vAvatarInput').value;
+  const desligado_em = document.getElementById('vDesligadoInput').value;
   const overrides = Array.from(document.querySelectorAll('.override-pct'))
     .map(inp => ({vendedor_id: inp.dataset.vid, percentual: parseFloat(inp.value || '0')}))
     .filter(o => o.percentual > 0);
@@ -2146,7 +2159,8 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
     const res = await fetch('/api/admin/vendedores', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({id, nome, senha, codigo_recuperacao, percentual, overrides, avatar})
+      body: JSON.stringify({id, nome, senha, codigo_recuperacao, percentual,
+                            overrides, avatar, desligado_em})
     });
     const dados = await res.json();
     if(!res.ok){
@@ -2179,6 +2193,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
     document.getElementById('vCodigoRecuperacaoInput').value = '';
     document.getElementById('vPercentualInput').value = '';
     document.getElementById('vAvatarInput').value = '';
+    document.getElementById('vDesligadoInput').value = '';
     document.getElementById('vFotoInput').value = '';
     carregarVendedores();
     carregarResumo();

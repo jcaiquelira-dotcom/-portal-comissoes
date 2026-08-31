@@ -849,6 +849,19 @@ def api_minha_comissao():
     return jsonify(calcular_comissao(vendedor_id, de, ate, vendedores, vendas))
 
 
+def desligado(info: dict, quando: str = None) -> bool:
+    """Se a pessoa ja estava desligada na data dada (padrao: hoje).
+
+    A comparacao e por data, nao booleana: quem saiu em 31/08 continua
+    aparecendo em qualquer relatorio de agosto — o trabalho dela existiu — e so
+    some das telas de lancamento de 31/08 em diante.
+    """
+    d = (info or {}).get("desligado_em")
+    if not d:
+        return False
+    return (quando or hoje_br().isoformat()) >= d
+
+
 def perfil_de(vendedor_id: str) -> str:
     """"vendedor" (padrao) ou "expedicao".
 
@@ -1510,6 +1523,8 @@ def api_painel_ranking():
         # sempre, cartao vazio de conta de teste nunca.
         if info.get("oculto") and not (hoje_v or semana_v or mes_v):
             continue
+        if desligado(info) and not (hoje_v or semana_v or mes_v):
+            continue
         grupo_hoje += hoje_v
         grupo_semana += semana_v
         grupo_mes += mes_v
@@ -1705,6 +1720,11 @@ def api_admin_resumo():
         # venda no periodo. Se um dia tiver, aparece: dinheiro nunca some da tela.
         if (info.get("oculto") and not por_vendedor.get(vid)
                 and not info.get("overrides") and vid != filtro_vendedor):
+            continue
+        # Desligado sem venda no periodo tambem sai — mas se teve venda, fica:
+        # dinheiro nunca some de tela, e o mes em que ele trabalhou e dele.
+        if (desligado(info) and not por_vendedor.get(vid)
+                and vid != filtro_vendedor):
             continue
         # Quem e da expedicao nao vende: fora das listas de venda e comissao,
         # a nao ser que tenha lancamento (dinheiro nunca some de tela).
@@ -4169,6 +4189,7 @@ def api_admin_listar_vendedores():
             "foto": v.get("foto"),
             "avatar": v.get("avatar", ""),
             "oculto": bool(v.get("oculto")),
+            "desligado_em": v.get("desligado_em") or "",
             "perfil": v.get("perfil") or "vendedor",
             "liberacao_retroativa": retroativo_ativo(v),
             "liberacao_retroativa_ate": v.get("liberacao_retroativa_ate") if retroativo_ativo(v) else None,
@@ -4248,6 +4269,22 @@ def api_admin_salvar_vendedor():
     for flag in ("oculto", "liberacao_retroativa_ate"):
         if existente.get(flag):
             vendedores[vendedor_id][flag] = existente[flag]
+
+    # Desligamento tem DATA, nao e um liga-desliga. "Tudo ate ontem e do
+    # Gustavo, de hoje em diante e do Lucas" so se resolve com a data: ela
+    # deixa o historico intacto, tira a pessoa das telas de lancamento a
+    # partir dali, e ainda diz na tela DESDE QUANDO — um `oculto` booleano
+    # faria a pessoa evaporar sem explicar nada.
+    if "desligado_em" in body:
+        d = (body.get("desligado_em") or "").strip()
+        if d:
+            try:
+                date.fromisoformat(d)
+            except ValueError:
+                return jsonify({"erro": "Data de desligamento invalida."}), 400
+            vendedores[vendedor_id]["desligado_em"] = d
+    elif existente.get("desligado_em"):
+        vendedores[vendedor_id]["desligado_em"] = existente["desligado_em"]
     perfil = (body.get("perfil") or "").strip().lower()
     if perfil in ("vendedor", "expedicao"):
         vendedores[vendedor_id]["perfil"] = perfil
