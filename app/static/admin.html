@@ -192,6 +192,31 @@
   .dp-recolhivel[open] > summary::before{transform:rotate(90deg);}
   .dp-recolhivel > summary:hover{color:var(--text);}
   .dp-recolhivel .dp-lista{margin-top:8px;}
+
+  /* Canais em colunas alinhadas. Como frase corrida ("1703 conversas · 70 com
+     sinal (4%) · R$ 23.324,84 prováveis") nao dava pra comparar canal com
+     canal: o olho tem que reencontrar o numero em cada linha. Em coluna, a
+     comparacao e vertical e sai de graca. */
+  .canal-grid{
+    display:grid;
+    grid-template-columns:minmax(118px,1.2fr) minmax(80px,2fr) 66px 110px 124px 84px;
+    gap:7px 16px;align-items:center;font-size:12.5px;
+  }
+  .canal-grid .cab{
+    font-size:10px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);font-weight:700;padding-bottom:2px;
+    border-bottom:1px solid var(--line);
+  }
+  .canal-grid .n{font-family:'IBM Plex Mono',monospace;text-align:right;white-space:nowrap;}
+  .canal-grid .canal-nome{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .canal-grid .barra{height:6px;border-radius:20px;background:var(--surface-2);overflow:hidden;}
+  .canal-grid .barra span{display:block;height:100%;border-radius:20px;background:var(--accent);}
+  /* Estreito demais pra seis colunas: a barra e o que menos informa (o numero
+     ao lado ja diz o mesmo), entao e ela que sai. */
+  @media (max-width:820px){
+    .canal-grid{grid-template-columns:minmax(100px,1.2fr) 60px 96px 112px 74px;}
+    .canal-grid .barra,.canal-grid .cab-barra{display:none;}
+  }
   @media (max-width: 900px){ .shopee-corpo{grid-template-columns:1fr;} }
 
   /* ---- Conta Mercado Livre ---- */
@@ -3642,44 +3667,61 @@ function renderMarketing(d){
   // quando a verdade e que ninguem olhou. Por isso vira "—".
   const naoLido = c => c.canal === 'Sem origem';
   const semOrigem = d.por_canal.find(naoLido);
-  const cardCanais = `<div class="card">
+  const cardCanais = `<div class="card" style="margin-bottom:14px;">
     <p class="card-titulo">De onde vieram os leads</p>
-    <div class="dp-lista">${d.por_canal.map(c => `
-      <div class="dp-linha">
-        <span class="nome">${c.canal}${naoLido(c) ? ' <span style="color:var(--warn)">(não lido)</span>' : ''}</span>
-        <span class="v">${c.leads} conversa${c.leads === 1 ? '' : 's'} · ${naoLido(c)
-          ? '<span style="color:var(--warn)">sinal não apurado</span>'
-          : `<b>${c.sinal}</b> com sinal (${c.leads ? (100 * c.sinal / c.leads).toFixed(0) : 0}%)`
-            + (c.receita_provavel ? ` · <b style="color:var(--good)">${fmtMoeda(c.receita_provavel)}</b> prováveis` : '')
-            + (c.var ? ` ${varBadge(c.var.leads)}` : '')}</span>
-        <span class="t"><span class="f"${naoLido(c) ? ' style="width:' + (c.leads / maxCanal * 100).toFixed(1) + '%;background:var(--muted);opacity:.45"' : ' style="width:' + (c.leads / maxCanal * 100).toFixed(1) + '%"'}></span></span>
-      </div>`).join('')}</div>
-    <div class="dp-aviso"><b>Sinal de compra</b> é a conversa em que o cliente
-      demonstrou intenção de comprar — perguntou preço, pediu foto da peça, mandou
-      a placa, falou de frete ou pagamento. Não é venda: o fechamento acontece
-      fora do chat, e a venda o portal conta separado, na tabela abaixo. Serve
-      para separar quem só perguntou o horário de quem estava comprando de verdade.
-      ${d.total.receita_provavel ? `<br><b>A receita provável</b> é uma <b>estimativa</b>, não
-      o faturamento: a venda é lançada no portal e a conversa fica no Totalk, e nada liga uma
-      à outra — então não dá pra saber de que canal veio cada real. O cálculo é
-      <b>${(d.total.provavel || 0).toLocaleString('pt-BR')} conversas que chegaram a acertar
-      pagamento e entrega × ${fmtMoeda(d.ticket_estimativa?.valor || 0)}</b>${
-        d.ticket_estimativa?.de_vendas_reais
-          ? `, o ticket médio real das ${d.ticket_estimativa.base_qtd.toLocaleString('pt-BR')}
-             vendas lançadas neste período`
-          : ' (ticket padrão — não houve venda lançada no período pra calcular a média)'}.
-      Tende a ficar <b>abaixo</b> do real: parte das vendas fecha sem deixar rastro de
-      pagamento e entrega no chat. Serve pra comparar canais entre si, não pra fechar caixa.` : ''}
-      ${ant ? `<br><b>As setas comparam com ${ant.de.slice(8,10)}/${ant.de.slice(5,7)} a
-      ${ant.ate.slice(8,10)}/${ant.ate.slice(5,7)}</b> — os ${ant.dias} dias imediatamente
-      anteriores, a mesma medida da janela que você está vendo. Não é o mês anterior inteiro
-      de propósito: comparar um mês ainda aberto contra um mês fechado mostraria uma queda
-      que é só calendário.` : ''}
-      ${semOrigem ? `<br><b style="color:var(--warn)">"Sem origem" são ${semOrigem.leads.toLocaleString('pt-BR')}
-      conversas que a IA ainda não leu</b> — por isso não têm canal nem sinal. Não
-      é que ninguém demonstrou interesse nelas: é que ninguém olhou ainda. Elas
-      contam no total de leads, então a conversão geral sai <b>subestimada</b>
-      enquanto essa fila não for lida.` : ''}</div>
+    <div class="canal-grid">
+      <span class="cab">Canal</span>
+      <span class="cab cab-barra"></span>
+      <span class="cab n">Leads</span>
+      <span class="cab n">Com sinal</span>
+      <span class="cab n">Receita provável</span>
+      <span class="cab n">vs. anterior</span>
+      ${d.por_canal.map(c => {
+        const pct = (c.leads / maxCanal * 100).toFixed(1);
+        const naoLeu = naoLido(c);
+        return `
+      <span class="canal-nome">${c.canal}${naoLeu
+        ? ' <span style="color:var(--warn);font-weight:400">(não lido)</span>' : ''}</span>
+      <span class="barra"><span style="width:${pct}%${
+        naoLeu ? ';background:var(--muted);opacity:.45' : ''}"></span></span>
+      <span class="n">${c.leads.toLocaleString('pt-BR')}</span>
+      <span class="n">${naoLeu ? '<span style="color:var(--warn)">—</span>'
+        : `${c.sinal} <span style="color:var(--muted)">(${
+            c.leads ? (100 * c.sinal / c.leads).toFixed(0) : 0}%)</span>`}</span>
+      <span class="n">${c.receita_provavel
+        ? `<b style="color:var(--good)">${fmtMoeda(c.receita_provavel)}</b>` : '—'}</span>
+      <span class="n">${c.var ? varBadge(c.var.leads) : '—'}</span>`;
+      }).join('')}
+    </div>
+    ${semOrigem ? `<div class="dp-aviso" style="margin-top:10px;">
+      <b style="color:var(--warn)">"Sem origem" são ${semOrigem.leads.toLocaleString('pt-BR')}
+      conversas que a IA ainda não leu</b> — por isso não têm canal nem sinal. Não é que
+      ninguém demonstrou interesse: é que ninguém olhou ainda. Elas contam no total de leads,
+      então a conversão geral sai <b>subestimada</b> enquanto essa fila não for lida.</div>` : ''}
+    <details class="dp-recolhivel">
+      <summary>O que significam estas colunas</summary>
+      <div class="dp-aviso" style="margin-top:6px;"><b>Sinal de compra</b> é a conversa em que o
+        cliente demonstrou intenção de comprar — perguntou preço, pediu foto da peça, mandou a
+        placa, falou de frete ou pagamento. Não é venda: o fechamento acontece fora do chat, e a
+        venda o portal conta separado. Serve para separar quem só perguntou o horário de quem
+        estava comprando de verdade.
+        ${d.total.receita_provavel ? `<br><br><b>Receita provável</b> é uma <b>estimativa</b>, não
+        o faturamento: a venda é lançada no portal e a conversa fica no Totalk, e nada liga uma à
+        outra — então não dá pra saber de que canal veio cada real. O cálculo é
+        <b>${(d.total.provavel || 0).toLocaleString('pt-BR')} conversas que chegaram a acertar
+        pagamento e entrega × ${fmtMoeda(d.ticket_estimativa?.valor || 0)}</b>${
+          d.ticket_estimativa?.de_vendas_reais
+            ? `, o ticket médio real das ${d.ticket_estimativa.base_qtd.toLocaleString('pt-BR')}
+               vendas lançadas neste período`
+            : ' (ticket padrão — não houve venda lançada no período pra calcular a média)'}.
+        Tende a ficar <b>abaixo</b> do real: parte das vendas fecha sem deixar rastro de
+        pagamento e entrega no chat. Serve pra comparar canais entre si, não pra fechar caixa.` : ''}
+        ${ant ? `<br><br><b>vs. anterior</b> compara com ${ant.de.slice(8,10)}/${ant.de.slice(5,7)} a
+        ${ant.ate.slice(8,10)}/${ant.ate.slice(5,7)}</b> — os ${ant.dias} dias imediatamente
+        anteriores, a mesma medida da janela que você está vendo. Não é o mês anterior inteiro de
+        propósito: comparar um mês ainda aberto contra um mês fechado mostraria uma queda que é
+        só calendário.` : ''}</div>
+    </details>
   </div>`;
 
   const cardVendedores = `<div class="card">
@@ -3832,11 +3874,18 @@ function renderMarketing(d){
     ${avisoCobertura}
     <div class="dp-kpis">${kpis}</div>
     ${cardInvestimento}
-    <div class="card" style="margin-bottom:14px;">
-      <p class="card-titulo">Leads dia a dia</p>
-      ${mktGraficoDia(d.por_dia, m.por_dia)}
+    <!-- "De onde vieram os leads" ocupa a largura toda e vem primeiro: e a
+         pergunta que decide orcamento. O grafico dia a dia desce e divide a
+         linha com a tabela por vendedor — ele mostra ritmo, nao decisao, e
+         meia largura basta pra ver a forma da curva. -->
+    ${cardCanais}
+    <div class="dp-grid duas">
+      <div class="card">
+        <p class="card-titulo">Leads dia a dia</p>
+        ${mktGraficoDia(d.por_dia, m.por_dia)}
+      </div>
+      ${cardVendedores}
     </div>
-    <div class="dp-grid duas">${cardCanais}${cardVendedores}</div>
     ${cardMeta}${cardCampanhas}
     <div class="card" style="margin-top:14px;">
       <p class="card-titulo">Como ler estes números</p>
