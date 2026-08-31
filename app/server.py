@@ -3566,7 +3566,11 @@ def api_marketing_gestor():
             plataformas = {}
             for v_dia in dentro.values():
                 for nome, p in (v_dia.get("plataforma") or {}).items():
-                    if nome == "—":       # "unknown" do Meta, sempre zerado
+                    # O Meta devolve um balde "unknown" que vem sempre zerado.
+                    # Filtrar pelo nome nao basta — o que importa e nao ter
+                    # movimento nenhum, entao a checagem e por valor.
+                    if not (p.get("spend") or p.get("conversas")
+                            or p.get("clicks")):
                         continue
                     acc = plataformas.setdefault(nome, {"spend": 0.0, "clicks": 0,
                                                         "impressions": 0, "conversas": 0})
