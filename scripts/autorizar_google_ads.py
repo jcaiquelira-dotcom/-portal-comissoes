@@ -31,7 +31,17 @@ import webbrowser
 from pathlib import Path
 
 DESTINO = Path(r"G:\Meu Drive\portal-comissoes\segredos\google_ads.json")
-ESCOPO = "https://www.googleapis.com/auth/adwords"
+# Dois escopos numa autorizacao so. Sao APIs diferentes mas o mesmo cliente
+# OAuth, entao pedir junto evita fazer o gestor autorizar duas vezes.
+#
+# E tem uma vantagem pratica: o Analytics NAO depende do developer token, que
+# esta na fila do Google. Autorizando agora, o Analytics ja funciona hoje e o
+# Google Ads passa a funcionar sozinho no dia da aprovacao, sem ninguem
+# precisar rodar nada de novo.
+ESCOPO = " ".join([
+    "https://www.googleapis.com/auth/adwords",
+    "https://www.googleapis.com/auth/analytics.readonly",
+])
 _recebido = {}
 
 
@@ -100,6 +110,8 @@ def main():
                                  atual.get("customer_id", "")).replace("-", ""),
         "login_customer_id": perguntar("login_customer_id (a MCC, Enter se nao tiver)",
                                        atual.get("login_customer_id", "")).replace("-", ""),
+        "ga4_property_id": perguntar("ga4_property_id (propriedade do Analytics)",
+                                     atual.get("ga4_property_id", "")),
     }
     if not (cred["client_id"] and cred["client_secret"]):
         sys.exit("client_id e client_secret sao obrigatorios.")
@@ -159,8 +171,9 @@ def main():
     DESTINO.parent.mkdir(parents=True, exist_ok=True)
     DESTINO.write_text(json.dumps(cred, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\nrefresh_token gravado em {DESTINO}")
-    print("Esse arquivo fica fora do git. Agora confira a conexao:")
-    print("    python app/google_ads_api.py --testar")
+    print("Esse arquivo fica fora do git. Agora confira as duas conexoes:")
+    print("    python app/analytics_api.py --testar   (funciona ja)")
+    print("    python app/google_ads_api.py --testar  (so depois da aprovacao)")
 
 
 if __name__ == "__main__":
