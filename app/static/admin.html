@@ -1646,19 +1646,27 @@ montarPresetsPeriodo('presetMkt', 'mktDe', 'mktAte');
 montarPresetsPeriodo('presetCarros', 'carrosDe', 'carrosAte');
 montarPresetsPeriodo('presetAud', 'audDe', 'audAte');
 
-// Sombra so quando o filtro descola do topo. IntersectionObserver em vez de
-// escutar scroll: o navegador avisa na transicao, sem rodar codigo a cada
-// pixel rolado. O truque do topo -1px e o unico jeito de detectar que um
-// sticky grudou — ele nunca "sai" da tela pra reclamar sozinho.
-document.querySelectorAll('.filtros').forEach(el => {
-  const sentinela = document.createElement('div');
-  sentinela.style.cssText = 'position:absolute;top:-1px;height:1px;width:1px;';
-  el.parentNode.insertBefore(sentinela, el);
-  new IntersectionObserver(
-    ([e]) => el.classList.toggle('grudado', !e.isIntersecting),
-    {threshold: 0}
-  ).observe(sentinela);
-});
+// Sombra so quando o filtro descola do topo.
+//
+// Tentei primeiro com IntersectionObserver numa sentinela de 1px acima do
+// elemento — mais elegante no papel, mas quebrou aqui: as secoes nascem com
+// `display:none` e um elemento sem caixa nunca intersecta, entao o observer
+// travava no estado errado e a sombra nao aparecia. Ler a posicao no scroll e
+// bobo e funciona em qualquer estado da tela. O rAF garante no maximo uma
+// leitura por quadro, entao rolar rapido nao vira trabalho repetido.
+let filtrosAgendado = false;
+function marcarFiltrosGrudados(){
+  filtrosAgendado = false;
+  document.querySelectorAll('.filtros').forEach(el => {
+    if(!el.offsetParent) return;              // secao escondida: nao mexe
+    el.classList.toggle('grudado', el.getBoundingClientRect().top <= 0.5);
+  });
+}
+addEventListener('scroll', () => {
+  if(filtrosAgendado) return;
+  filtrosAgendado = true;
+  requestAnimationFrame(marcarFiltrosGrudados);
+}, {passive: true});
 
 document.getElementById('deInput').addEventListener('change', () => { marcarPreset(null); carregarResumo(); });
 document.getElementById('ateInput').addEventListener('change', () => { marcarPreset(null); carregarResumo(); });
