@@ -3549,6 +3549,29 @@ async function carregarAnalytics(){
 
   const t = d.total;
   const n = (v) => (v||0).toLocaleString('pt-BR');
+
+  // A medicao do site quebrou em 14/03/2026: de la pra ca so chegam tres
+  // eventos (session_start, first_visit, generate_lead). Sem page_view, o GA4
+  // nao sabe quantas paginas alguem viu nem se ele se engajou — entao
+  // "0 paginas" e "92% de rejeicao" nao sao comportamento do visitante, sao
+  // ausencia de medicao. Mostrar esses numeros sem dizer isso seria mentir.
+  const medicaoQuebrada = t.paginas_vistas === 0 && t.sessoes > 0;
+  const avisoQuebra = medicaoQuebrada ? `<div class="card" style="margin-bottom:14px;
+    border-left:4px solid var(--bad);">
+    <p class="card-titulo" style="margin:0 0 6px;">A medição do site está quebrada</p>
+    <div class="dp-aviso" style="margin:0;">Neste período o site registrou
+      <b>${n(t.sessoes)} sessões</b> mas <b>nenhuma página vista</b> — o que é
+      impossível. O evento <code>page_view</code> parou de disparar em
+      <b>14/03/2026</b>, junto com todo o rastreio de loja
+      (<code>view_item</code>, <code>add_to_cart</code>, <code>begin_checkout</code>,
+      <code>purchase</code>). De lá pra cá só chegam três eventos.
+      <br><br>Por isso, nesta tela: <b>páginas vistas, tempo médio e taxa de
+      rejeição não valem nada</b> depois de março. Sessões, pessoas e origem do
+      tráfego continuam corretas — essas o GA4 mede pelo próprio
+      <code>session_start</code>.
+      <br><br>É de conserto no Google Tag Manager, não aqui. Enquanto não voltar,
+      você está pagando mídia sem saber o que a pessoa faz depois do clique.</div>
+  </div>` : '';
   const kpi = (rot, num, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
     <div class="num valor-money">${num}</div>
     ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
@@ -3660,14 +3683,23 @@ async function carregarAnalytics(){
       É o caso do <code>generate_lead</code>: para contar lead, a fonte é o Totalk.</div>
   </div>`;
 
+  // Metrica sem medicao vira travessao. "0" e uma afirmacao sobre o
+  // visitante; travessao e uma afirmacao sobre o dado, que e a verdadeira.
+  const semMedir = (valor, sub) => medicaoQuebrada
+    ? ['—', '<span style="color:var(--warn)">sem medição</span>'] : [valor, sub];
+  const [vPag, sPag] = semMedir(n(t.paginas_vistas), `${t.paginas_por_sessao} por sessão`);
+  const [vTmp, sTmp] = semMedir(Math.round(t.duracao_media) + 's', 'por sessão');
+  const [vRej, sRej] = semMedir(t.rejeicao + '%', 'saiu sem interagir');
+
   document.getElementById('gaCorpo').innerHTML = `
+    ${avisoQuebra}
     ${funil}
     <div class="dp-kpis">
       ${kpi('Sessões', n(t.sessoes), `${d.dias} dias`)}
       ${kpi('Pessoas', n(t.usuarios), `${n(t.novos)} vieram pela 1ª vez`)}
-      ${kpi('Páginas vistas', n(t.paginas_vistas), `${t.paginas_por_sessao} por sessão`)}
-      ${kpi('Tempo médio', Math.round(t.duracao_media) + 's', 'por sessão')}
-      ${kpi('Taxa de rejeição', t.rejeicao + '%', 'saiu sem interagir')}
+      ${kpi('Páginas vistas', vPag, sPag)}
+      ${kpi('Tempo médio', vTmp, sTmp)}
+      ${kpi('Taxa de rejeição', vRej, sRej)}
     </div>
     ${cardCanais}
     <div class="card" style="margin-bottom:14px;">
@@ -3705,6 +3737,45 @@ function gaGraficoDia(serie){
 document.addEventListener('change', ev => {
   if(['gaDe','gaAte'].includes(ev.target.id)) carregarAnalytics();
 });
+
+/* ---------- Guardar o lugar da rolagem ao trocar o filtro ----------
+   Trocar o periodo reescreve o corpo inteiro da secao. Enquanto o conteudo
+   novo nao chega, a pagina encolhe e o navegador joga tudo pro topo — quem
+   estava olhando uma tabela no meio perdia o lugar e tinha que rolar de novo.
+
+   Nao da pra so mandar scrollTo na hora: a altura ainda nao existe. Por isso
+   insiste por ate 3 segundos, ate a pagina crescer o bastante pra caber a
+   posicao antiga. Se a pessoa rolar no meio disso, desiste na hora — a mao
+   dela ganha da nossa. */
+(() => {
+  let alvo = null, timer = null;
+  const desistir = () => { alvo = null; clearInterval(timer); timer = null; };
+
+  addEventListener('change', ev => {
+    const dentroDoFiltro = ev.target.closest && ev.target.closest('.filtros');
+    if(!dentroDoFiltro || !window.scrollY) return;
+    alvo = window.scrollY;
+    clearInterval(timer);
+    let voltas = 0;
+    timer = setInterval(() => {
+      if(alvo === null) return;
+      const cabe = document.documentElement.scrollHeight >= alvo + innerHeight;
+      if(cabe && Math.abs(window.scrollY - alvo) > 2) scrollTo(0, alvo);
+      if(++voltas > 38) desistir();          // ~3s e desiste
+    }, 80);
+  }, true);
+
+  // Qualquer rolagem manual cancela: nunca brigar com quem esta usando.
+  ['wheel', 'touchstart', 'keydown'].forEach(e =>
+    addEventListener(e, () => { if(alvo !== null) desistir(); }, {passive: true}));
+
+  // Clicar num atalho de periodo tambem conta como troca de filtro.
+  addEventListener('click', ev => {
+    if(ev.target.classList && ev.target.classList.contains('preset-btn') && window.scrollY){
+      alvo = window.scrollY;
+    }
+  }, true);
+})();
 
 async function carregarMarketing(){
   const de = document.getElementById('mktDe').value;
