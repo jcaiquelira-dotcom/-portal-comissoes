@@ -3600,18 +3600,20 @@ def api_marketing_gestor():
             investimento = round(investimento + ml_rateio["spend"], 2)
             impressoes += ml_rateio["impressions"]
 
-    # A agencia que gerencia as campanhas custa fixo por mes. Entra no
-    # investimento rateada por dia — cada dia do periodo carrega 1/n do mes a
-    # que pertence — porque gestao e custo de midia tanto quanto o clique.
-    # Valor unico e declarado aqui: mudou o contrato, muda esta linha.
+    # A agencia que gerencia as campanhas custa fixo por mes e entra no
+    # investimento, porque gestao e custo de midia tanto quanto o clique.
+    # NAO rateia por dia: a nota vem cheia todo mes, independente de quantos
+    # dias voce esta olhando. Rateando, um filtro de 01 a 30/08 mostrava
+    # R$ 1.838,71 — um valor que nunca foi pago e nao existe em lugar nenhum.
+    # Aqui o periodo conta os meses que ele toca, cada um pelo valor cheio.
+    # Valor unico declarado aqui: mudou o contrato, muda esta linha.
     AGENCIA_MENSAL = 1900.0
-    agencia = 0.0
     d_ini, d_fim = date.fromisoformat(de), date.fromisoformat(ate)
-    dia = d_ini
-    while dia <= d_fim:
-        agencia += AGENCIA_MENSAL / calendar.monthrange(dia.year, dia.month)[1]
-        dia += timedelta(days=1)
-    agencia = round(agencia, 2)
+    meses_agencia = sorted({d_ini.strftime("%Y-%m"), d_fim.strftime("%Y-%m")}
+                           | {(d_ini.replace(day=1) + timedelta(days=32 * k)).strftime("%Y-%m")
+                              for k in range(1, 60)
+                              if (d_ini.replace(day=1) + timedelta(days=32 * k)) <= d_fim})
+    agencia = round(AGENCIA_MENSAL * len(meses_agencia), 2)
     investimento = round(investimento + agencia, 2)
 
     vendas = _vendas_no_periodo(vendedores, ef_de, ef_ate,
@@ -3676,7 +3678,8 @@ def api_marketing_gestor():
             # fica congelada — a tela precisa dizer isso.
             "atualizado_em": gasto_bruto.get("atualizado_em") or {},
             "fontes_ausentes": gasto_bruto.get("fontes_ausentes") or [],
-            "agencia": {"mensal": AGENCIA_MENSAL, "no_periodo": agencia},
+            "agencia": {"mensal": AGENCIA_MENSAL, "no_periodo": agencia,
+                        "meses": len(meses_agencia)},
         },
     })
 

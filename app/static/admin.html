@@ -166,6 +166,17 @@
   .carros-busca:focus{outline:none;border-color:var(--accent);}
   .shopee-corpo{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,340px);gap:8px 26px;align-items:start;}
   .shopee-meses .dp-linha .nome{width:52px;}
+  /* Lista longa que quase sempre so confirma o obvio: fica fechada e nao
+     rouba a altura do card. Quem quiser o detalhe abre. */
+  .dp-recolhivel{border-top:1px solid var(--linha);margin-top:10px;}
+  .dp-recolhivel > summary{cursor:pointer;list-style:none;padding:9px 2px 2px;
+    font-size:.78rem;font-weight:600;color:var(--txt-fraco);
+    display:flex;align-items:center;gap:6px;user-select:none;}
+  .dp-recolhivel > summary::-webkit-details-marker{display:none;}
+  .dp-recolhivel > summary::before{content:'▸';font-size:.7rem;transition:transform .15s;}
+  .dp-recolhivel[open] > summary::before{transform:rotate(90deg);}
+  .dp-recolhivel > summary:hover{color:var(--txt);}
+  .dp-recolhivel .dp-lista{margin-top:8px;}
   @media (max-width: 900px){ .shopee-corpo{grid-template-columns:1fr;} }
 
   /* ---- Conta Mercado Livre ---- */
@@ -3438,7 +3449,8 @@ function renderMarketing(d){
   const ag = m.agencia;
   const invAgencia = ag ? `<div class="dp-kpi"><div class="rot">Agência de marketing</div>
     <div class="num valor-money">${fmtMoeda(ag.no_periodo)}</div>
-    <span class="dp-var neutro">gestão · ${fmtMoeda(ag.mensal)}/mês rateado</span></div>` : '';
+    <span class="dp-var neutro">gestão · ${fmtMoeda(ag.mensal)}/mês${
+      ag.meses > 1 ? ` × ${ag.meses} meses` : ''}</span></div>` : '';
   const fontes = ['Google', rat && 'Meta', mlr && 'ML', ag && 'agência']
     .filter(Boolean).join(' + ');
   const invTotal = `<div class="dp-kpi"><div class="rot">Investimento total</div>
@@ -3942,21 +3954,11 @@ async function carregarPerfilGoogle(){
       <button class="btn btn-neutro btn-pequeno" id="perfilAtualizar">Atualizar</button>
       <span class="status-msg" id="perfilStatus"></span>
     </div>
-    <div class="shopee-corpo">
-      <div class="dp-kpis" style="margin-bottom:0;">
-        ${tile('Ligações', n(lig), 'clicaram em ligar', lig ? 'var(--good)' : '')}
-        ${tile('Pediram rota', n(rot), 'foram até a loja')}
-        ${tile('Cliques no site', n(site), 'do perfil para o site')}
-        ${tile('Apareceu para', n(imp), 'pessoas no Maps e na Busca')}
-      </div>
-      <div class="dp-lista shopee-meses">
-        <div class="mb-recentes-titulo" style="margin-top:0;">O que digitaram pra achar vocês</div>
-        ${(d.termos || []).slice(0, 8).map(t => `<div class="dp-linha">
-          <span class="nome" style="width:auto;flex:1;">${t.termo.slice(0, 34)}</span>
-          <span class="v">${n(t.buscas)}</span>
-          <span class="t"><span class="f" style="width:${(t.buscas / maxT * 100).toFixed(1)}%"></span></span>
-        </div>`).join('')}
-      </div>
+    <div class="dp-kpis" style="margin-bottom:0;">
+      ${tile('Ligações', n(lig), 'clicaram em ligar', lig ? 'var(--good)' : '')}
+      ${tile('Pediram rota', n(rot), 'foram até a loja')}
+      ${tile('Cliques no site', n(site), 'do perfil para o site')}
+      ${tile('Apareceu para', n(imp), 'pessoas no Maps e na Busca')}
     </div>
     <div class="dp-aviso">${foraDoAlcance
       ? `<b style="color:var(--warn)">Sem dado neste período</b> — a leitura do perfil vai até
@@ -3970,6 +3972,16 @@ async function carregarPerfilGoogle(){
          Impressões e rotas já estão completas. Não leia como queda: esses ${atraso} dias sobem
          sozinhos.` : ''}`}
       Atualizado ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>
+    ${(d.termos || []).length ? `<details class="dp-recolhivel">
+      <summary>O que digitaram pra achar vocês (${n(d.termos.length)} termos)</summary>
+      <div class="dp-lista">
+        ${d.termos.slice(0, 20).map(t => `<div class="dp-linha">
+          <span class="nome" style="width:auto;flex:1;">${t.termo.slice(0, 44)}</span>
+          <span class="v">${n(t.buscas)}</span>
+          <span class="t"><span class="f" style="width:${(t.buscas / maxT * 100).toFixed(1)}%"></span></span>
+        </div>`).join('')}
+      </div>
+    </details>` : ''}
   </div>`;
 }
 
