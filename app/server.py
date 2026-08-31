@@ -849,6 +849,49 @@ def api_minha_comissao():
     return jsonify(calcular_comissao(vendedor_id, de, ate, vendedores, vendas))
 
 
+# Areas do portal que podem ser liberadas uma a uma. A chave e a mesma que o
+# menu lateral usa, entao marcar aqui e ver o item la nao dependem de traducao.
+AREAS = {
+    "painel": "Painel",
+    "marketing": "Marketing",
+    "analytics": "Analytics",
+    "auditoria": "Comissoes",
+    "metabonus": "Meta Bonus",
+    "desempenho": "Desempenho",
+    "carros": "Carros pra chegar",
+    "rh": "Gestao de pessoas",
+    "atendimento": "Atendimento agora",
+    "retomada": "Follow-up do time",
+    "fechamento": "Fechamento de mes",
+}
+
+
+def areas_do_usuario() -> list:
+    """As areas que quem esta logado pode ver.
+
+    O gestor (senha master) ve tudo — devolve a lista inteira. Um usuario comum
+    ve so o que foi marcado no cadastro dele. Quem nao tem nada marcado nao ve
+    area nenhuma da area do gestor, que e o comportamento de sempre.
+    """
+    if exigir_admin():
+        return list(AREAS)
+    vid = session.get("vendedor_id")
+    if not vid:
+        return []
+    v = carregar_vendedores().get(vid) or {}
+    return [a for a in (v.get("areas") or []) if a in AREAS]
+
+
+def exigir_area(area: str) -> bool:
+    """Substitui exigir_admin() nos endpoints que passam a ser compartilhados.
+
+    Continua valendo pro gestor exatamente como antes; a diferenca e que agora
+    um usuario com a area marcada tambem passa. Endpoint sem essa troca segue
+    exclusivo do gestor — o padrao continua sendo negar.
+    """
+    return exigir_admin() or area in areas_do_usuario()
+
+
 def desligado(info: dict, quando: str = None) -> bool:
     """Se a pessoa ja estava desligada na data dada (padrao: hoje).
 
@@ -1678,7 +1721,23 @@ def exigir_admin():
 
 @app.route("/api/admin/me")
 def api_admin_me():
-    return jsonify({"logado": exigir_admin()})
+    """Quem esta logado e o que pode ver.
+
+    `gestor` diz se e a senha master; `areas` diz quais menus mostrar. A tela
+    usa os dois: sem gestor e sem area nenhuma, nem entra.
+    """
+    areas = areas_do_usuario()
+    vid = session.get("vendedor_id")
+    nome = ""
+    if vid and not exigir_admin():
+        nome = (carregar_vendedores().get(vid) or {}).get("nome", "")
+    return jsonify({
+        "logado": bool(exigir_admin() or areas),
+        "gestor": exigir_admin(),
+        "areas": areas,
+        "nome": nome,
+        "todas_areas": AREAS,
+    })
 
 
 @app.route("/api/admin/resumo")
@@ -2900,7 +2959,7 @@ def api_admin_shopee_conta():
 
 @app.route("/api/admin/metas-bonus")
 def api_admin_metas_bonus():
-    if not exigir_admin():
+    if not exigir_area("metabonus"):
         return jsonify({"erro": "Não autenticado."}), 401
 
     dados_brutos = _mb_bruto()
@@ -2989,7 +3048,7 @@ def _inicio_acompanhamento(carros):
 def api_mb_dia():
     """O dia como uma chamada: cada pessoa com o que ja foi lancado nessa data.
     E o que a tela mostra pra preencher todo mundo de uma vez."""
-    if not exigir_admin():
+    if not exigir_area("metabonus"):
         return jsonify({"erro": "Não autenticado."}), 401
     data = (request.args.get("data") or "").strip() or hoje_br().isoformat()
     dados = _mb_bruto()
@@ -3022,7 +3081,7 @@ def api_mb_pessoa_salvar():
     """Cria ou edita uma pessoa da chamada. Mudar de funcao nao move o
     historico: a entrada antiga vira inativa (os meses lancados continuam
     contando la) e nasce uma entrada ativa na funcao nova."""
-    if not exigir_admin():
+    if not exigir_area("metabonus"):
         return jsonify({"erro": "Não autenticado."}), 401
     corpo = request.get_json(silent=True) or {}
     nome = (corpo.get("nome") or "").strip()[:60]
@@ -3078,7 +3137,7 @@ def api_mb_pessoa_salvar():
 def api_mb_pessoa_remover(setor, pid):
     """Tira da chamada. So apaga de verdade quem nunca lancou nada — apagar
     alguem com historico faria os meses antigos dele sumirem do painel."""
-    if not exigir_admin():
+    if not exigir_area("metabonus"):
         return jsonify({"erro": "Não autenticado."}), 401
     dados = _mb_bruto()
     pessoa = dados["pessoas"].get(setor, {}).get(pid)
@@ -3102,7 +3161,7 @@ def api_mb_dia_salvar():
     """Grava o dia inteiro de uma vez. Upsert por (pessoa, data): o campo da
     tela E o valor do dia — vazio ou zero apaga, numero substitui. Assim a
     grade pode ser corrigida e salva de novo sem duplicar nada."""
-    if not exigir_admin():
+    if not exigir_area("metabonus"):
         return jsonify({"erro": "Não autenticado."}), 401
     corpo = request.get_json(silent=True) or {}
     data = (corpo.get("data") or "").strip()
@@ -3154,7 +3213,7 @@ def api_mb_dia_salvar():
 
 @app.route("/api/admin/metas-bonus/lancamentos", methods=["POST"])
 def api_mb_lancar():
-    if not exigir_admin():
+    if not exigir_area("metabonus"):
         return jsonify({"erro": "Não autenticado."}), 401
     corpo = request.get_json(silent=True) or {}
     tipo = corpo.get("tipo")
@@ -3187,7 +3246,7 @@ def api_mb_lancar():
 
 @app.route("/api/admin/metas-bonus/lancamentos/<tipo>/<lid>", methods=["DELETE"])
 def api_mb_apagar(tipo, lid):
-    if not exigir_admin():
+    if not exigir_area("metabonus"):
         return jsonify({"erro": "Não autenticado."}), 401
     dados = _mb_bruto()
     if lid not in dados["lancamentos"].get(tipo, {}):
@@ -3199,7 +3258,7 @@ def api_mb_apagar(tipo, lid):
 
 @app.route("/api/admin/metas-bonus/veiculos", methods=["POST"])
 def api_mb_veiculo():
-    if not exigir_admin():
+    if not exigir_area("metabonus"):
         return jsonify({"erro": "Não autenticado."}), 401
     corpo = request.get_json(silent=True) or {}
     carro = (corpo.get("carro") or "").strip()
@@ -3229,7 +3288,7 @@ def api_mb_veiculo():
 
 @app.route("/api/admin/metas-bonus/veiculos/<vid>", methods=["DELETE"])
 def api_mb_veiculo_apagar(vid):
-    if not exigir_admin():
+    if not exigir_area("metabonus"):
         return jsonify({"erro": "Não autenticado."}), 401
     dados = _mb_bruto()
     if vid not in dados["veiculos"]:
@@ -3242,7 +3301,7 @@ def api_mb_veiculo_apagar(vid):
 @app.route("/api/admin/metas-bonus/recentes")
 def api_mb_recentes():
     """Ultimos lancamentos, pra conferir e desfazer erro de digitacao."""
-    if not exigir_admin():
+    if not exigir_area("metabonus"):
         return jsonify({"erro": "Não autenticado."}), 401
     dados = _mb_bruto()
     nomes = {pid: p.get("nome") or "?"
@@ -3265,7 +3324,7 @@ def api_mb_recentes():
 
 @app.route("/api/admin/carros")
 def api_admin_carros():
-    if not exigir_admin():
+    if not exigir_area("carros"):
         return jsonify({"erro": "Não autenticado."}), 401
 
     bruto = _carros_bruto()
@@ -4190,6 +4249,7 @@ def api_admin_listar_vendedores():
             "avatar": v.get("avatar", ""),
             "oculto": bool(v.get("oculto")),
             "desligado_em": v.get("desligado_em") or "",
+            "areas": v.get("areas") or [],
             "perfil": v.get("perfil") or "vendedor",
             "liberacao_retroativa": retroativo_ativo(v),
             "liberacao_retroativa_ate": v.get("liberacao_retroativa_ate") if retroativo_ativo(v) else None,
@@ -4275,6 +4335,14 @@ def api_admin_salvar_vendedor():
     # deixa o historico intacto, tira a pessoa das telas de lancamento a
     # partir dali, e ainda diz na tela DESDE QUANDO — um `oculto` booleano
     # faria a pessoa evaporar sem explicar nada.
+    # Areas liberadas. Sempre a lista inteira que veio da tela: marcar e
+    # desmarcar tem que funcionar, entao nao da pra "preservar se vier vazio".
+    if "areas" in body:
+        vendedores[vendedor_id]["areas"] = [
+            a for a in (body.get("areas") or []) if a in AREAS]
+    elif existente.get("areas"):
+        vendedores[vendedor_id]["areas"] = existente["areas"]
+
     if "desligado_em" in body:
         d = (body.get("desligado_em") or "").strip()
         if d:

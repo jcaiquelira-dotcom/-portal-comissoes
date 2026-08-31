@@ -215,6 +215,11 @@
      campo cujo efeito nao e obvio pelo rotulo — e a diferenca entre desligar e
      excluir precisa estar escrita ali, nao so na cabeca de quem programou. */
   .campo-dica{display:block;margin-top:4px;font-size:11.5px;color:var(--muted);line-height:1.45;}
+  .areas-box{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));
+    gap:4px 12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+    background:var(--surface-2);}
+  .areas-box label{display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;}
+  .areas-box input{margin:0;}
 
   /* Funil do site ate a venda. As barras sao proporcionais entre si, pra
      comparacao visual — os numeros exatos ficam ao lado, porque barra e boa
@@ -640,6 +645,10 @@
     <div class="card" id="loginCard">
       <p class="card-titulo">Entrar como gestor</p>
       <div class="campo">
+        <label class="campo-rotulo" for="usuarioInput">Usuário (deixe vazio se você é o gestor)</label>
+        <input type="text" id="usuarioInput" autocomplete="username" placeholder="ex.: pedro">
+      </div>
+      <div class="campo">
         <label class="campo-rotulo" for="senhaInput">Senha</label>
         <input type="password" id="senhaInput" autocomplete="current-password">
       </div>
@@ -885,6 +894,14 @@
           <div class="campo">
             <label class="campo-rotulo" for="vFotoInput">Foto</label>
             <input type="file" id="vFotoInput" accept="image/*">
+          </div>
+          <div class="campo">
+            <label class="campo-rotulo">Áreas do gestor que esta pessoa pode ver</label>
+            <div id="vAreasBox" class="areas-box"></div>
+            <span class="campo-dica">Deixe tudo desmarcado para um vendedor comum — ele
+              entra pelo portal do vendedor e vê só o que é dele. Marcando qualquer área,
+              a pessoa passa a entrar também na área do gestor, vendo <b>apenas</b> o que
+              estiver marcado. Para expandir depois, é só marcar mais uma caixa.</span>
           </div>
           <div class="campo">
             <label class="campo-rotulo" for="vDesligadoInput">Desligado em (deixe vazio se está ativo)</label>
@@ -1257,16 +1274,48 @@ document.getElementById('toggleValoresBtn').addEventListener('click', () => {
 atualizarIconeOlho();
 
 let resumoAtual = null;
+/* Quem esta usando a tela. `gestor` e a senha master (ve tudo); um usuario
+   comum ve so as areas marcadas no cadastro dele. A tela inteira se monta a
+   partir disso — menu, KPIs do topo e o que carrega no primeiro acesso. */
+let sessaoAtual = {gestor: false, areas: [], nome: ''};
+const podeVer = (chave) => sessaoAtual.gestor || sessaoAtual.areas.includes(chave);
 
 async function tentarSessao(){
   try{
     const res = await fetch('/api/admin/me');
     const dados = await res.json();
     if(dados.logado){
+      sessaoAtual = {gestor: !!dados.gestor, areas: dados.areas || [],
+                     nome: dados.nome || ''};
+      AREAS_DISPONIVEIS = dados.todas_areas || {};
       mostrarApp();
     }
   }catch(e){ /* segue deslogado */ }
   if(!document.getElementById('appShell') || document.getElementById('appShell').classList.contains('oculto')) mostrarLogin();
+}
+
+/* Esconde do menu o que a pessoa nao pode abrir. O servidor ja recusa esses
+   endpoints — isto e so pra tela nao oferecer porta que nao abre. Seguranca
+   fica no servidor; aqui e cortesia. */
+/* As caixas vem do servidor (`todas_areas`), nao de uma lista repetida aqui.
+   Duplicar significaria que criar uma area nova exigiria lembrar de dois
+   lugares — e um dia alguem esqueceria do segundo. */
+let AREAS_DISPONIVEIS = {};
+function montarCaixasDeArea(marcadas){
+  const box = document.getElementById('vAreasBox');
+  if(!box) return;
+  const sel = new Set(marcadas || []);
+  box.innerHTML = Object.entries(AREAS_DISPONIVEIS).map(([k, rotulo]) =>
+    `<label><input type="checkbox" class="area-chk" value="${k}"${
+      sel.has(k) ? ' checked' : ''}> ${rotulo}</label>`).join('');
+}
+
+function filtrarMenuPorArea(){
+  if(sessaoAtual.gestor) return;
+  document.querySelectorAll('.nav-item[href^="#"]').forEach(el => {
+    const chave = el.getAttribute('href').slice(1);
+    if(!sessaoAtual.areas.includes(chave)) el.style.display = 'none';
+  });
 }
 
 function primeiroDiaMes(){
@@ -1282,9 +1331,16 @@ function mostrarLogin(){
 function mostrarApp(){
   document.getElementById('telaLogin').classList.add('oculto');
   document.getElementById('appShell').classList.remove('oculto');
+  /* Quem nao e gestor comeca na primeira area que tem — nao no Painel, que ele
+     provavelmente nem enxerga. Sem isso a tela abriria vazia e pareceria
+     quebrada. */
+  if(!sessaoAtual.gestor && !podeVer(secaoAtual)){
+    secaoAtual = sessaoAtual.areas[0] || 'painel';
+  }
   montarSidebar(secaoAtual, {aoSair: sairDoGestor, portal: 'gestor'});
-  preencherPerfil('Gestor', null);
-  montarKpisGestor();
+  filtrarMenuPorArea();
+  preencherPerfil(sessaoAtual.gestor ? 'Gestor' : (sessaoAtual.nome || 'Equipe'), null);
+  if(sessaoAtual.gestor) montarKpisGestor();
   irParaSecao(secaoAtual, topicoAtual);
   document.getElementById('deInput').value = primeiroDiaMes();
   document.getElementById('ateInput').value = todayStr();
@@ -1755,19 +1811,34 @@ document.getElementById('vendedorFiltro').addEventListener('change', carregarRes
 
 document.getElementById('loginBtn').addEventListener('click', async () => {
   const senha = document.getElementById('senhaInput').value;
+  const usuario = document.getElementById('usuarioInput').value.trim().toLowerCase();
   const errEl = document.getElementById('loginError');
   errEl.textContent = '';
   try{
-    const res = await fetch('/api/admin/login', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({senha})
-    });
+    /* Duas portas na mesma tela. Sem usuario, e a senha do gestor — o caminho
+       de sempre. Com usuario, e alguem com area liberada: entra pelo mesmo
+       login do portal do vendedor e a tela mostra so o que ele pode ver.
+       Manter uma tela so evita explicar pro time "entre por aqui, não por ali". */
+    const res = usuario
+      ? await fetch('/api/login', {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({vendedor_id: usuario, senha})})
+      : await fetch('/api/admin/login', {method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({senha})});
     const dados = await res.json();
     if(!res.ok){
       errEl.textContent = dados.erro || 'Falha ao entrar.';
       return;
     }
+    const me = await fetch('/api/admin/me').then(r => r.json());
+    if(!me.logado){
+      errEl.textContent = 'Este usuário não tem acesso a nenhuma área do gestor.';
+      await fetch('/api/logout', {method: 'POST'});
+      return;
+    }
+    sessaoAtual = {gestor: !!me.gestor, areas: me.areas || [], nome: me.nome || ''};
+    AREAS_DISPONIVEIS = me.todas_areas || {};
     mostrarApp();
   }catch(e){
     errEl.textContent = 'Erro de conexão.';
@@ -2097,6 +2168,7 @@ async function carregarVendedores(){
         document.getElementById('vPercentualInput').value = v.percentual;
         document.getElementById('vAvatarInput').value = v.avatar || '';
         document.getElementById('vDesligadoInput').value = v.desligado_em || '';
+        montarCaixasDeArea(v.areas || []);
         document.getElementById('vFotoInput').value = '';
         renderOverridesEditor(v.overrides);
         window.scrollTo({top:0, behavior:'smooth'});
@@ -2151,6 +2223,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
   const percentual = document.getElementById('vPercentualInput').value;
   const avatar = document.getElementById('vAvatarInput').value;
   const desligado_em = document.getElementById('vDesligadoInput').value;
+  const areas = Array.from(document.querySelectorAll('.area-chk:checked')).map(c => c.value);
   const overrides = Array.from(document.querySelectorAll('.override-pct'))
     .map(inp => ({vendedor_id: inp.dataset.vid, percentual: parseFloat(inp.value || '0')}))
     .filter(o => o.percentual > 0);
@@ -2160,7 +2233,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({id, nome, senha, codigo_recuperacao, percentual,
-                            overrides, avatar, desligado_em})
+                            overrides, avatar, desligado_em, areas})
     });
     const dados = await res.json();
     if(!res.ok){
@@ -2194,6 +2267,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
     document.getElementById('vPercentualInput').value = '';
     document.getElementById('vAvatarInput').value = '';
     document.getElementById('vDesligadoInput').value = '';
+    montarCaixasDeArea([]);
     document.getElementById('vFotoInput').value = '';
     carregarVendedores();
     carregarResumo();
