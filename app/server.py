@@ -3749,6 +3749,22 @@ def api_marketing_gestor():
             "total": _var(vendas["total"], anterior["vendas"]["total"]),
         }
 
+        # Conversao e taxa, e taxa se compara em PONTO PERCENTUAL, nao em
+        # variacao relativa. De 6,3% pra 5,9% a queda e de 0,4 p.p.; dizer
+        # "-6,3%" seria verdade aritmetica e leitura errada — parece que
+        # despencou quando andou meio ponto. Os dois vao juntos: o p.p. e o
+        # numero pra decidir, o relativo fica de contexto.
+        leads_ant = anterior["total"].get("leads") or 0
+        conv_ant = (round(100 * anterior["vendas"]["qtd"] / leads_ant, 1)
+                    if leads_ant else None)
+        conv_agora = (round(100 * vendas["qtd"] / total_leads, 1)
+                      if total_leads else None)
+        anterior["conversao"] = conv_ant
+        anterior["var_conversao"] = (
+            {"pp": round(conv_agora - conv_ant, 2),
+             "relativo": _var(conv_agora, conv_ant)}
+            if conv_ant is not None and conv_agora is not None else None)
+
         # Investimento do periodo anterior. Refeito com as mesmas fontes do
         # atual — Google por dia, Meta por dia, agencia pelos meses tocados —
         # senao comparar gasto contra gasto estaria comparando bases diferentes.

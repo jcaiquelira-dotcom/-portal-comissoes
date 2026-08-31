@@ -3508,12 +3508,33 @@ function renderMarketing(d){
     ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}
     ${varBadge(variacao, bomSubir)}</div>`;
 
+  // Conversao e taxa: compara em ponto percentual, nao em variacao relativa.
+  // De 6,3% pra 5,9% a queda e de 0,4 p.p. — dizer "-6,3%" faz parecer que
+  // despencou quando andou meio ponto. O p.p. e o numero grande; o relativo
+  // fica embaixo, de contexto.
+  const kpiConversao = () => {
+    const vc = ant?.var_conversao;
+    const badge = !vc ? '' : Math.abs(vc.pp) < 0.05
+      ? '<span class="dp-var neutro">igual ao período anterior</span>'
+      : `<span class="dp-var ${vc.pp > 0 ? 'sobe' : 'desce'}">${vc.pp > 0 ? '▲' : '▼'} ${
+          Math.abs(vc.pp).toLocaleString('pt-BR', {minimumFractionDigits: 1,
+            maximumFractionDigits: 2})} p.p.${
+          vc.relativo === null ? '' : ` (${vc.relativo > 0 ? '+' : ''}${
+            vc.relativo.toLocaleString('pt-BR', {maximumFractionDigits: 1})}%)`}</span>`;
+    return `<div class="dp-kpi"><div class="rot">Conversão</div>
+      <div class="num valor-money">${(d.conversao ?? 0)}%</div>
+      <span class="dp-var neutro">venda ÷ lead${
+        ant?.conversao !== null && ant?.conversao !== undefined
+          ? ` · antes ${ant.conversao}%` : ''}</span>
+      ${badge}</div>`;
+  };
+
   const tv = t.var || {};
   const kpis = [
     kpi('Leads', t.leads, `${d.por_canal.length} canais`, tv.leads),
     kpi('Com sinal de compra', t.sinal, t.leads ? (100 * t.sinal / t.leads).toFixed(1) + '% dos leads' : '', tv.sinal),
     kpi('Vendas', d.vendas.qtd, fmtMoeda(d.vendas.total), ant?.var_vendas?.qtd),
-    kpi('Conversão', (d.conversao ?? 0) + '%', 'venda ÷ lead'),
+    kpiConversao(),
     kpi('Custo por lead', m.custo_por_lead === null ? '—' : fmtMoeda(m.custo_por_lead), '', null, false),
     kpi('Custo por venda', m.custo_por_venda === null ? '—' : fmtMoeda(m.custo_por_venda), '', null, false),
   ].join('');
