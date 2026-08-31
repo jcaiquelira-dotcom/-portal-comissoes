@@ -3545,6 +3545,7 @@ def api_marketing_gestor():
     # periodo filtrado, sem rateio. O bloco de rateio abaixo continua pro caso
     # de a fonte voltar a ser o CSV do Gerenciador, que so traz o agregado.
     serie_meta = (meta or {}).get("serie_dia") or {}
+    gasto_meta_periodo = 0.0   # nome estavel pra comparacao com o periodo anterior
     if serie_meta:
         dentro = {d: v for d, v in serie_meta.items() if de <= d <= ate}
         if dentro:
@@ -3589,6 +3590,7 @@ def api_marketing_gestor():
                 meta_rateio["plataformas"] = sorted(
                     plataformas.values(), key=lambda p: -p["spend"])
             investimento = round(investimento + gasto_meta, 2)
+            gasto_meta_periodo = gasto_meta
             impressoes += meta_rateio["impressions"]
     elif meta and meta.get("de") and meta.get("ate"):
         ini = max(de, meta["de"])
@@ -3607,6 +3609,7 @@ def api_marketing_gestor():
                 "integral": dias_dentro == dias_relatorio,
             }
             investimento = round(investimento + meta_rateio["spend"], 2)
+            gasto_meta_periodo = meta_rateio["spend"]
             impressoes += meta_rateio["impressions"]
 
     # Product Ads do Mercado Livre, com o MESMO rateio por dia do Meta: o
@@ -3678,7 +3681,100 @@ def api_marketing_gestor():
     agregado["total"]["receita_provavel"] = round(
         agregado["total"].get("provavel", 0) * ticket, 2)
 
+    # ---- comparacao com o periodo anterior ----
+    # A janela anterior tem o mesmo NUMERO DE DIAS COBERTOS, nao o mes
+    # calendario anterior. Agosto ainda esta aberto: comparar 28 dias de agosto
+    # com 31 de julho inventaria uma queda de 10% que e so calendario. Por isso
+    # a base e ef_de/ef_ate, que ja e a janela que tem dado de verdade.
+    dias_janela = ((date.fromisoformat(ef_ate) - date.fromisoformat(ef_de)).days + 1
+                   if ef_de and ef_ate else 0)
+    anterior = None
+    if dias_janela > 0:
+        ant_ate = (date.fromisoformat(ef_de) - timedelta(days=1)).isoformat()
+        ant_de = (date.fromisoformat(ant_ate)
+                  - timedelta(days=dias_janela - 1)).isoformat()
+        linhas_ant = _recortar(leads_bruto.get("linhas", []), ant_de, ant_ate)
+        if filtro_canal:
+            linhas_ant = [l for l in linhas_ant if l["canal"] == filtro_canal]
+        if filtro_vendedor:
+            linhas_ant = [l for l in linhas_ant if l["vendedor"] == filtro_vendedor]
+        if linhas_ant:
+            ag_ant = _agregar_marketing(linhas_ant, nomes)
+            vendas_ant = _vendas_no_periodo(vendedores, ant_de, ant_ate,
+                                            so_vendedor=filtro_vendedor or None,
+                                            universo=universo)
+            # O ticket do periodo anterior e o DELE, nao o de agora: senao a
+            # receita "mudaria" so porque o ticket medio mudou.
+            ticket_ant = (round(vendas_ant["total"] / vendas_ant["qtd"], 2)
+                          if vendas_ant.get("qtd") else ticket)
+            for item in ag_ant["por_canal"]:
+                item["receita_provavel"] = round(
+                    item.get("provavel", 0) * ticket_ant, 2)
+            ag_ant["total"]["receita_provavel"] = round(
+                ag_ant["total"].get("provavel", 0) * ticket_ant, 2)
+            anterior = {
+                "de": ant_de, "ate": ant_ate, "dias": dias_janela,
+                "total": ag_ant["total"],
+                "por_canal": {c["canal"]: c for c in ag_ant["por_canal"]},
+                "vendas": vendas_ant,
+                "ticket": ticket_ant,
+            }
+
+    def _var(agora, antes):
+        """Variacao percentual. Sem base anterior devolve None — nao existe
+        'subiu 100%' partindo do zero, isso so engana quem le."""
+        if not antes:
+            return None
+        return round(100 * (agora - antes) / antes, 1)
+
+    if anterior:
+        a = anterior["total"]
+        agregado["total"]["var"] = {
+            "leads": _var(agregado["total"]["leads"], a.get("leads")),
+            "sinal": _var(agregado["total"]["sinal"], a.get("sinal")),
+            "provavel": _var(agregado["total"].get("provavel", 0), a.get("provavel")),
+            "receita_provavel": _var(agregado["total"]["receita_provavel"],
+                                     a.get("receita_provavel")),
+        }
+        for item in agregado["por_canal"]:
+            ant = anterior["por_canal"].get(item["canal"])
+            item["var"] = {
+                "leads": _var(item["leads"], (ant or {}).get("leads")),
+                "sinal": _var(item["sinal"], (ant or {}).get("sinal")),
+                "receita_provavel": _var(item["receita_provavel"],
+                                         (ant or {}).get("receita_provavel")),
+            } if ant else None
+        anterior["var_vendas"] = {
+            "qtd": _var(vendas["qtd"], anterior["vendas"]["qtd"]),
+            "total": _var(vendas["total"], anterior["vendas"]["total"]),
+        }
+
+        # Investimento do periodo anterior. Refeito com as mesmas fontes do
+        # atual — Google por dia, Meta por dia, agencia pelos meses tocados —
+        # senao comparar gasto contra gasto estaria comparando bases diferentes.
+        ant_google = round(sum(g["spend"] for g in _recortar(
+            gasto_bruto.get("linhas", []), anterior["de"], anterior["ate"])), 2)
+        ant_meta = round(sum(
+            v_dia["spend"] for d_, v_dia in serie_meta.items()
+            if anterior["de"] <= d_ <= anterior["ate"]), 2) if serie_meta else 0.0
+        ant_meses = {anterior["de"][:7], anterior["ate"][:7]}
+        ant_agencia = round(AGENCIA_MENSAL * len(ant_meses), 2)
+        ant_total = round(ant_google + ant_meta + ant_agencia, 2)
+        anterior["midia"] = {"google": ant_google, "meta": ant_meta,
+                             "agencia": ant_agencia, "investimento": ant_total}
+        # O investimento atual inclui o ML, que o anterior nao refaz; por isso
+        # a comparacao usa as tres fontes que os dois lados tem em comum.
+        atual_comparavel = round(
+            sum(g["spend"] for g in gasto_linhas) + gasto_meta_periodo + agencia, 2)
+        anterior["var_midia"] = {
+            "investimento": _var(atual_comparavel, ant_total),
+            "google": _var(round(sum(g["spend"] for g in gasto_linhas), 2), ant_google),
+            "meta": _var(gasto_meta_periodo, ant_meta),
+        }
+        anterior["midia"]["atual_comparavel"] = atual_comparavel
+
     return jsonify({
+        "anterior": anterior,
         "ticket_estimativa": {"valor": ticket,
                               "de_vendas_reais": bool(vendas.get("qtd")),
                               "base_qtd": vendas.get("qtd", 0)},

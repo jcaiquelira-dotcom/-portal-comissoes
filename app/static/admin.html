@@ -3397,17 +3397,32 @@ function renderMarketing(d){
   const mt = m.meta;
   const rat = m.meta_rateio;
 
-  const kpi = (rot, num, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+  const ant = d.anterior;
+  // Variacao contra o periodo anterior. `bomSubir=false` inverte a cor: em
+  // custo, subir e ruim — pintar de verde um CPL que dobrou seria mentira
+  // visual. null nao vira 0%: sem base anterior nao ha variacao, e mostrar
+  // "+100%" partindo do zero engana quem le.
+  const varBadge = (v, bomSubir = true) => {
+    if (v === null || v === undefined) return '';
+    if (Math.abs(v) < 0.05) return '<span class="dp-var neutro">igual</span>';
+    const bom = v > 0 === bomSubir;
+    return `<span class="dp-var ${bom ? 'sobe' : 'desce'}">${v > 0 ? '▲' : '▼'} ${
+      Math.abs(v).toLocaleString('pt-BR', {maximumFractionDigits: 1})}%</span>`;
+  };
+  const kpi = (rot, num, sub, variacao, bomSubir = true) => `<div class="dp-kpi">
+    <div class="rot">${rot}</div>
     <div class="num valor-money">${num}</div>
-    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}
+    ${varBadge(variacao, bomSubir)}</div>`;
 
+  const tv = t.var || {};
   const kpis = [
-    kpi('Leads', t.leads, `${d.por_canal.length} canais`),
-    kpi('Com sinal de compra', t.sinal, t.leads ? (100 * t.sinal / t.leads).toFixed(1) + '% dos leads' : ''),
-    kpi('Vendas', d.vendas.qtd, fmtMoeda(d.vendas.total)),
+    kpi('Leads', t.leads, `${d.por_canal.length} canais`, tv.leads),
+    kpi('Com sinal de compra', t.sinal, t.leads ? (100 * t.sinal / t.leads).toFixed(1) + '% dos leads' : '', tv.sinal),
+    kpi('Vendas', d.vendas.qtd, fmtMoeda(d.vendas.total), ant?.var_vendas?.qtd),
     kpi('Conversão', (d.conversao ?? 0) + '%', 'venda ÷ lead'),
-    kpi('Custo por lead', m.custo_por_lead === null ? '—' : fmtMoeda(m.custo_por_lead)),
-    kpi('Custo por venda', m.custo_por_venda === null ? '—' : fmtMoeda(m.custo_por_venda)),
+    kpi('Custo por lead', m.custo_por_lead === null ? '—' : fmtMoeda(m.custo_por_lead), '', null, false),
+    kpi('Custo por venda', m.custo_por_venda === null ? '—' : fmtMoeda(m.custo_por_venda), '', null, false),
   ].join('');
 
   // Investimento separado por fonte: somado, os dois viram um numero que nao
@@ -3482,7 +3497,8 @@ function renderMarketing(d){
         <span class="v">${c.leads} conversa${c.leads === 1 ? '' : 's'} · ${naoLido(c)
           ? '<span style="color:var(--warn)">sinal não apurado</span>'
           : `<b>${c.sinal}</b> com sinal (${c.leads ? (100 * c.sinal / c.leads).toFixed(0) : 0}%)`
-            + (c.receita_provavel ? ` · <b style="color:var(--good)">${fmtMoeda(c.receita_provavel)}</b> prováveis` : '')}</span>
+            + (c.receita_provavel ? ` · <b style="color:var(--good)">${fmtMoeda(c.receita_provavel)}</b> prováveis` : '')
+            + (c.var ? ` ${varBadge(c.var.leads)}` : '')}</span>
         <span class="t"><span class="f"${naoLido(c) ? ' style="width:' + (c.leads / maxCanal * 100).toFixed(1) + '%;background:var(--muted);opacity:.45"' : ' style="width:' + (c.leads / maxCanal * 100).toFixed(1) + '%"'}></span></span>
       </div>`).join('')}</div>
     <div class="dp-aviso"><b>Sinal de compra</b> é a conversa em que o cliente
