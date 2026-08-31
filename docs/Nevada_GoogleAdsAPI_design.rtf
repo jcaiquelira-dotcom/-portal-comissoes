@@ -1,0 +1,110 @@
+{\rtf1\ansi\deff0{\fonttbl{\f0 Calibri;}{\f1 Consolas;}}
+\fs22
+\par\b\fs32 Google Ads API \u8212? Tool Design Document\b0\fs22\par
+\par
+\b Company:\b0  Nevada Eco Pe\u231?as (auto parts retailer, Brazil)
+\b Website:\b0  https://nevadaautopecas.com.br
+\b Google Ads account:\b0  230-286-5972 (Nevada Ecope\u231?as)
+\b Manager account (MCC):\b0  398-576-5846
+\b Google Cloud project number:\b0  608560018719
+\b API version:\b0  v18 (REST interface)
+\par
+\par
+\par
+\par\b\fs26 1. Purpose\b0\fs22\par
+\par
+We operate a single Google Ads account for our own auto parts business. This
+tool reads reporting data from that account and displays it on an internal
+management dashboard used by our own staff.
+\par
+Before this integration, the same numbers were imported manually from a
+third-party connector. The purpose of using the API directly is accuracy and
+freshness of our own reporting \u8212? not automation of campaign management.
+\par
+\par\b\fs26 2. Scope of access \u8212? read only\b0\fs22\par
+\par
+The tool performs \b no write operations of any kind\b0 . It does not create,
+modify, pause or remove campaigns, ad groups, ads, keywords, budgets, bids,
+audiences, conversion actions or account settings.
+\par
+Every call is a `GoogleAdsService.SearchStream` request. The complete set of
+queries the tool issues is:
+\par
+\b Query 1 \u8212? daily cost and performance by campaign\b0 
+\par
+\f1\fs18 
+SELECT campaign.id,\line
+       campaign.name,\line
+       segments.date,\line
+       metrics.cost_micros,\line
+       metrics.clicks,\line
+       metrics.impressions,\line
+       metrics.conversions\line
+  FROM campaign\line
+ WHERE segments.date BETWEEN '<start>' AND '<end>'\line
+\f0\fs22 
+\par
+\b Query 2 \u8212? account identification (used only by the connection test)\b0 
+\par
+\f1\fs18 
+SELECT customer.descriptive_name,\line
+       customer.currency_code\line
+  FROM customer\line
+ LIMIT 1\line
+\f0\fs22 
+\par
+No other resource is queried.
+\par
+\par\b\fs26 3. Frequency and volume\b0\fs22\par
+\par
+The collector runs \b once per day\b0 , as part of a scheduled routine at 07:30
+(America/Sao_Paulo). Each run issues approximately \b 2 to 5 requests\b0 ,
+covering the current calendar year to date.
+\par
+Estimated volume: \b fewer than 100 operations per day\b0 .
+\par
+\par\b\fs26 4. Users and distribution\b0\fs22\par
+\par
+The dashboard is used \b only by employees of Nevada Eco Pe\u231?as\b0  \u8212? the owner and
+a small sales team. It is protected by a password login and is not offered,
+sold, licensed or made available to any third party. We do not manage Google
+Ads accounts for other companies, and we do not resell, redistribute or expose
+the data outside the company.
+\par
+\par\b\fs26 5. Architecture\b0\fs22\par
+\par
+Layer   Description\line
+Collector   Python script (`app/google_ads_api.py`), runs locally on a scheduled task\line
+Transport   Google Ads API REST endpoint via standard HTTPS (`urllib`), no third-party SDK\line
+Auth   OAuth 2.0 authorization code flow; refresh token generated once by the account owner\line
+Storage   Results written to local JSON files, then pushed to a private Postgres database\line
+Presentation   Internal web dashboard (Flask), password-protected, used by staff only\line
+\par
+Data flow:
+\par
+\f1\fs18 
+Google Ads API  \u8594?  collector (local)  \u8594?  JSON  \u8594?  private database  \u8594?  internal dashboard\line
+\f0\fs22 
+\par
+\par\b\fs26 6. Credential handling\b0\fs22\par
+\par
+The developer token, OAuth client ID, client secret and refresh token are
+stored in a single file outside version control, on a machine controlled by the
+company. They are never embedded in the application code, never sent to any
+third party, and never exposed to the dashboard's users.
+\par
+\par\b\fs26 7. Data retained\b0\fs22\par
+\par
+Only aggregate advertising metrics: campaign name and ID, date, cost, clicks,
+impressions and conversions. The tool does not request, receive or store any
+personal data, user identifiers, or Customer Match audience data.
+\par
+\par\b\fs26 8. Compliance\b0\fs22\par
+\par
+- Read-only access; no mutate operations\line
+- Data used solely for internal reporting about our own advertising spend\line
+- No redistribution, resale or third-party access\line
+- API contact email is a monitored inbox on the company domain\line
+  (contato@nevadaautopecas.com.br)
+\par
+}
