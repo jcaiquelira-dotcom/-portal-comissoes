@@ -121,10 +121,13 @@ def coletar(cred, access, de, ate) -> dict:
         limite=300,
         ordem=[{"metric": {"metricName": "screenPageViews"}, "desc": True}])
 
-    # Eventos: e onde aparece o clique no WhatsApp, se estiver marcado.
+    # Eventos POR DIA. Sem a data eles nao servem pro painel: qualquer filtro
+    # de periodo teria que confiar num total ja fechado, e o resto do projeto
+    # inteiro trabalha no grao diario justamente pra nao precisar disso.
     eventos = relatorio(
-        cred, access, ["eventName"], ["eventCount"], de, ate, limite=100,
-        ordem=[{"metric": {"metricName": "eventCount"}, "desc": True}])
+        cred, access, ["date", "eventName"], ["eventCount"], de, ate,
+        limite=20000,
+        ordem=[{"dimension": {"dimensionName": "date"}}])
 
     return {"de": de, "ate": ate, "por_dia": por_dia, "por_origem": por_origem,
             "paginas": paginas, "eventos": eventos}
