@@ -778,6 +778,10 @@ def api_me():
         "id": vendedor_id,
         "nome": v["nome"],
         "percentual": v.get("percentual", 0),
+        # A tela precisa AVISAR antes, nao deixar a pessoa preencher um
+        # lancamento inteiro pra descobrir no botao que nao pode.
+        "somente_leitura": desligado(v),
+        "desligado_em": v.get("desligado_em") or "",
     })
 
 
@@ -1717,6 +1721,43 @@ def api_admin_logout():
 
 def exigir_admin():
     return bool(session.get("admin"))
+
+
+# Sair da empresa nao apaga o passado: o Gustavo continua entrando pra conferir
+# as proprias comissoes. Mas nao pode mais MUDAR nada — se ele lancasse uma
+# venda hoje, ela entraria no nome dele, contra a decisao de que a partir do
+# desligamento tudo e do substituto.
+#
+# A trava e aqui, e nao endpoint por endpoint, de proposito. Sao dezenas de
+# rotas de escrita e o projeto ganha rotas novas toda semana; uma lista manual
+# ficaria desatualizada no dia em que alguem esquecesse de incluir a proxima.
+# Aqui o padrao e negar, e quem escrever endpoint novo nao precisa lembrar.
+_METODOS_QUE_MUDAM = {"POST", "PUT", "PATCH", "DELETE"}
+# Sair do sistema tem que funcionar sempre; e entrar tambem, senao ninguem
+# consegue nem chegar na tela pra ver o historico.
+_SEMPRE_LIBERADO = {"/api/logout", "/api/login", "/api/admin/login"}
+
+
+@app.before_request
+def _travar_desligado():
+    if request.method not in _METODOS_QUE_MUDAM:
+        return None
+    if request.path in _SEMPRE_LIBERADO:
+        return None
+    if exigir_admin():          # o gestor segue podendo tudo, inclusive sobre ele
+        return None
+    vid = session.get("vendedor_id")
+    if not vid:
+        return None
+    info = carregar_vendedores().get(vid) or {}
+    if not desligado(info):
+        return None
+    return jsonify({
+        "erro": "Seu acesso está em modo somente leitura desde {}. "
+                "Você continua vendo seu histórico e suas comissões, mas não "
+                "pode mais registrar ou alterar nada.".format(
+                    "/".join(reversed(info["desligado_em"].split("-")))),
+    }), 403
 
 
 @app.route("/api/admin/me")

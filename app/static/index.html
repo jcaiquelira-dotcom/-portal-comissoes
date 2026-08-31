@@ -578,9 +578,36 @@ function mostrarLogin(){
   document.getElementById('appShell').classList.add('oculto');
 }
 
+/* Quem saiu da empresa continua entrando pra conferir o proprio historico,
+   mas nao registra mais nada. O servidor ja recusa qualquer escrita; isto aqui
+   e pra pessoa SABER antes — descobrir no botao, depois de preencher um
+   lancamento inteiro, seria falta de educacao da tela. */
+function aplicarSomenteLeitura(){
+  if(!eu || !eu.somente_leitura) return;
+  const d = (eu.desligado_em || '').split('-').reverse().join('/');
+  const aviso = document.createElement('div');
+  aviso.className = 'card';
+  aviso.style.cssText = 'margin-bottom:14px;border-left:4px solid var(--warn);';
+  aviso.innerHTML = `<p class="card-titulo" style="margin:0 0 6px;">Acesso somente leitura</p>
+    <div class="dp-aviso" style="margin:0;">Seu acesso está em modo de consulta
+      desde <b>${d}</b>. Você continua vendo seu histórico e suas comissões
+      normalmente, mas não é mais possível registrar ou alterar lançamentos.</div>`;
+  const alvo = document.querySelector('.conteudo');
+  if(alvo) alvo.insertBefore(aviso, alvo.firstChild);
+  // Botao que grava fica desabilitado, nao escondido: sumir daria a impressao
+  // de que a tela quebrou.
+  document.querySelectorAll('button').forEach(b => {
+    if(/salvar|lançar|lancar|registrar|adicionar|excluir|remover/i.test(b.textContent)){
+      b.disabled = true;
+      b.title = 'Acesso somente leitura desde ' + d;
+    }
+  });
+}
+
 function mostrarApp(){
   document.getElementById('telaLogin').classList.add('oculto');
   document.getElementById('appShell').classList.remove('oculto');
+  aplicarSomenteLeitura();
   montarSidebar(secaoAtual, {aoSair: logout});
   preencherPerfil(eu.nome, eu.foto, eu.avatar);
   document.getElementById('mesInput').value = todayStr().slice(0,7);
