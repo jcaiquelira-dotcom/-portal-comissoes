@@ -1118,6 +1118,11 @@
       </div>
     </section>
 
+    <!-- ---------- PERMISSÕES ---------- -->
+    <section id="secPermissoes" class="oculto">
+      <div id="permCorpo"></div>
+    </section>
+
     <!-- ---------- ANALYTICS DO SITE ---------- -->
     <section id="secAnalytics" class="oculto">
       <div class="filtros">
@@ -3595,6 +3600,96 @@ function mktPeriodoPadrao(){
   return {de: iso(primeiro), ate: iso(hoje)};
 }
 
+/* ---------- Permissões de acesso ----------
+   Uma grade: pessoas nas linhas, áreas nas colunas. Marcar salva na hora.
+
+   Existe porque isso vivia dentro do cadastro de cada vendedor, um por vez —
+   pra saber quem via o quê era preciso abrir pessoa por pessoa e ir lembrando.
+   Vendo todo mundo junto, o acesso que sobrou de quem mudou de função salta aos
+   olhos, que é justamente o que ninguém percebe olhando um cadastro só. */
+async function carregarPermissoes(){
+  const corpo = document.getElementById('permCorpo');
+  corpo.innerHTML = '<div class="vazio">Carregando…</div>';
+  const [lista, me] = await Promise.all([
+    fetch('/api/admin/vendedores').then(r => r.ok ? r.json() : []),
+    fetch('/api/admin/me').then(r => r.json()),
+  ]);
+  const areas = me.todas_areas || {};
+  const pessoas = lista.filter(v => !v.oculto);
+
+  const linha = (v) => {
+    const marcadas = new Set(v.areas || []);
+    const desl = v.desligado_em
+      ? ` <span class="dp-var desce">desligado ${
+          v.desligado_em.split('-').reverse().join('/')}</span>` : '';
+    return `<tr data-vid="${v.id}">
+      <td><b>${v.nome}</b>${desl}<br>
+        <span class="dp-var neutro">${v.id}${
+          v.perfil === 'expedicao' ? ' · expedição' : ''}</span></td>
+      ${Object.keys(areas).map(k => `<td style="text-align:center;">
+        <input type="checkbox" class="perm-chk" data-vid="${v.id}" data-area="${k}"
+          ${marcadas.has(k) ? 'checked' : ''}></td>`).join('')}
+      <td style="text-align:center;">${marcadas.size
+        ? `<b>${marcadas.size}</b>` : '<span class="dp-var neutro">—</span>'}</td>
+    </tr>`;
+  };
+
+  corpo.innerHTML = `
+    <div class="card" style="margin-bottom:14px;">
+      <p class="card-titulo">Quem acessa o quê</p>
+      <div class="tabela-rolante"><table>
+        <thead><tr><th>Pessoa</th>
+          ${Object.values(areas).map(t =>
+            `<th style="text-align:center;font-size:11px;">${t}</th>`).join('')}
+          <th style="text-align:center;">Áreas</th></tr></thead>
+        <tbody>${pessoas.map(linha).join('')}</tbody>
+      </table></div>
+      <span class="status-msg" id="permStatus"></span>
+      <div class="dp-aviso">Marcar dá acesso à área do gestor — a pessoa passa a
+        entrar em <b>/admin.html</b> com o usuário e a senha dela, vendo
+        <b>apenas</b> o que estiver marcado. Sem nenhuma marca, ela é um vendedor
+        comum e entra só no portal do vendedor.
+        <br><br><b>Salva na hora.</b> Cada clique já vale — não existe botão de
+        confirmar, porque um botão esquecido faria você achar que mudou quando
+        não mudou.
+        <br><br>O gestor (senha master) vê tudo sempre e não aparece nesta lista:
+        não faria sentido poder tirar o acesso de quem administra o acesso.</div>
+    </div>`;
+}
+
+document.addEventListener('change', async (ev) => {
+  const chk = ev.target.closest && ev.target.closest('.perm-chk');
+  if(!chk) return;
+  const st = document.getElementById('permStatus');
+  const linha = chk.closest('tr');
+  const areas = Array.from(linha.querySelectorAll('.perm-chk:checked'))
+    .map(c => c.dataset.area);
+  // Manda o cadastro inteiro que a tela ja tem, senao salvar permissao apagaria
+  // percentual e overrides — o endpoint reescreve o registro.
+  const lista = await fetch('/api/admin/vendedores').then(r => r.json());
+  const v = lista.find(x => x.id === chk.dataset.vid);
+  if(!v) return;
+  st.textContent = 'Salvando…';
+  st.classList.add('show');
+  const res = await fetch('/api/admin/vendedores', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      id: v.id, nome: v.nome, percentual: v.percentual,
+      overrides: v.overrides || [], avatar: v.avatar || '',
+      desligado_em: v.desligado_em || '', perfil: v.perfil, areas}),
+  });
+  if(res.ok){
+    st.textContent = `${v.nome}: ${areas.length} área${areas.length === 1 ? '' : 's'}`;
+    st.classList.remove('err');
+    linha.lastElementChild.innerHTML = areas.length
+      ? `<b>${areas.length}</b>` : '<span class="dp-var neutro">—</span>';
+  }else{
+    st.textContent = 'Não consegui salvar. A marca foi desfeita.';
+    st.classList.add('err');
+    chk.checked = !chk.checked;      // a tela nunca mente sobre o que foi salvo
+  }
+});
+
 /* ---------- Analytics do site ----------
    Preenche o meio do funil. O painel ja sabia o lead (Totalk) e a venda
    (portal); faltava o que acontece ANTES do WhatsApp — quanta gente chegou no
@@ -4922,6 +5017,7 @@ const SECOES = {
   desempenho: {titulo: 'Desempenho',        el: 'secDesempenho'},
   marketing:  {titulo: 'Marketing',         el: 'secMarketing'},
   analytics:  {titulo: 'Analytics · o site',  el: 'secAnalytics'},
+  permissoes: {titulo: 'Permissões de acesso', el: 'secPermissoes'},
   carros:     {titulo: 'Carros pra chegar', el: 'secCarros'},
   rh:         {titulo: 'Gestão de pessoas', el: 'secRh'},
   metabonus:  {titulo: 'Meta Bônus',        el: 'secMetaBonus'},
@@ -5000,6 +5096,7 @@ function irParaSecao(chave, sub){
     carregarAuditoria();
   }
   if(chave === 'marketing') carregarPerfilGoogle();
+  if(chave === 'permissoes') carregarPermissoes();
   if(chave === 'analytics' && !gaDados){
     // Abre no mes corrente, o recorte que se olha todo dia.
     const de = document.getElementById('gaDe'), ate = document.getElementById('gaAte');

@@ -123,6 +123,7 @@ const PORTAIS = {
       {chave: 'atendimento', texto: 'Atendimento agora', href: '#atendimento', icone: 'retomada'},
       {chave: 'retomada',    texto: 'Follow-up do time', href: '#retomada',    icone: 'retomada'},
       {chave: 'fechamento',  texto: 'Fechamento de mês', href: '#fechamento',  icone: 'fechamento'},
+      {chave: 'permissoes',  texto: 'Permissões',        href: '#permissoes',  icone: 'equipe'},
       {chave: 'configuracoes', texto: 'Configurações',   href: '#configuracoes', icone: 'config'},
     ],
     externos: ['ranking', 'expedicao'],
