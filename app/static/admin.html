@@ -1351,11 +1351,16 @@ function mostrarApp(){
   document.getElementById('ateInput').value = todayStr();
   document.getElementById('fechamentoMesInput').value = todayStr().slice(0,7);
   marcarPreset('presetMes');
+  /* Estes carregam a area do gestor inteira de uma vez. Pra quem tem so
+     algumas areas eles voltariam 401 em bloco — e o 401 de /resumo derrubava a
+     sessao, porque quando so existia o gestor 401 ali so podia significar
+     "a sessao morreu". Cada secao carrega o que precisa ao ser aberta. */
+  if(!sessaoAtual.gestor) return;
   carregarVendedores();
   carregarResumo();
   carregarMlConta();
-carregarShopeeConta();
-carregarSiteConta();
+  carregarShopeeConta();
+  carregarSiteConta();
   carregarMesesFechados();
   carregarLogAcessos();
   carregarLogAcoes();
@@ -1940,7 +1945,14 @@ async function carregarResumo(){
   const params = new URLSearchParams({de, ate});
   if(vendedorId) params.set('vendedor_id', vendedorId);
   const res = await fetch('/api/admin/resumo?' + params.toString());
-  if(res.status === 401){ sairDoGestor(); return; }
+  if(res.status === 401){
+    // 401 aqui pode ser duas coisas MUITO diferentes: a sessao acabou, ou esta
+    // area nao e desta pessoa. Derrubar nos dois casos expulsava quem tinha
+    // acesso parcial. Pergunta antes de expulsar.
+    const me = await fetch('/api/admin/me').then(r => r.json()).catch(() => ({}));
+    if(!me.logado) sairDoGestor();
+    return;
+  }
   resumoAtual = await res.json();
 
   // Consolidado: comercial (portal) + marketplaces (serie diaria do ML, e o
