@@ -2138,6 +2138,14 @@ def api_admin_auditoria():
     elif request.args.get("modo") == "total":
         lista_total = [enxuto(v) for v in sorted(
             vendas, key=lambda v: (v["data"], -v["valor"]))]
+    elif request.args.get("modo") == "pendentes":
+        # O que ainda nao passou por ninguem, do maior valor pro menor. E a
+        # pergunta de quem abre a tela no meio do mes: "o que falta conferir?".
+        # Ordem por valor, nao por data: se o tempo acabar, o que ficou de fora
+        # e o que menos importa.
+        lista_total = [enxuto(v) for v in sorted(
+            (x for x in vendas if not x["status"]),   # sem marca = ninguem olhou
+            key=lambda v: -v["valor"])]
 
     return jsonify({
         "mes": mes,

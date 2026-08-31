@@ -335,12 +335,20 @@
     background:var(--surface-2);border:1px solid var(--line);
     border-radius:999px;padding:3px;
   }
+  /* A pilula segue a largura REAL do botao ativo, via variaveis que o JS
+     escreve. Antes era `calc(50%)` fixo: com "Amostragem" (140px) e "Total"
+     (86px) ela ficava com 113px e nunca cobria nenhum dos dois — meio botao
+     pintado, meio nao. Assim tambem deixa de importar quantas opcoes existem
+     e quao compridos sao os rotulos. */
   .seletor-pilula{
-    position:absolute;top:3px;bottom:3px;left:3px;width:calc(50% - 3px);
+    position:absolute;top:3px;bottom:3px;
+    left:var(--pilula-x,3px);width:var(--pilula-w,0);
     background:var(--accent);border-radius:999px;
-    transition:transform .18s cubic-bezier(.4,0,.2,1);
+    transition:left .2s cubic-bezier(.4,0,.2,1), width .2s cubic-bezier(.4,0,.2,1);
   }
-  .seletor[data-ativo="total"] .seletor-pilula{transform:translateX(100%);}
+  /* Antes de o JS medir (secao ainda escondida) a pilula nao aparece, em vez
+     de aparecer no lugar errado por um instante. */
+  .seletor-pilula[style*="--pilula-w: 0"]{opacity:0;}
   .seletor-opcao{
     position:relative;z-index:1;flex:1;
     background:none;border:none;cursor:pointer;font-family:inherit;
@@ -1049,6 +1057,8 @@
           <span class="seletor-pilula"></span>
           <button type="button" class="seletor-opcao" data-modo="amostra"
             title="Um punhado por vez, metade escolhida por sinal de atenção.">Amostragem</button>
+          <button type="button" class="seletor-opcao" data-modo="pendentes"
+            title="O que ainda não passou por ninguém, do maior valor pro menor.">Pendentes</button>
           <button type="button" class="seletor-opcao" data-modo="total"
             title="A planilha inteira do mês, venda por venda.">Total</button>
         </div>
@@ -2275,6 +2285,8 @@ function audAbrirModo(modo){
   audFoco = '';       // trocar de modo limpa o foco: sao duas perguntas diferentes
   audMarcarModo();
   // O tamanho só existe na amostragem: no modo total ele não significa nada.
+  // Tamanho da amostra so faz sentido na amostragem; nos outros a lista e
+  // definida pelo servidor e o campo nao mudaria nada.
   document.getElementById('audCampoTamanho').classList.toggle('oculto', modo !== 'amostra');
   audPeriodoPadrao();
   carregarAuditoria();
@@ -2297,7 +2309,25 @@ function audMarcarModo(){
   chave.dataset.ativo = audModo;
   chave.querySelectorAll('.seletor-opcao').forEach(b =>
     b.classList.toggle('ativo', b.dataset.modo === audModo));
+  posicionarPilula(chave);
 }
+
+/* Encosta a pilula no botao ativo, medindo o botao. Se a secao ainda estiver
+   escondida o botao mede zero — nesse caso nao chuta uma posicao, tenta de
+   novo no proximo quadro, ate a tela existir de verdade. */
+function posicionarPilula(chave, tentativa = 0){
+  const ativo = chave.querySelector('.seletor-opcao.ativo');
+  const pilula = chave.querySelector('.seletor-pilula');
+  if(!ativo || !pilula) return;
+  if(!ativo.offsetWidth){
+    if(tentativa < 20) requestAnimationFrame(() => posicionarPilula(chave, tentativa + 1));
+    return;
+  }
+  pilula.style.setProperty('--pilula-x', ativo.offsetLeft + 'px');
+  pilula.style.setProperty('--pilula-w', ativo.offsetWidth + 'px');
+}
+addEventListener('resize', () => document.querySelectorAll('.seletor')
+  .forEach(s => posicionarPilula(s)));
 
 /* Clicar de novo no mesmo numero desliga o filtro — senao o unico jeito de
    voltar pra lista inteira seria adivinhar qual botao faz isso. */
@@ -2318,7 +2348,7 @@ async function carregarAuditoria(){
   if(busca) q.set('busca', busca);
   const vend = document.getElementById('audVendedor').value;
   if(vend) q.set('vendedor', vend);
-  if(audModo === 'total') q.set('modo', 'total');
+  if(audModo !== 'amostra') q.set('modo', audModo);
   if(audFoco) q.set('foco', audFoco);
   const res = await fetch('/api/admin/auditoria?' + q);
   if(!res.ok){ corpo.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
@@ -2398,23 +2428,28 @@ function renderAuditoria(d){
     kpi('Com sinal de atenção', d.com_sinal, `de ${d.total.vendas} vendas`, null, 'sinal'),
   ].join('');
 
+  // Amostragem sorteia e vem em `amostra`; total e pendentes vem prontos do
+  // servidor em `total_lista`. `ehListaCheia` e o que separa os dois jeitos.
   const ehTotal = d.modo === 'total';
+  const ehPendentes = d.modo === 'pendentes';
   const ehFoco = !!d.foco;
-  const lista = (ehFoco || ehTotal) ? (d.total_lista || []) : d.amostra;
+  const ehListaCheia = ehTotal || ehPendentes || ehFoco;
+  const lista = ehListaCheia ? (d.total_lista || []) : d.amostra;
   const TITULO_FOCO = {
     conferidas: 'Vendas já conferidas',
     divergentes: 'Vendas com divergência',
     sinal: 'Vendas com sinal de atenção',
   };
   const corpoLista = lista.length
-    ? lista.map(v => audFicha(v, d, ehTotal)).join('')
-    : `<div class="vazio">${ehTotal
-        ? 'Nenhuma venda neste mês.'
+    ? lista.map(v => audFicha(v, d, ehListaCheia)).join('')
+    : `<div class="vazio">${
+        ehPendentes ? 'Nada pendente — todas as vendas do período já foram conferidas.'
+        : ehTotal ? 'Nenhuma venda neste mês.'
         : 'Tudo desta rodada já foi marcado. Aumente a amostra pra continuar.'}</div>`;
 
   // No modo total a lista ja traz tudo, entao repetir as revisadas embaixo
   // seria mostrar a mesma venda duas vezes na mesma tela.
-  const revisadas = (!ehTotal && !ehFoco && d.revisadas.length) ? `<div class="card" style="margin-top:14px;">
+  const revisadas = (!ehListaCheia && d.revisadas.length) ? `<div class="card" style="margin-top:14px;">
     <details class="dobra">
       <summary><span class="card-titulo">Já revisadas</span>
         <span class="dobra-conta">${d.revisadas.length}</span></summary>
