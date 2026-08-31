@@ -114,6 +114,7 @@ const PORTAIS = {
     itens: [
       {chave: 'painel',      texto: 'Painel',            href: '#painel',      icone: 'painel'},
       {chave: 'marketing',   texto: 'Marketing',         href: '#marketing',   icone: 'marketing'},
+      {chave: 'analytics',   texto: 'Analytics',         href: '#analytics',   icone: 'desempenho'},
       {chave: 'auditoria',   texto: 'Comissões',         href: '#auditoria',   icone: 'lupa'},
       {chave: 'metabonus',   texto: 'Meta Bônus',        href: '#metabonus',   icone: 'bonus'},
       {chave: 'desempenho',  texto: 'Desempenho',        href: '#desempenho',  icone: 'desempenho'},

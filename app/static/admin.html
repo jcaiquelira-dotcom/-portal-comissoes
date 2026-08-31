@@ -211,6 +211,24 @@
   .canal-grid .canal-nome{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .canal-grid .barra{height:6px;border-radius:20px;background:var(--surface-2);overflow:hidden;}
   .canal-grid .barra span{display:block;height:100%;border-radius:20px;background:var(--accent);}
+
+  /* Funil do site ate a venda. As barras sao proporcionais entre si, pra
+     comparacao visual — os numeros exatos ficam ao lado, porque barra e boa
+     pra mostrar tamanho relativo e ruim pra ler valor. */
+  .ga-etapa{margin-bottom:14px;}
+  .ga-etapa-topo{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+  .ga-etapa-rot{font-size:12.5px;font-weight:600;}
+  .ga-etapa-num{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;}
+  .ga-barra{height:10px;border-radius:20px;background:var(--surface-2);
+    overflow:hidden;margin:5px 0 3px;}
+  .ga-barra span{display:block;height:100%;border-radius:20px;}
+  .ga-etapa-sub{font-size:11.5px;color:var(--muted);}
+  /* Visitas dia a dia: so a forma da curva. Valor exato vem no title. */
+  .dp-dias{display:flex;align-items:flex-end;gap:2px;height:90px;}
+  .dp-dia{flex:1;min-width:2px;height:100%;display:flex;align-items:flex-end;}
+  .dp-dia-barra{display:block;width:100%;background:var(--accent);
+    border-radius:2px 2px 0 0;min-height:1px;transition:opacity .12s;}
+  .dp-dia:hover .dp-dia-barra{opacity:.6;}
   /* Estreito demais pra seis colunas: a barra e o que menos informa (o numero
      ao lado ja diz o mesmo), entao e ela que sai. */
   @media (max-width:820px){
@@ -1072,6 +1090,22 @@
       </div>
     </section>
 
+    <!-- ---------- ANALYTICS DO SITE ---------- -->
+    <section id="secAnalytics" class="oculto">
+      <div class="filtros">
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="gaDe">De</label>
+          <input type="date" id="gaDe">
+        </div>
+        <div class="filtro-campo">
+          <label class="campo-rotulo" for="gaAte">Até</label>
+          <input type="date" id="gaAte">
+        </div>
+        <div class="preset-row" id="presetGa" style="width:100%;"></div>
+      </div>
+      <div id="gaCorpo"></div>
+    </section>
+
     <!-- ---------- COMISSÕES / AUDITORIA ---------- -->
     <section id="secAuditoria" class="oculto">
       <!-- O seletor de modo mora numa faixa so dele, fixa, fora da linha de
@@ -1680,6 +1714,7 @@ function montarPresetsPeriodo(rowId, deId, ateId){
 montarPresetsPeriodo('presetMkt', 'mktDe', 'mktAte');
 montarPresetsPeriodo('presetCarros', 'carrosDe', 'carrosAte');
 montarPresetsPeriodo('presetAud', 'audDe', 'audAte');
+montarPresetsPeriodo('presetGa', 'gaDe', 'gaAte');
 
 // Sombra so quando o filtro descola do topo.
 //
@@ -3471,6 +3506,206 @@ function mktPeriodoPadrao(){
   return {de: iso(primeiro), ate: iso(hoje)};
 }
 
+/* ---------- Analytics do site ----------
+   Preenche o meio do funil. O painel ja sabia o lead (Totalk) e a venda
+   (portal); faltava o que acontece ANTES do WhatsApp — quanta gente chegou no
+   site, por onde veio, que peca olhou e onde parou.
+
+   O card de cima poe as tres etapas lado a lado. Elas vem de tres sistemas
+   diferentes que nao se conversam, entao a tela precisa dizer isso: nao da pra
+   afirmar que a mesma pessoa passou pelas tres, so comparar os tamanhos. */
+let gaDados = null;
+
+async function carregarAnalytics(){
+  const corpo = document.getElementById('gaCorpo');
+  const de = document.getElementById('gaDe').value;
+  const ate = document.getElementById('gaAte').value;
+  const q = new URLSearchParams();
+  if(de) q.set('de', de);
+  if(ate) q.set('ate', ate);
+  corpo.innerHTML = '<div class="vazio">Carregando…</div>';
+
+  const res = await fetch('/api/admin/analytics?' + q);
+  if(!res.ok){ corpo.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  const d = await res.json();
+  gaDados = d;
+
+  if(d.sem_dados){
+    corpo.innerHTML = `<div class="card"><p class="card-titulo">Analytics do site</p>
+      <div class="dp-aviso">Ainda não há dados sincronizados. Rode
+      <code>python app/analytics_api.py</code> e depois
+      <code>python app/sincronizar_analytics.py</code>.</div></div>`;
+    return;
+  }
+  if(d.sem_cobertura){
+    const f = (x) => (x||'').split('-').reverse().join('/');
+    corpo.innerHTML = `<div class="card" style="border-left:4px solid var(--warn);">
+      <p class="card-titulo">Sem dado neste período</p>
+      <div class="dp-aviso">A medição do site vai de <b>${f(d.cobertura.de)}</b> a
+      <b>${f(d.cobertura.ate)}</b>. O período escolhido está fora disso — os zeros
+      seriam falta de medição, não falta de visita.</div></div>`;
+    return;
+  }
+
+  const t = d.total;
+  const n = (v) => (v||0).toLocaleString('pt-BR');
+  const kpi = (rot, num, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money">${num}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+
+  // ---- funil: site -> lead -> venda ----
+  // Os leads e as vendas vem do endpoint de marketing, que ja cruza Totalk com
+  // o portal. Reaproveitar evita duas contas diferentes pro mesmo numero.
+  let funil = '';
+  try{
+    const rm = await fetch('/api/admin/marketing?' + q);
+    if(rm.ok){
+      const m = await rm.json();
+      const leads = m.total?.leads || 0;
+      const vendas = m.vendas?.qtd || 0;
+      const gasto = m.midia?.investimento || 0;
+      const etapa = (rot, valor, sub, largura, cor) => `
+        <div class="ga-etapa">
+          <div class="ga-etapa-topo">
+            <span class="ga-etapa-rot">${rot}</span>
+            <span class="ga-etapa-num">${n(valor)}</span>
+          </div>
+          <div class="ga-barra"><span style="width:${largura}%;background:${cor}"></span></div>
+          <div class="ga-etapa-sub">${sub}</div>
+        </div>`;
+      const maior = Math.max(t.sessoes, leads, vendas, 1);
+      funil = `<div class="card" style="margin-bottom:14px;">
+        <p class="card-titulo">Do site até a venda</p>
+        ${etapa('Visitaram o site', t.sessoes,
+                `${n(t.usuarios)} pessoas diferentes`,
+                100 * t.sessoes / maior, 'var(--accent)')}
+        ${etapa('Viraram lead no WhatsApp', leads,
+                t.sessoes ? `${(100*leads/t.sessoes).toFixed(0)}% do tamanho da visitação` : '',
+                100 * leads / maior, '#E0A32E')}
+        ${etapa('Compraram', vendas,
+                leads ? `${(100*vendas/leads).toFixed(1)}% dos leads` : '',
+                100 * vendas / maior, 'var(--good)')}
+        <div class="dp-aviso"><b>As três etapas vêm de sistemas que não se
+          conversam</b> — o site mede no Analytics, o lead nasce no Totalk e a
+          venda é lançada no portal. Não dá pra afirmar que a mesma pessoa passou
+          pelas três: o que dá pra comparar é o <b>tamanho</b> de cada uma.
+          ${gasto ? `No período foram <b>${fmtMoeda(gasto)}</b> de mídia — ${
+            t.sessoes ? `<b>${fmtMoeda(gasto/t.sessoes)}</b> por visita ao site` : ''}${
+            vendas ? ` e <b>${fmtMoeda(gasto/vendas)}</b> por venda` : ''}.` : ''}
+          Boa parte dos leads chega direto pelo WhatsApp sem passar pelo site,
+          então a segunda barra não é um subconjunto da primeira.</div>
+      </div>`;
+    }
+  }catch(e){ /* sem marketing, o funil só não aparece */ }
+
+  // ---- origem do tráfego ----
+  const maxC = Math.max(...d.canais.map(c => c.sessoes), 1);
+  const NOMES = {'Paid Search':'Busca paga (Google Ads)','Organic Search':'Busca orgânica',
+    'Direct':'Direto (digitou o endereço)','Organic Shopping':'Shopping orgânico',
+    'Paid Shopping':'Shopping pago','Organic Social':'Redes sociais','Paid Social':'Social pago',
+    'Referral':'Vindo de outro site','Cross-network':'Cross-network','Email':'E-mail',
+    'Unassigned':'Não identificado','AI Assistant':'Assistente de IA'};
+  const cardCanais = `<div class="card" style="margin-bottom:14px;">
+    <p class="card-titulo">De onde vem quem visita o site</p>
+    <div class="canal-grid">
+      <span class="cab">Origem</span><span class="cab cab-barra"></span>
+      <span class="cab n">Sessões</span><span class="cab n">Pessoas</span>
+      <span class="cab n">Fatia</span><span class="cab n"></span>
+      ${d.canais.map(c => `
+      <span class="canal-nome">${NOMES[c.canal] || c.canal}</span>
+      <span class="barra"><span style="width:${(100*c.sessoes/maxC).toFixed(1)}%"></span></span>
+      <span class="n">${n(c.sessoes)}</span>
+      <span class="n">${n(c.usuarios)}</span>
+      <span class="n">${t.sessoes ? (100*c.sessoes/t.sessoes).toFixed(1) : 0}%</span>
+      <span class="n"></span>`).join('')}
+    </div>
+  </div>`;
+
+  // ---- páginas ----
+  const pp = d.paginas_periodo || {};
+  const fData = (x) => (x||'').length === 8
+    ? `${x.slice(6,8)}/${x.slice(4,6)}/${x.slice(0,4)}`
+    : (x||'').split('-').reverse().join('/');
+  const cardPaginas = `<div class="card">
+    <p class="card-titulo">Páginas mais vistas</p>
+    <div class="tabela-rolante"><table>
+      <thead><tr><th>Página</th><th>Vistas</th><th>Sessões</th></tr></thead>
+      <tbody>${d.paginas.slice(0, 40).map(p => `<tr>
+        <td>${(p.titulo || p.caminho || '—').replace(' - Nevada Ecopeças','')
+              .replace(' | Nevada Ecopeças','')}</td>
+        <td class="valor-money">${n(p.vistas)}</td>
+        <td class="valor-money">${n(p.sessoes)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div class="dp-aviso"><b>Esta lista não acompanha o filtro de data.</b> O
+      Analytics cobraria uma linha por página por dia, o que estoura o limite da
+      consulta — então ela vem do período inteiro da coleta
+      ${pp.de ? `(<b>${fData(pp.de)}</b> a <b>${fData(pp.ate)}</b>)` : ''}. É a
+      única parte desta tela que ignora o período escolhido.</div>
+  </div>`;
+
+  // ---- eventos ----
+  const cardEventos = `<div class="card">
+    <p class="card-titulo">O que as pessoas fazem no site</p>
+    <div class="tabela-rolante"><table>
+      <thead><tr><th>Evento</th><th>Vezes</th><th>Por sessão</th></tr></thead>
+      <tbody>${d.eventos.slice(0, 25).map(e => `<tr>
+        <td>${e.evento}</td>
+        <td class="valor-money">${n(e.n)}</td>
+        <td class="valor-money">${t.sessoes ? (e.n/t.sessoes).toFixed(2) : '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div class="dp-aviso">Evento com mais de 1,00 por sessão dispara mais de uma
+      vez por visita — serve pra ver tendência, <b>não pra contar pessoas</b>.
+      É o caso do <code>generate_lead</code>: para contar lead, a fonte é o Totalk.</div>
+  </div>`;
+
+  document.getElementById('gaCorpo').innerHTML = `
+    ${funil}
+    <div class="dp-kpis">
+      ${kpi('Sessões', n(t.sessoes), `${d.dias} dias`)}
+      ${kpi('Pessoas', n(t.usuarios), `${n(t.novos)} vieram pela 1ª vez`)}
+      ${kpi('Páginas vistas', n(t.paginas_vistas), `${t.paginas_por_sessao} por sessão`)}
+      ${kpi('Tempo médio', Math.round(t.duracao_media) + 's', 'por sessão')}
+      ${kpi('Taxa de rejeição', t.rejeicao + '%', 'saiu sem interagir')}
+    </div>
+    ${cardCanais}
+    <div class="card" style="margin-bottom:14px;">
+      <p class="card-titulo">Visitas dia a dia</p>
+      ${gaGraficoDia(d.serie_dia)}
+    </div>
+    <div class="dp-grid duas">${cardPaginas}${cardEventos}</div>
+    <div class="card" style="margin-top:14px;">
+      <p class="card-titulo">De onde vem este número</p>
+      <div class="dp-destaque"><span class="rot" style="margin:0">Google Analytics 4 do
+        <b>nevadaautopecas.com.br</b>, propriedade 442735225. Atualizado
+        ${(d.gerado_em||'').slice(8,10)}/${(d.gerado_em||'').slice(5,7)}.</span></div>
+      <div class="dp-destaque"><span class="rot" style="margin:0">Sessão é uma visita;
+        pessoa é alguém distinto. Quem volta em dias diferentes conta como uma
+        pessoa e várias sessões.</span></div>
+    </div>`;
+}
+
+/* Barras por dia. Mesma ideia do gráfico do marketing: mostrar a forma da
+   curva, não valores exatos — pra isso existe a tabela. */
+function gaGraficoDia(serie){
+  if(!serie.length) return '<div class="vazio">Sem dias no período.</div>';
+  const max = Math.max(...serie.map(x => x.sessoes), 1);
+  return `<div class="dp-dias">${serie.map(x => {
+    const d = x.data.slice(8,10) + '/' + x.data.slice(5,7);
+    return `<div class="dp-dia" title="${d}: ${x.sessoes} sessões, ${x.usuarios} pessoas">
+      <span class="dp-dia-barra" style="height:${(100*x.sessoes/max).toFixed(1)}%"></span>
+    </div>`;
+  }).join('')}</div>
+  <div class="dp-aviso" style="margin-top:6px;">${serie[0].data.slice(8,10)}/${
+    serie[0].data.slice(5,7)} a ${serie[serie.length-1].data.slice(8,10)}/${
+    serie[serie.length-1].data.slice(5,7)} — passe o mouse para ver o dia.</div>`;
+}
+
+document.addEventListener('change', ev => {
+  if(['gaDe','gaAte'].includes(ev.target.id)) carregarAnalytics();
+});
+
 async function carregarMarketing(){
   const de = document.getElementById('mktDe').value;
   const ate = document.getElementById('mktAte').value;
@@ -4526,6 +4761,7 @@ const SECOES = {
   retomada:   {titulo: 'Follow-up do time',  el: 'secRetomada'},
   desempenho: {titulo: 'Desempenho',        el: 'secDesempenho'},
   marketing:  {titulo: 'Marketing',         el: 'secMarketing'},
+  analytics:  {titulo: 'Analytics · o site',  el: 'secAnalytics'},
   carros:     {titulo: 'Carros pra chegar', el: 'secCarros'},
   rh:         {titulo: 'Gestão de pessoas', el: 'secRh'},
   metabonus:  {titulo: 'Meta Bônus',        el: 'secMetaBonus'},
@@ -4604,6 +4840,12 @@ function irParaSecao(chave, sub){
     carregarAuditoria();
   }
   if(chave === 'marketing') carregarPerfilGoogle();
+  if(chave === 'analytics' && !gaDados){
+    // Abre no mes corrente, o recorte que se olha todo dia.
+    const de = document.getElementById('gaDe'), ate = document.getElementById('gaAte');
+    if(!de.value){ de.value = primeiroDiaMes(); ate.value = todayStr(); }
+    carregarAnalytics();
+  }
   if(chave === 'marketing' && !mktDados){
     const p = mktPeriodoPadrao();
     document.getElementById('mktDe').value = p.de;

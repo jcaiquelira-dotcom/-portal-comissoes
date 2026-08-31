@@ -5016,6 +5016,84 @@ except Exception as _e:
     print(f"[sinc-nuvem] não subiu: {_e}")
 
 
+@app.route("/api/admin/analytics")
+def api_admin_analytics():
+    """Google Analytics do site: o que acontece ANTES do WhatsApp.
+
+    O painel ja sabia o lead (Totalk) e a venda (portal). O que faltava era o
+    meio: quanta gente chegou no site, por onde, que peca olhou e onde parou.
+    """
+    if not exigir_admin():
+        return jsonify({"erro": "Nao autenticado."}), 401
+    d = ler_json(resolver_pasta_dados() / "analytics_site.json", None)
+    if not d or not d.get("serie_dia"):
+        return jsonify({"sem_dados": True})
+
+    de = request.args.get("de") or ""
+    ate = request.args.get("ate") or ""
+    serie = d["serie_dia"]
+    dias = sorted(k for k in serie if (not de or k >= de) and (not ate or k <= ate))
+
+    # Sem dia no periodo: a serie tem inicio e fim, e dizer isso e melhor do
+    # que devolver zero — o mesmo criterio do card do Perfil da Empresa.
+    todos = sorted(serie)
+    if not dias:
+        return jsonify({"sem_cobertura": True,
+                        "cobertura": {"de": todos[0], "ate": todos[-1]},
+                        "gerado_em": d.get("gerado_em")})
+
+    def soma(campo):
+        return sum(serie[k].get(campo, 0) for k in dias)
+
+    sessoes = soma("sessoes")
+    # Rejeicao e duracao sao MEDIAS: somar daria numero sem sentido. Pondera
+    # pelas sessoes do dia, senao um dia de 3 visitas pesa igual a um de 300.
+    peso = sum(serie[k]["sessoes"] for k in dias) or 1
+    rejeicao = round(sum(serie[k]["rejeicao"] * serie[k]["sessoes"]
+                         for k in dias) / peso, 1)
+    duracao = round(sum(serie[k]["duracao_media"] * serie[k]["sessoes"]
+                        for k in dias) / peso, 1)
+
+    canais = {}
+    for k in dias:
+        for nome, v in (d.get("origem_dia", {}).get(k) or {}).items():
+            c = canais.setdefault(nome, {"canal": nome, "sessoes": 0, "usuarios": 0})
+            c["sessoes"] += v.get("sessoes", 0)
+            c["usuarios"] += v.get("usuarios", 0)
+    canais = sorted(canais.values(), key=lambda c: -c["sessoes"])
+
+    eventos = {}
+    for k in dias:
+        for nome, n in (d.get("eventos_dia", {}).get(k) or {}).items():
+            eventos[nome] = eventos.get(nome, 0) + n
+    eventos = sorted(({"evento": k, "n": v} for k, v in eventos.items()),
+                     key=lambda e: -e["n"])
+
+    return jsonify({
+        "de": dias[0], "ate": dias[-1], "dias": len(dias),
+        "gerado_em": d.get("gerado_em"),
+        "cobertura": {"de": todos[0], "ate": todos[-1]},
+        "total": {
+            "sessoes": sessoes,
+            "usuarios": soma("usuarios"),
+            "novos": soma("novos"),
+            "paginas_vistas": soma("paginas_vistas"),
+            "rejeicao": rejeicao,
+            "duracao_media": duracao,
+            "paginas_por_sessao": round(soma("paginas_vistas") / sessoes, 2)
+            if sessoes else 0,
+        },
+        "serie_dia": [{"data": k, **serie[k]} for k in dias],
+        "canais": canais,
+        "eventos": eventos,
+        # As paginas nao tem data (seria uma linha por pagina por dia, o que
+        # estoura o limite da API). Vem do periodo inteiro da coleta, e o
+        # painel precisa dizer isso em vez de fingir que acompanha o filtro.
+        "paginas": d.get("paginas", []),
+        "paginas_periodo": d.get("paginas_periodo") or {},
+    })
+
+
 @app.route("/api/admin/perfil-google")
 def api_admin_perfil_google():
     """Google Perfil da Empresa: quem acha a loja no Maps/Busca e liga."""
