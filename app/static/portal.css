@@ -472,7 +472,10 @@ tr.dia-novo:first-child > td{border-top:none;padding-top:8px;}
 .dp-linha{display:grid;grid-template-columns:1fr auto;gap:4px;font-size:12.5px;}
 .dp-linha .v{font-family:'IBM Plex Mono',monospace;color:var(--muted);font-size:12px;white-space:nowrap;}
 .dp-linha .t{grid-column:1/-1;height:6px;border-radius:20px;background:var(--surface-2);overflow:hidden;}
-.dp-linha .f{height:100%;border-radius:20px;background:var(--accent);}
+/* `display:block` nao e enfeite: o .f e um <span>, e largura e altura sao
+   ignoradas em elemento inline — a barra ficava 0x0 e nunca enchia. */
+.dp-linha .f{display:block;height:100%;border-radius:20px;background:var(--accent);
+  min-width:2px;transition:width .25s;}
 .dp-linha .nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
 .dp-destaque{

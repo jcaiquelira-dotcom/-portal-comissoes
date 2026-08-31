@@ -168,14 +168,14 @@
   .shopee-meses .dp-linha .nome{width:52px;}
   /* Lista longa que quase sempre so confirma o obvio: fica fechada e nao
      rouba a altura do card. Quem quiser o detalhe abre. */
-  .dp-recolhivel{border-top:1px solid var(--linha);margin-top:10px;}
+  .dp-recolhivel{border-top:1px solid var(--line);margin-top:10px;}
   .dp-recolhivel > summary{cursor:pointer;list-style:none;padding:9px 2px 2px;
-    font-size:.78rem;font-weight:600;color:var(--txt-fraco);
+    font-size:.78rem;font-weight:600;color:var(--muted);
     display:flex;align-items:center;gap:6px;user-select:none;}
   .dp-recolhivel > summary::-webkit-details-marker{display:none;}
   .dp-recolhivel > summary::before{content:'▸';font-size:.7rem;transition:transform .15s;}
   .dp-recolhivel[open] > summary::before{transform:rotate(90deg);}
-  .dp-recolhivel > summary:hover{color:var(--txt);}
+  .dp-recolhivel > summary:hover{color:var(--text);}
   .dp-recolhivel .dp-lista{margin-top:8px;}
   @media (max-width: 900px){ .shopee-corpo{grid-template-columns:1fr;} }
 
@@ -3468,14 +3468,32 @@ function renderMarketing(d){
   </div>`;
 
   const maxCanal = Math.max(...d.por_canal.map(c => c.leads), 1);
+  // "Sem origem" nao e um canal: e a conversa que a IA ainda nao leu. Ela nao
+  // tem canal E nao tem sinal pelo mesmo motivo — as duas coisas saem da mesma
+  // leitura. Mostrar "0 com sinal" ali afirma que ninguem demonstrou interesse,
+  // quando a verdade e que ninguem olhou. Por isso vira "—".
+  const naoLido = c => c.canal === 'Sem origem';
+  const semOrigem = d.por_canal.find(naoLido);
   const cardCanais = `<div class="card">
     <p class="card-titulo">De onde vieram os leads</p>
     <div class="dp-lista">${d.por_canal.map(c => `
       <div class="dp-linha">
-        <span class="nome">${c.canal}</span>
-        <span class="v">${c.leads} · ${c.sinal} com sinal</span>
-        <span class="t"><span class="f" style="width:${(c.leads / maxCanal * 100).toFixed(1)}%"></span></span>
+        <span class="nome">${c.canal}${naoLido(c) ? ' <span style="color:var(--warn)">(não lido)</span>' : ''}</span>
+        <span class="v">${c.leads} conversa${c.leads === 1 ? '' : 's'} · ${naoLido(c)
+          ? '<span style="color:var(--warn)">sinal não apurado</span>'
+          : `<b>${c.sinal}</b> com sinal de compra (${c.leads ? (100 * c.sinal / c.leads).toFixed(0) : 0}%)`}</span>
+        <span class="t"><span class="f"${naoLido(c) ? ' style="width:' + (c.leads / maxCanal * 100).toFixed(1) + '%;background:var(--muted);opacity:.45"' : ' style="width:' + (c.leads / maxCanal * 100).toFixed(1) + '%"'}></span></span>
       </div>`).join('')}</div>
+    <div class="dp-aviso"><b>Sinal de compra</b> é a conversa em que o cliente
+      demonstrou intenção de comprar — perguntou preço, pediu foto da peça, mandou
+      a placa, falou de frete ou pagamento. Não é venda: o fechamento acontece
+      fora do chat, e a venda o portal conta separado, na tabela abaixo. Serve
+      para separar quem só perguntou o horário de quem estava comprando de verdade.
+      ${semOrigem ? `<br><b style="color:var(--warn)">"Sem origem" são ${semOrigem.leads.toLocaleString('pt-BR')}
+      conversas que a IA ainda não leu</b> — por isso não têm canal nem sinal. Não
+      é que ninguém demonstrou interesse nelas: é que ninguém olhou ainda. Elas
+      contam no total de leads, então a conversão geral sai <b>subestimada</b>
+      enquanto essa fila não for lida.` : ''}</div>
   </div>`;
 
   const cardVendedores = `<div class="card">
