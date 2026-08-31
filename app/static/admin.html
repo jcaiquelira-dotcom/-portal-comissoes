@@ -25,21 +25,36 @@
   .olho-btn:hover{border-color:var(--accent);color:var(--accent);}
   .olho-btn svg{width:18px;height:18px;}
 
-  /* ---- Filtros ---- */
+  /* ---- Filtros ----
+     Fica grudado no topo ao rolar: em tabela longa, trocar o periodo exigia
+     subir a pagina inteira. Fundo opaco e z-index sao obrigatorios aqui —
+     sticky nao empurra nada, o conteudo passa POR BAIXO. */
   .filtros{
-    display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;
+    display:flex;gap:8px 10px;align-items:flex-end;flex-wrap:wrap;
     background:var(--surface);border:1px solid var(--line);border-radius:var(--raio);
-    box-shadow:var(--sombra);padding:14px 16px;margin-bottom:14px;
+    box-shadow:var(--sombra);padding:9px 12px;margin-bottom:12px;
+    position:sticky;top:0;z-index:30;
   }
-  .filtro-campo{min-width:130px;}
-  .filtro-campo input,.filtro-campo select{padding:7px 10px;font-size:13px;}
-  .preset-row{display:flex;gap:6px;flex-wrap:wrap;}
+  /* A sombra so aparece quando ele descola do lugar. Enquanto esta no topo da
+     pagina fica plano, sem parecer que ha algo flutuando a toa. */
+  .filtros.grudado{
+    box-shadow:0 4px 14px rgba(0,0,0,.14);border-radius:0 0 var(--raio) var(--raio);
+  }
+  .filtro-campo{min-width:112px;}
+  .filtro-campo input,.filtro-campo select{padding:5px 8px;font-size:12px;}
+  .filtros label.campo-rotulo{font-size:10px;margin-bottom:2px;letter-spacing:.02em;}
+  .preset-row{display:flex;gap:4px;flex-wrap:wrap;}
   .preset-btn{
     background:var(--surface-2);border:1px solid var(--line);color:var(--muted);
-    border-radius:8px;padding:7px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;
+    border-radius:7px;padding:3px 9px;font-size:11.5px;cursor:pointer;font-family:inherit;
+    line-height:1.7;
   }
   .preset-btn:hover{border-color:var(--accent);color:var(--accent);}
-  .preset-btn.ativo{background:var(--accent-suave);border-color:var(--accent);color:var(--accent);font-weight:600;}
+  /* O JS marca `.active`; o `.ativo` ficou de uma versao anterior e nunca
+     casava com nada — o botao escolhido nunca chegou a destacar. */
+  .preset-btn.active,.preset-btn.ativo{
+    background:var(--accent-suave);border-color:var(--accent);color:var(--accent);font-weight:600;
+  }
 
   /* ---- Ranking ---- */
   .rank-row{display:grid;grid-template-columns:150px 1fr 118px;gap:14px;align-items:center;margin-bottom:13px;}
@@ -1626,6 +1641,20 @@ function montarPresetsPeriodo(rowId, deId, ateId){
 montarPresetsPeriodo('presetMkt', 'mktDe', 'mktAte');
 montarPresetsPeriodo('presetCarros', 'carrosDe', 'carrosAte');
 montarPresetsPeriodo('presetAud', 'audDe', 'audAte');
+
+// Sombra so quando o filtro descola do topo. IntersectionObserver em vez de
+// escutar scroll: o navegador avisa na transicao, sem rodar codigo a cada
+// pixel rolado. O truque do topo -1px e o unico jeito de detectar que um
+// sticky grudou — ele nunca "sai" da tela pra reclamar sozinho.
+document.querySelectorAll('.filtros').forEach(el => {
+  const sentinela = document.createElement('div');
+  sentinela.style.cssText = 'position:absolute;top:-1px;height:1px;width:1px;';
+  el.parentNode.insertBefore(sentinela, el);
+  new IntersectionObserver(
+    ([e]) => el.classList.toggle('grudado', !e.isIntersecting),
+    {threshold: 0}
+  ).observe(sentinela);
+});
 
 document.getElementById('deInput').addEventListener('change', () => { marcarPreset(null); carregarResumo(); });
 document.getElementById('ateInput').addEventListener('change', () => { marcarPreset(null); carregarResumo(); });
