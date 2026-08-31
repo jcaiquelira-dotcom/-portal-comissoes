@@ -3478,7 +3478,11 @@ def api_marketing_gestor():
 
     leads_bruto, gasto_bruto = _marketing_bruto()
     vendedores = carregar_vendedores()
-    nomes = {vid: v["nome"] for vid, v in vendedores.items()}
+    # So quem vende entra na tela de marketing. A expedicao usa o mesmo login,
+    # mas nao atende lead nenhum — se entrasse aqui apareceria eternamente na
+    # lista de "fora do Totalk", como se estivesse deixando de atender.
+    nomes = {vid: v["nome"] for vid, v in vendedores.items()
+             if (v.get("perfil") or "vendedor") != "expedicao"}
 
     cobertura = _cobertura(leads_bruto.get("linhas", []))
     ef_de, ef_ate = _janela_comparavel(de, ate, cobertura)
