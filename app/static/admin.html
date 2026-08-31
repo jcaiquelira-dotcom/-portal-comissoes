@@ -907,6 +907,7 @@
           <label class="campo-rotulo" for="mktAte">Até</label>
           <input type="date" id="mktAte">
         </div>
+        <div class="preset-row" id="presetMkt" style="width:100%;"></div>
         <div class="filtro-campo">
           <label class="campo-rotulo" for="mktCanal">Canal</label>
           <select id="mktCanal"><option value="">Todos os canais</option></select>
@@ -930,6 +931,7 @@
           <label class="campo-rotulo" for="carrosAte">Até</label>
           <input type="date" id="carrosAte">
         </div>
+        <div class="preset-row" id="presetCarros" style="width:100%;"></div>
         <div class="filtro-campo">
           <label class="campo-rotulo" for="carrosLeilao">Leilão</label>
           <select id="carrosLeilao"><option value="">Todos os leilões</option></select>
@@ -1041,6 +1043,7 @@
           <label class="campo-rotulo" for="audAte">Até</label>
           <input type="date" id="audAte">
         </div>
+        <div class="preset-row" id="presetAud" style="width:100%;"></div>
         <div class="filtro-campo" style="flex:1;min-width:210px;">
           <label class="campo-rotulo" for="audBusca">Buscar</label>
           <input type="search" id="audBusca" placeholder="peça, carro, SKU, canal, valor...">
@@ -1574,6 +1577,55 @@ function popularPresetsMesesAnteriores(){
   }
 }
 popularPresetsMesesAnteriores();
+
+// Os mesmos atalhos de periodo do painel principal, nos outros menus que tem
+// filtro de data. Um montador so em vez de tres copias: os atalhos vao mudar
+// junto quando mudarem, e nao ficam tres versoes discordando entre si.
+//
+// Ele nao chama a funcao de carregar de cada tela — preenche as datas e
+// dispara o `change`, que e o mesmo caminho de quando voce digita a data na
+// mao. Assim cada painel continua dono do proprio recarregamento.
+function montarPresetsPeriodo(rowId, deId, ateId){
+  const row = document.getElementById(rowId);
+  if(!row) return;
+  const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',
+                 'Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const hoje = new Date();
+  const opcoes = [
+    ['Este mês', primeiroDiaMes(), todayStr()],
+    ['Este ano', `${hoje.getFullYear()}-01-01`, todayStr()],
+    ['Tudo', '2000-01-01', '2100-12-31'],
+  ];
+  // Os 3 meses anteriores sao calculados a cada carregamento da pagina, entao
+  // a lista anda sozinha: no mes que vem sai o mais antigo e entra o atual.
+  for(let i = 1; i <= 3; i++){
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    opcoes.push([meses[d.getMonth()],
+                 `${d.getFullYear()}-${mm}-01`,
+                 `${d.getFullYear()}-${mm}-${String(ultimo).padStart(2, '0')}`]);
+  }
+  row.innerHTML = '';
+  opcoes.forEach(([rotulo, de, ate]) => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn';
+    btn.textContent = rotulo;
+    btn.addEventListener('click', () => {
+      document.getElementById(deId).value = de;
+      const elAte = document.getElementById(ateId);
+      elAte.value = ate;
+      // Marca so dentro desta linha: cada painel tem o proprio periodo, e um
+      // seletor global apagaria o destaque dos outros.
+      row.querySelectorAll('.preset-btn').forEach(b => b.classList.toggle('active', b === btn));
+      elAte.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+    row.appendChild(btn);
+  });
+}
+montarPresetsPeriodo('presetMkt', 'mktDe', 'mktAte');
+montarPresetsPeriodo('presetCarros', 'carrosDe', 'carrosAte');
+montarPresetsPeriodo('presetAud', 'audDe', 'audAte');
 
 document.getElementById('deInput').addEventListener('change', () => { marcarPreset(null); carregarResumo(); });
 document.getElementById('ateInput').addEventListener('change', () => { marcarPreset(null); carregarResumo(); });
@@ -3517,6 +3569,11 @@ function renderMarketing(d){
           : ' (ticket padrão — não houve venda lançada no período pra calcular a média)'}.
       Tende a ficar <b>abaixo</b> do real: parte das vendas fecha sem deixar rastro de
       pagamento e entrega no chat. Serve pra comparar canais entre si, não pra fechar caixa.` : ''}
+      ${ant ? `<br><b>As setas comparam com ${ant.de.slice(8,10)}/${ant.de.slice(5,7)} a
+      ${ant.ate.slice(8,10)}/${ant.ate.slice(5,7)}</b> — os ${ant.dias} dias imediatamente
+      anteriores, a mesma medida da janela que você está vendo. Não é o mês anterior inteiro
+      de propósito: comparar um mês ainda aberto contra um mês fechado mostraria uma queda
+      que é só calendário.` : ''}
       ${semOrigem ? `<br><b style="color:var(--warn)">"Sem origem" são ${semOrigem.leads.toLocaleString('pt-BR')}
       conversas que a IA ainda não leu</b> — por isso não têm canal nem sinal. Não
       é que ninguém demonstrou interesse nelas: é que ninguém olhou ainda. Elas
