@@ -3445,46 +3445,6 @@ function renderMarketing(d){
     <div class="num valor-money">${fmtMoeda(m.investimento)}</div>
     <span class="dp-var neutro">${fontes}</span></div>`;
 
-  // Campanha de LOJA (mapa, ligação) misturada com campanha de SITE distorce
-  // os dois: o custo por venda online sobe, e a campanha local parece ruim
-  // sem ser. Por isso a tela separa as duas contas.
-  const camps = g.por_campanha || [];
-  const obj = g.por_objetivo || {};
-  const temLoja = !!(obj.loja && obj.loja.investimento);
-  const cardCampanhas = camps.length ? `<div class="card" style="margin-bottom:14px;">
-    <div class="aud-cabecalho">
-      <p class="card-titulo" style="margin:0;">Campanhas do Google</p>
-      <span class="aud-conta">${camps.length}</span>
-    </div>
-    ${temLoja ? `<div class="dp-kpis" style="margin-bottom:10px;">
-      <div class="dp-kpi"><div class="rot">Para vender no site</div>
-        <div class="num valor-money">${fmtMoeda((obj.site || {}).investimento || 0)}</div>
-        <span class="dp-var neutro">${((obj.site || {}).clicks || 0).toLocaleString('pt-BR')} cliques</span></div>
-      <div class="dp-kpi"><div class="rot">Para achar a loja</div>
-        <div class="num valor-money">${fmtMoeda(obj.loja.investimento)}</div>
-        <span class="dp-var neutro">${obj.loja.ligacoes || 0} ligações · ${obj.loja.conversoes || 0} conversões</span></div>
-    </div>` : ''}
-    <div class="tabela-rolante"><table>
-      <thead><tr><th>Campanha</th><th>Tipo</th><th class="rh-num">Investido</th>
-        <th class="rh-num">Cliques</th><th class="rh-num">CPC</th>
-        <th class="rh-num">Ligações</th><th class="rh-num">Conversões</th></tr></thead>
-      <tbody>${camps.map(c => `<tr>
-        <td>${c.campanha}</td>
-        <td>${c.tipo_nome || '—'}${c.objetivo === 'loja'
-          ? ' <span class="rh-tag">loja</span>' : ''}</td>
-        <td class="rh-num valor-money">${fmtMoeda(c.investimento)}</td>
-        <td class="rh-num">${(c.clicks || 0).toLocaleString('pt-BR')}</td>
-        <td class="rh-num">${c.cpc === null ? '—' : fmtMoeda(c.cpc)}</td>
-        <td class="rh-num">${c.ligacoes || '—'}</td>
-        <td class="rh-num">${c.conversoes || '—'}</td>
-      </tr>`).join('')}</tbody></table></div>
-    <div class="dp-aviso">${temLoja
-      ? 'Campanha marcada como <b>loja</b> traz gente até a porta (mapa, telefone) — ela não vende no site, então não entra na conta de conversão online.'
-      : 'Nenhuma campanha local no período. Campanhas de tipo <b>Loja física</b> apareceriam separadas aqui.'}
-      ${camps.some(c => !c.tipo_nome)
-        ? ' <b>Tipo em branco</b> = dado coletado antes de 30/08, quando o portal ainda não trazia esse campo.' : ''}</div>
-  </div>`;
-
   const cardInvestimento = `<div class="card" style="margin-bottom:14px;">
     <div class="aud-cabecalho">
       <p class="card-titulo" style="margin:0;">Investimento em mídia</p>
@@ -3561,19 +3521,42 @@ function renderMarketing(d){
       WhatsApp.</div>
   </div>` : '';
 
+  // Campanha de LOJA (mapa, ligação) misturada com campanha de SITE distorce as
+  // duas: o custo por venda online sobe e a campanha local parece ruim sem ser.
+  // O tipo vem do Google desde 30/08; linha mais antiga não tem e fica em branco.
+  const porObj = (g.por_objetivo || {});
+  const temLoja = !!(porObj.loja && porObj.loja.investimento);
+  const tipoDe = (nome) => ((g.por_campanha || []).find(x => x.campanha === nome) || {});
+  const resumoObjetivo = !temLoja ? '' :
+    `<div class="dp-kpis" style="margin-bottom:10px;">
+      <div class="dp-kpi"><div class="rot">Para vender no site</div>
+        <div class="num valor-money">${fmtMoeda((porObj.site || {}).investimento || 0)}</div>
+        <span class="dp-var neutro">${((porObj.site || {}).clicks || 0).toLocaleString('pt-BR')} cliques</span></div>
+      <div class="dp-kpi"><div class="rot">Para achar a loja</div>
+        <div class="num valor-money">${fmtMoeda(porObj.loja.investimento)}</div>
+        <span class="dp-var neutro">${porObj.loja.ligacoes || 0} ligações</span></div>
+    </div>`;
+  const totalLigacoes = (g.por_campanha || []).reduce((t, c) => t + (c.ligacoes || 0), 0);
+
   const cardCampanhas = m.campanhas.length ? `<div class="card">
     <p class="card-titulo">Google Ads — campanhas</p>
+    ${resumoObjetivo}
     <div class="tabela-rolante"><table>
-      <thead><tr><th>Campanha</th><th>Investido</th><th>Cliques</th><th>Impressões</th><th>CPC</th><th>CTR</th></tr></thead>
+      <thead><tr><th>Campanha</th><th>Tipo</th><th>Investido</th><th>Cliques</th><th>Impressões</th><th>CPC</th><th>Ligações</th></tr></thead>
       <tbody>${m.campanhas.map(c => `<tr>
         <td>${c.campanha}</td>
+        <td>${tipoDe(c.campanha).tipo_nome || '—'}${tipoDe(c.campanha).objetivo === 'loja'
+          ? ' <span class="rh-tag">loja</span>' : ''}</td>
         <td class="valor-money">${fmtMoeda(c.spend)}</td>
         <td>${c.clicks || '—'}</td>
         <td>${c.impressions || '—'}</td>
         <td class="valor-money">${c.cpc === null ? '—' : fmtMoeda(c.cpc)}</td>
-        <td>${c.ctr === null ? '—' : c.ctr + '%'}</td>
+        <td>${tipoDe(c.campanha).ligacoes || '—'}</td>
       </tr>`).join('')}</tbody>
     </table></div>
+    ${totalLigacoes ? `<div class="dp-aviso"><b>${totalLigacoes} ligações</b> vieram
+      dos anúncios — elas não viram venda no site, então não entram na conta de
+      conversão online.</div>` : ''}
   </div>` : '';
 
   const avisos = [];
@@ -3601,7 +3584,6 @@ function renderMarketing(d){
   document.getElementById('mktCorpo').innerHTML = `
     <div class="dp-kpis">${kpis}</div>
     ${cardInvestimento}
-    ${cardCampanhas}
     <div class="card" style="margin-bottom:14px;">
       <p class="card-titulo">Leads dia a dia</p>
       ${mktGraficoDia(d.por_dia, m.por_dia)}
@@ -4295,8 +4277,8 @@ function irParaSecao(chave, sub){
     audPeriodoPadrao();
     carregarAuditoria();
   }
-  if(chave === 'marketing' && !mktDados){
   if(chave === 'marketing') carregarPerfilGoogle();
+  if(chave === 'marketing' && !mktDados){
     const p = mktPeriodoPadrao();
     document.getElementById('mktDe').value = p.de;
     document.getElementById('mktAte').value = p.ate;

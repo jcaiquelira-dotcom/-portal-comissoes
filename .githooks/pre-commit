@@ -1,0 +1,24 @@
+#!/bin/sh
+# Trava de sintaxe antes do commit.
+#
+# Em 30/08/2026 um patch inseriu uma linha dentro de um `if(){` em vez de antes
+# dele. Python valido, HTML valido, deploy no ar — e a area do gestor parou de
+# abrir. Quem descobriu foi o gestor, usando o portal. Este hook fecha esse
+# buraco: JS das telas e Python do servidor sao conferidos a cada commit.
+set -e
+raiz=$(git rev-parse --show-toplevel)
+cd "$raiz"
+
+python scripts/checar_js.py || {
+  echo ""
+  echo "COMMIT BLOQUEADO: JavaScript quebrado. Conserte antes de publicar."
+  exit 1
+}
+
+for f in app/server.py app/sincronizador_nuvem.py app/sincronizador_ml_nuvem.py app/monitor_atendimento.py; do
+  [ -f "$f" ] && python -c "import ast,io,sys; ast.parse(io.open('$f',encoding='utf-8').read())" || {
+    echo "COMMIT BLOQUEADO: erro de sintaxe em $f"
+    exit 1
+  }
+done
+echo "  sintaxe ok (JS + Python)"
