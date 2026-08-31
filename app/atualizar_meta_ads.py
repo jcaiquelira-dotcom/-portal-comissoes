@@ -25,7 +25,9 @@ SAIDA = ROOT / "_meta_ads.json"
 
 # O nome do campo de conversa e comprido porque e o id cru da API do Meta.
 CONVERSAS = "actions_onsite_conversion_messaging_conversation_started_7d"
-CAMPOS = ("date,datasource,account_name,campaign,ad_name,"
+# publisher_platform separa Facebook de Instagram. Conferido contra a mesma
+# consulta sem a quebra: fecha em R$ 0,44 no ano inteiro (arredondamento).
+CAMPOS = ("date,datasource,account_name,campaign,ad_name,publisher_platform,"
           f"spend,clicks,impressions,reach,{CONVERSAS}")
 
 
@@ -44,6 +46,9 @@ def main():
             "data": x.get("date"),
             "campanha": x.get("campaign") or "—",
             "anuncio": x.get("ad_name") or "—",
+            # "unknown" existe e sempre vem zerado; vira "—" pra nao virar uma
+            # terceira plataforma na tela.
+            "plataforma": (x.get("publisher_platform") or "").lower() or "—",
             "spend": round(float(x.get("spend") or 0), 2),
             "clicks": int(float(x.get("clicks") or 0)),
             "impressions": int(float(x.get("impressions") or 0)),

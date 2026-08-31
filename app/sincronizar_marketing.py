@@ -62,7 +62,13 @@ def coletar_leads():
     """).fetchall()
     con.close()
 
-    agrupado = defaultdict(lambda: {"leads": 0, "sinal": 0})
+    # `sinal` e `provavel` medem coisas diferentes e por isso viajam separados.
+    # sinal   = chegou a falar de pagamento OU de entrega — mede interesse que
+    #           andou, e serve pra comparar canal com canal.
+    # provavel = falou dos DOIS — e o mais perto de "vendeu" que da pra saber
+    #           pelo chat, e so ele pode virar dinheiro estimado. Somar o
+    #           parcial na receita inflaria em quase o dobro.
+    agrupado = defaultdict(lambda: {"leads": 0, "sinal": 0, "provavel": 0})
     for r in linhas:
         if not r["created_at"]:
             continue
@@ -72,6 +78,8 @@ def coletar_leads():
         agrupado[chave]["leads"] += 1
         if r["classe"] in ("provavel", "parcial"):
             agrupado[chave]["sinal"] += 1
+        if r["classe"] == "provavel":
+            agrupado[chave]["provavel"] += 1
 
     return [{"data": d, "vendedor": v, "canal": c, **n}
             for (d, v, c), n in sorted(agrupado.items())]
@@ -134,15 +142,26 @@ def coletar_meta():
         a["spend"] = round(a["spend"], 2)
 
     # A serie por dia e o que deixa o painel somar qualquer periodo filtrado
-    # sem aproximar nada.
+    # sem aproximar nada. A quebra por plataforma vive DENTRO do dia, senao um
+    # filtro de periodo teria que confiar num total ja fechado.
     serie = {}
     for x in linhas:
         d = serie.setdefault(x["data"], {"spend": 0.0, "clicks": 0,
-                                         "impressions": 0, "conversas": 0})
+                                         "impressions": 0, "conversas": 0,
+                                         "plataforma": {}})
         d["spend"] = round(d["spend"] + x["spend"], 2)
         d["clicks"] += x["clicks"]
         d["impressions"] += x["impressions"]
         d["conversas"] += x["conversas"]
+        # Alcance NAO entra aqui: e a unica metrica que nao pode ser somada
+        # entre plataformas, porque a mesma pessoa aparece nas duas.
+        p = d["plataforma"].setdefault(x.get("plataforma") or "—",
+                                       {"spend": 0.0, "clicks": 0,
+                                        "impressions": 0, "conversas": 0})
+        p["spend"] = round(p["spend"] + x["spend"], 2)
+        p["clicks"] += x["clicks"]
+        p["impressions"] += x["impressions"]
+        p["conversas"] += x["conversas"]
 
     total_spend = round(sum(x["spend"] for x in linhas), 2)
     total_conversas = sum(x["conversas"] for x in linhas)
