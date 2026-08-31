@@ -4829,6 +4829,34 @@ except Exception as _e:
     print(f"[sinc-nuvem] não subiu: {_e}")
 
 
+@app.route("/api/admin/perfil-google")
+def api_admin_perfil_google():
+    """Google Perfil da Empresa: quem acha a loja no Maps/Busca e liga."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    d = ler_json(resolver_pasta_dados() / "perfil_google.json", None)
+    if not d or not d.get("serie_dia"):
+        return jsonify({"sem_dados": True})
+    return jsonify(d)
+
+
+@app.route("/api/admin/sincronizar-perfil", methods=["POST"])
+def api_admin_sincronizar_perfil():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    try:
+        def ler_atual():
+            return ler_json(resolver_pasta_dados() / "perfil_google.json", None)
+
+        def gravar(d):
+            escrever_json(resolver_pasta_dados() / "perfil_google.json", d)
+
+        return jsonify({"ok": True,
+                        "resumo": _sn.sincronizar_perfil(_sn_chave, ler_atual, gravar)})
+    except Exception as e:
+        return jsonify({"erro": f"{type(e).__name__}: {e}"}), 502
+
+
 @app.route("/api/admin/sincronizar-gasto", methods=["POST"])
 def api_admin_sincronizar_gasto():
     """Dispara na hora a atualizacao de Google+Meta — o mesmo que o thread

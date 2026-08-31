@@ -170,6 +170,93 @@ def coletar_meta(chave_api):
     }
 
 
+def coletar_perfil_google(chave_api):
+    """Google Perfil da Empresa (Maps + Busca local) — o canal ORGANICO que
+    traz gente ate a loja.
+
+    Por que importa: e o canal que o painel nao via. Ele nao gasta midia e nao
+    vende no site — converte em telefone tocando e gente pedindo rota, coisas
+    que nenhuma outra fonte registra. Sem isso, todo o custo do Google era
+    cobrado contra venda online e este canal ficava invisivel.
+
+    Guarda serie diaria (12 meses) e as palavras que as pessoas digitaram —
+    essas valem tanto quanto os numeros: dizem como o cliente PROCURA a loja.
+    """
+    linhas = _windsor(chave_api, "google_my_business",
+                      "date,impressions,impressions_mobile_maps,"
+                      "impressions_mobile_search,impressions_desktop_maps,"
+                      "impressions_desktop_search,call_clicks,website_clicks,"
+                      "direction_requests", "last_12m")
+    if not linhas:
+        return None
+
+    serie = {}
+    for x in linhas:
+        dia = x.get("date")
+        if not dia:
+            continue
+        serie[dia] = {
+            "impressoes": int(float(x.get("impressions") or 0)),
+            "maps_celular": int(float(x.get("impressions_mobile_maps") or 0)),
+            "busca_celular": int(float(x.get("impressions_mobile_search") or 0)),
+            "maps_pc": int(float(x.get("impressions_desktop_maps") or 0)),
+            "busca_pc": int(float(x.get("impressions_desktop_search") or 0)),
+            "ligacoes": int(float(x.get("call_clicks") or 0)),
+            "cliques_site": int(float(x.get("website_clicks") or 0)),
+            "rotas": int(float(x.get("direction_requests") or 0)),
+        }
+
+    termos = []
+    try:
+        kw = _windsor(chave_api, "google_my_business",
+                      "search_keyword,search_keyword_value", "last_12m")
+        vistos = {}
+        for x in kw:
+            t = (x.get("search_keyword") or "").strip()
+            if not t:
+                continue
+            vistos[t] = vistos.get(t, 0) + int(float(x.get("search_keyword_value") or 0))
+        termos = [{"termo": t, "buscas": n}
+                  for t, n in sorted(vistos.items(), key=lambda kv: -kv[1])[:40]]
+    except Exception:
+        pass
+
+    avaliacoes = None
+    try:
+        rv = _windsor(chave_api, "google_my_business",
+                      "review_total_count,review_average_rating_total", "last_12m")
+        if rv:
+            avaliacoes = {"total": int(float(rv[0].get("review_total_count") or 0)),
+                          "nota": round(float(rv[0].get("review_average_rating_total") or 0), 1)}
+    except Exception:
+        pass
+
+    return {"serie_dia": serie, "termos": termos, "avaliacoes": avaliacoes}
+
+
+def sincronizar_perfil(ler_chave, ler_atual, gravar, log=print):
+    """Rodada do Perfil da Empresa. Chave propria (perfil_google) porque o dado
+    nao e midia paga — nao entra no investimento, e sim num card proprio."""
+    chave = ler_chave()
+    if not chave:
+        raise RuntimeError("sem chave do Windsor")
+    novo = coletar_perfil_google(chave)
+    if not novo:
+        raise RuntimeError("Perfil da Empresa não respondeu (conta conectada?)")
+
+    # A serie acumula entre importacoes: no plano basico so uma fonte fica
+    # conectada por vez, entao o perfil pode passar semanas sem atualizar.
+    anterior = (ler_atual() or {}).get("serie_dia") or {}
+    novo["serie_dia"] = {**anterior, **novo["serie_dia"]}
+    novo["gerado_em"] = datetime.now(FUSO).isoformat(timespec="seconds")
+    gravar(novo)
+    dias = novo["serie_dia"]
+    lig = sum(d.get("ligacoes", 0) for d in dias.values())
+    resumo = f"{len(dias)} dias | {lig:,} ligações | {len(novo['termos'])} termos"
+    log(f"[perfil-google] {resumo}")
+    return resumo
+
+
 def sincronizar_gasto(ler_chave, ler_atual, gravar, log=print):
     """Uma rodada completa. Devolve um resumo (ou lanca excecao)."""
     chave = ler_chave()

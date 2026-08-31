@@ -886,6 +886,7 @@
 
     <!-- ---------- MARKETING ---------- -->
     <section id="secMarketing" class="oculto">
+      <div id="perfilGoogle"></div>
       <div class="filtros">
         <div class="filtro-campo">
           <label class="campo-rotulo" for="mktDe">De</label>
@@ -3615,6 +3616,7 @@ function renderMarketing(d){
 
 document.addEventListener('change', ev => {
   if(['mktDe','mktAte','mktCanal','mktVendedor'].includes(ev.target.id)) carregarMarketing();
+  if(['mktDe','mktAte'].includes(ev.target.id)) carregarPerfilGoogle();
 });
 
 /* ---------- Desempenho por vendedor ----------
@@ -3781,6 +3783,17 @@ async function carregarSiteConta(){
 }
 
 document.addEventListener('click', async ev => {
+  if(ev.target.id === 'perfilAtualizar'){
+    const btn = ev.target, st = document.getElementById('perfilStatus');
+    btn.disabled = true; btn.textContent = 'Buscando…'; st.className = 'status-msg';
+    const r = await fetch('/api/admin/sincronizar-perfil', {method: 'POST'});
+    const dd = await r.json().catch(() => ({}));
+    btn.disabled = false; btn.textContent = 'Atualizar';
+    st.textContent = r.ok ? dd.resumo : (dd.erro || 'Falhou');
+    st.classList.add('show', ...(r.ok ? [] : ['err']));
+    if(r.ok) carregarPerfilGoogle();
+    return;
+  }
   if(ev.target.id === 'mlAtualizar'){
     const btn = ev.target, st = document.getElementById('mlStatus');
     btn.disabled = true; btn.textContent = 'Buscando…'; st.className = 'status-msg';
@@ -3894,6 +3907,59 @@ async function carregarAtendimento(){
         O "Resolvido" vale apenas para o dia: no dia seguinte, quem continuar sem resposta
         volta para a lista.</div>
     </div>`;
+}
+
+async function carregarPerfilGoogle(){
+  const el = document.getElementById('perfilGoogle');
+  if(!el) return;
+  const res = await fetch('/api/admin/perfil-google');
+  if(!res.ok) return;
+  const d = await res.json();
+  if(d.sem_dados){ el.innerHTML = ''; return; }
+
+  // Respeita o período do filtro de marketing — o card vive nessa tela.
+  const de = document.getElementById('mktDe')?.value || '';
+  const ate = document.getElementById('mktAte')?.value || '';
+  const dias = Object.entries(d.serie_dia)
+    .filter(([dia]) => (!de || dia >= de) && (!ate || dia <= ate));
+  const som = c => dias.reduce((t, [, v]) => t + (v[c] || 0), 0);
+  const imp = som('impressoes'), lig = som('ligacoes'),
+        rot = som('rotas'), site = som('cliques_site');
+  const acao = lig + rot + site;
+
+  const tile = (rot_, valor, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot_}</div>
+    <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${valor}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+  const n = v => (v || 0).toLocaleString('pt-BR');
+  const maxT = Math.max(...(d.termos || []).map(t => t.buscas), 1);
+
+  el.innerHTML = `<div class="card" style="margin-bottom:14px;">
+    <div class="aud-cabecalho">
+      <p class="card-titulo" style="margin:0;">Google Perfil da Empresa — quem acha a loja</p>
+      ${d.avaliacoes ? `<span class="ml-selo ok">★ ${d.avaliacoes.nota} · ${n(d.avaliacoes.total)} avaliações</span>` : ''}
+      <button class="btn btn-neutro btn-pequeno" id="perfilAtualizar">Atualizar</button>
+      <span class="status-msg" id="perfilStatus"></span>
+    </div>
+    <div class="shopee-corpo">
+      <div class="dp-kpis" style="margin-bottom:0;">
+        ${tile('Ligações', n(lig), 'clicaram em ligar', lig ? 'var(--good)' : '')}
+        ${tile('Pediram rota', n(rot), 'foram até a loja')}
+        ${tile('Cliques no site', n(site), 'do perfil para o site')}
+        ${tile('Apareceu para', n(imp), 'pessoas no Maps e na Busca')}
+      </div>
+      <div class="dp-lista shopee-meses">
+        <div class="mb-recentes-titulo" style="margin-top:0;">O que digitaram pra achar vocês</div>
+        ${(d.termos || []).slice(0, 8).map(t => `<div class="dp-linha">
+          <span class="nome" style="width:auto;flex:1;">${t.termo.slice(0, 34)}</span>
+          <span class="v">${n(t.buscas)}</span>
+          <span class="t"><span class="f" style="width:${(t.buscas / maxT * 100).toFixed(1)}%"></span></span>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="dp-aviso">Canal <b>orgânico</b> — não gasta mídia e não vende no site: converte em
+      telefone tocando e gente na porta. ${imp ? `<b>${(100 * acao / imp).toFixed(0)}%</b> de quem
+      viu o perfil fez alguma ação.` : ''} Atualizado ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>
+  </div>`;
 }
 
 async function carregarShopeeConta(){
@@ -4230,6 +4296,7 @@ function irParaSecao(chave, sub){
     carregarAuditoria();
   }
   if(chave === 'marketing' && !mktDados){
+  if(chave === 'marketing') carregarPerfilGoogle();
     const p = mktPeriodoPadrao();
     document.getElementById('mktDe').value = p.de;
     document.getElementById('mktAte').value = p.ate;
