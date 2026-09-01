@@ -3626,6 +3626,7 @@ async function carregarPermissoes(){
     return `<tr data-vid="${v.id}">
       <td><b>${v.nome}</b>${desl}<br>
         <span class="dp-var neutro">${v.id}${
+          v.setor ? ' · ' + v.setor : ''}${
           v.perfil === 'expedicao' ? ' · expedição' : ''}</span></td>
       <td style="text-align:center;">
         <input type="checkbox" class="perm-master" data-vid="${v.id}"
@@ -3664,8 +3665,68 @@ async function carregarPermissoes(){
         <br><br>A senha do gestor continua funcionando como <b>chave reserva</b>, pra
         ninguém ficar trancado do lado de fora. Ela não é o caminho do dia a dia —
         se estiver sendo usada toda hora, alguma coisa está errada.</div>
-    </div>`;
+    </div>
+    <div class="card" id="cardSetores"><p class="card-titulo">Padrão por setor</p>
+      <div class="vazio">Carregando…</div></div>`;
+  carregarPadroesSetor();
 }
+
+/* O padrao do setor e o que uma pessoa NOVA daquele setor recebe ao entrar.
+   Nao mexe em quem ja tem permissao decidida: `areas` gravado sempre manda.
+   Por isso o Pedro pode ser de Anuncios e ainda ter Meta Bonus, sem obrigar
+   ninguem a inventar um setor "Anuncios-que-ve-bonus". */
+async function carregarPadroesSetor(){
+  const box = document.getElementById('cardSetores');
+  if(!box) return;
+  const d = await fetch('/api/admin/padroes-setor').then(r => r.ok ? r.json() : null);
+  if(!d){ box.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  const areas = d.todas_areas || {};
+  box.innerHTML = `<p class="card-titulo">Padrão por setor</p>
+    <div class="tabela-rolante"><table>
+      <thead><tr><th>Setor</th>
+        ${Object.values(areas).map(t =>
+          `<th style="text-align:center;font-size:11px;">${t}</th>`).join('')}
+      </tr></thead>
+      <tbody>${d.setores.map(s => `<tr>
+        <td><b>${s.setor}</b></td>
+        ${Object.keys(areas).map(k => `<td style="text-align:center;">
+          <input type="checkbox" class="setor-chk" data-setor="${s.setor}"
+            data-area="${k}" ${s.areas.includes(k) ? 'checked' : ''}></td>`).join('')}
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <span class="status-msg" id="setorStatus"></span>
+    <div class="dp-aviso">Isto define o que <b>uma pessoa nova</b> daquele setor
+      recebe ao ser cadastrada — e o que vale para quem ainda não teve a permissão
+      decidida individualmente.
+      <br><br><b>Não mexe em quem já foi ajustado na grade acima.</b> Permissão
+      individual sempre vence o padrão do setor: é o que permite o Pedro ser de
+      Anúncios e ainda ver Meta Bônus, sem precisar inventar um setor só pra ele.
+      <br><br>Os setores vêm da Gestão de pessoas. Para mudar o setor de alguém,
+      é lá — aqui só se define o que cada setor enxerga.</div>`;
+}
+
+document.addEventListener('change', async (ev) => {
+  const chk = ev.target.closest && ev.target.closest('.setor-chk');
+  if(!chk) return;
+  const st = document.getElementById('setorStatus');
+  const setor = chk.dataset.setor;
+  const areas = Array.from(document.querySelectorAll(
+    `.setor-chk[data-setor="${CSS.escape(setor)}"]:checked`)).map(c => c.dataset.area);
+  st.textContent = 'Salvando…';
+  st.classList.add('show');
+  st.classList.remove('err');
+  const res = await fetch('/api/admin/padroes-setor', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({setor, areas}),
+  });
+  if(res.ok){
+    st.textContent = `${setor}: ${areas.length} área${areas.length === 1 ? '' : 's'}`;
+  }else{
+    st.textContent = 'Não consegui salvar. A marca foi desfeita.';
+    st.classList.add('err');
+    chk.checked = !chk.checked;
+  }
+});
 
 document.addEventListener('change', async (ev) => {
   const mst = ev.target.closest && ev.target.closest('.perm-master');

@@ -904,7 +904,50 @@ PAGINA_DA_AREA["expedicao"] = "/"
 PAGINA_DA_AREA["ranking"] = "/painel.html"
 
 
-def areas_efetivas(v: dict) -> list:
+# Semente conservadora. Deliberadamente pobre: dar acesso a mais por chute e
+# pior do que dar de menos, porque o de menos aparece (a pessoa pede) e o de
+# mais nao aparece nunca. O gestor ajusta na tela de Permissoes.
+PADROES_SETOR_INICIAL = {
+    "Comercial": list(AREAS_PROPRIAS),
+    "Gerencia": list(AREAS_PROPRIAS) + ["painel", "desempenho"],
+    "Expedicao": ["meu_painel", "meu_atendimento", "expedicao"],
+    "Anuncios": ["meu_painel", "carros", "metabonus"],
+    "Cadastro": ["meu_painel", "carros"],
+    "Estoque": ["meu_painel", "carros"],
+    "Administrativo": ["meu_painel"],
+    "Desmontagem": ["meu_painel"],
+    "Higienizacao": ["meu_painel"],
+}
+
+
+def _sem_acento_simples(t: str) -> str:
+    """Setor digitado no RH vem com acento; a chave do padrao, sem. Comparar
+    achatado evita que 'Expedição' e 'Expedicao' virem dois setores."""
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFKD", (t or "").strip().lower())
+                   if not unicodedata.combining(c))
+
+
+def padroes_setor() -> dict:
+    """{setor achatado: [areas]}. Editavel pelo gestor; a semente so vale
+    enquanto ninguem tiver salvo nada."""
+    salvo = ler_json(resolver_pasta_dados() / "padroes_setor.json", None)
+    base = salvo if isinstance(salvo, dict) and salvo else PADROES_SETOR_INICIAL
+    return {_sem_acento_simples(k): [a for a in v if a in AREAS]
+            for k, v in base.items()}
+
+
+def setor_do_usuario(vid: str) -> str:
+    """O setor que o RH registra pra pessoa ligada a este usuario."""
+    if not vid:
+        return ""
+    for c in (_rh_ler("colaboradores") or {}).values():
+        if (c.get("vendedor_id") or "").strip().lower() == vid.lower():
+            return c.get("setor") or ""
+    return ""
+
+
+def areas_efetivas(v: dict, vid: str = "") -> list:
     """As areas que valem pra um usuario, ja com os padroes aplicados.
 
     Existe pra que a tela e o servidor concordem. Se a lista de usuarios
@@ -915,8 +958,13 @@ def areas_efetivas(v: dict) -> list:
     areas = [a for a in (v.get("areas") or []) if a in AREAS]
     # Ausencia do campo significa "o padrao", nao "nada". Sem isso, os usuarios
     # que ja existiam perderiam o portal no instante em que isto subisse.
+    #
+    # A ordem importa: `areas` gravado manda sempre. O setor so entra quando
+    # ninguem decidiu nada pra pessoa — assim o Pedro pode ser de Anuncios e
+    # ainda ter Meta Bonus, sem precisar de um setor inventado pra ele.
     if "areas" not in v:
-        areas = list(AREAS_PROPRIAS)
+        do_setor = padroes_setor().get(_sem_acento_simples(setor_do_usuario(vid)))
+        areas = list(do_setor) if do_setor else list(AREAS_PROPRIAS)
     if v.get("perfil") == "expedicao":
         # Nao vende: as areas de venda sao ruido de menu, nao permissao a mais.
         areas = [a for a in areas if a not in ("minhas_vendas", "simulador",
@@ -938,7 +986,7 @@ def areas_do_usuario() -> list:
     vid = session.get("vendedor_id")
     if not vid:
         return []
-    return areas_efetivas(carregar_vendedores().get(vid) or {})
+    return areas_efetivas(carregar_vendedores().get(vid) or {}, vid)
 
 
 def exigir_area(area: str) -> bool:
@@ -3447,6 +3495,40 @@ def api_mb_recentes():
     return jsonify({"itens": itens[:12]})
 
 
+@app.route("/api/admin/padroes-setor")
+def api_admin_padroes_setor():
+    """O padrao de cada setor, e quais setores o RH conhece hoje."""
+    if not exigir_admin():
+        return jsonify({"erro": "Nao autenticado."}), 401
+    setores = sorted({(c.get("setor") or "").strip()
+                      for c in (_rh_ler("colaboradores") or {}).values()
+                      if (c.get("setor") or "").strip()})
+    padroes = padroes_setor()
+    return jsonify({
+        "setores": [{"setor": s_, "areas": padroes.get(_sem_acento_simples(s_), [])}
+                    for s_ in setores],
+        "todas_areas": AREAS,
+    })
+
+
+@app.route("/api/admin/padroes-setor", methods=["POST"])
+def api_admin_salvar_padroes_setor():
+    """Guarda o padrao de UM setor. Um de cada vez, pra dois gestores mexendo
+    ao mesmo tempo nao apagarem o trabalho um do outro."""
+    if not exigir_admin():
+        return jsonify({"erro": "Nao autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    setor = (corpo.get("setor") or "").strip()
+    if not setor:
+        return jsonify({"erro": "Informe o setor."}), 400
+    atual = ler_json(resolver_pasta_dados() / "padroes_setor.json", None)
+    if not isinstance(atual, dict) or not atual:
+        atual = dict(PADROES_SETOR_INICIAL)
+    atual[setor] = [a for a in (corpo.get("areas") or []) if a in AREAS]
+    escrever_json(resolver_pasta_dados() / "padroes_setor.json", atual)
+    return jsonify({"ok": True, "setor": setor, "areas": atual[setor]})
+
+
 @app.route("/api/admin/carros")
 def api_admin_carros():
     if not exigir_area("carros"):
@@ -4377,7 +4459,8 @@ def api_admin_listar_vendedores():
             # Efetivas, nao o campo cru: a grade precisa mostrar o que de fato
             # vale, senao o primeiro clique apagaria o padrao de quem nunca foi
             # editado — a tela reenvia o que leu.
-            "areas": areas_efetivas(v),
+            "areas": areas_efetivas(v, vid),
+            "setor": setor_do_usuario(vid),
             "master": bool(v.get("master")),
             "perfil": v.get("perfil") or "vendedor",
             "liberacao_retroativa": retroativo_ativo(v),
