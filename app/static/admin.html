@@ -2785,25 +2785,39 @@ function renderAuditoria(d){
     if(!dv) return s;
     return s + (dv.tipo === 'total' ? (v.valor || 0) : (dv.valor_devolvido || 0));
   }, 0);
-  const rodapeTotal = lista.length ? `
-    <div class="aud-ficha" style="background:var(--surface);font-weight:600;
-         border-color:var(--text);opacity:1;margin-top:8px;">
+  /* Na lista de devolucoes o total e O QUE VOLTOU, nao o valor das vendas.
+     Numa devolucao parcial o pedaco que ficou na conta continua vendido — nao
+     e devolucao, e somar a venda inteira ali inflaria o numero justamente na
+     tela feita pra medir devolucao. Nas outras listas vale o contrario: o que
+     se esta conferindo e a venda. */
+  const soDevolucao = String(d.foco || '').startsWith('devolvidas');
+  const totalPrincipal = soDevolucao ? devolvidoLista : somaLista;
+  const rotuloPrincipal = soDevolucao
+    ? `Total devolvido em ${lista.length} venda${lista.length === 1 ? '' : 's'}`
+    : `Total de ${lista.length} venda${lista.length === 1 ? '' : 's'}`
+      + (d.busca || ehFoco ? ' <span class="dp-var neutro" style="font-weight:400">(deste filtro)</span>' : '');
+
+  const linhaRodape = (rot, valor, forte) => `
+    <div class="aud-ficha" style="${forte
+        ? 'background:var(--surface);font-weight:600;border-color:var(--text);margin-top:8px;'
+        : 'background:transparent;border:none;padding-top:2px;'}opacity:1;">
       <span class="aud-data"></span>
-      <span class="aud-produto">Total de ${lista.length} venda${lista.length === 1 ? '' : 's'}${
-        d.busca || ehFoco ? ' <span class="dp-var neutro" style="font-weight:400">(deste filtro)</span>' : ''}</span>
-      <span class="aud-detalhe">${devolvidoLista
-        ? `<span class="dp-var desce">−${fmtMoeda(devolvidoLista)} devolvido</span>` : ''}</span>
-      <span class="aud-valor valor-money">${fmtMoeda(somaLista)}</span>
-      <span class="aud-sinais"></span><span class="aud-acoes"></span>
-    </div>
-    ${devolvidoLista ? `<div class="aud-ficha" style="background:transparent;
-         border:none;opacity:1;padding-top:2px;">
-      <span class="aud-data"></span>
-      <span class="aud-produto"><span class="dp-var neutro">líquido, já sem o que voltou</span></span>
+      <span class="aud-produto">${rot}</span>
       <span class="aud-detalhe"></span>
-      <span class="aud-valor valor-money"><b>${fmtMoeda(somaLista - devolvidoLista)}</b></span>
+      <span class="aud-valor valor-money">${forte ? fmtMoeda(valor) : `<b>${fmtMoeda(valor)}</b>`}</span>
       <span class="aud-sinais"></span><span class="aud-acoes"></span>
-    </div>` : ''}` : '';
+    </div>`;
+
+  const rodapeTotal = !lista.length ? '' :
+    linhaRodape(rotuloPrincipal, totalPrincipal, true)
+    + (soDevolucao
+        // Na tela de devolucao, o valor cheio vira contexto: ajuda a ver o
+        // tamanho da venda de onde a devolucao saiu.
+        ? linhaRodape('<span class="dp-var neutro">valor cheio dessas vendas</span>', somaLista)
+        : (devolvidoLista
+            ? linhaRodape('<span class="dp-var neutro">líquido, já sem o que voltou</span>',
+                          somaLista - devolvidoLista)
+            : ''));
   const corpoLista = lista.length
     ? lista.map(v => audFicha(v, d, ehListaCheia)).join('') + rodapeTotal
     : `<div class="vazio">${
