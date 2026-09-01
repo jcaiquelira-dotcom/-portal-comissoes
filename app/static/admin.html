@@ -2768,9 +2768,44 @@ function renderAuditoria(d){
     conferidas: 'Vendas já conferidas',
     divergentes: 'Vendas com divergência',
     sinal: 'Vendas com sinal de atenção',
+    devolvidas: 'Vendas devolvidas',
+    devolvidas_total: 'Devolvidas por inteiro',
+    devolvidas_parcial: 'Devolvidas em parte',
   };
+
+  /* Somatoria do que esta NA TELA, seja qual for o filtro. Conferir uma lista
+     sem o total embaixo obriga a somar na calculadora — e conferencia de
+     comissao e exatamente onde ninguem deveria estar somando na mao.
+
+     Dois numeros quando ha devolucao no recorte: o que foi vendido e o que
+     sobrou depois do que voltou. Um total so, ali, mentiria por omissao. */
+  const somaLista = lista.reduce((s, v) => s + (v.valor || 0), 0);
+  const devolvidoLista = lista.reduce((s, v) => {
+    const dv = v.devolucao;
+    if(!dv) return s;
+    return s + (dv.tipo === 'total' ? (v.valor || 0) : (dv.valor_devolvido || 0));
+  }, 0);
+  const rodapeTotal = lista.length ? `
+    <div class="aud-ficha" style="background:var(--surface);font-weight:600;
+         border-color:var(--text);opacity:1;margin-top:8px;">
+      <span class="aud-data"></span>
+      <span class="aud-produto">Total de ${lista.length} venda${lista.length === 1 ? '' : 's'}${
+        d.busca || ehFoco ? ' <span class="dp-var neutro" style="font-weight:400">(deste filtro)</span>' : ''}</span>
+      <span class="aud-detalhe">${devolvidoLista
+        ? `<span class="dp-var desce">−${fmtMoeda(devolvidoLista)} devolvido</span>` : ''}</span>
+      <span class="aud-valor valor-money">${fmtMoeda(somaLista)}</span>
+      <span class="aud-sinais"></span><span class="aud-acoes"></span>
+    </div>
+    ${devolvidoLista ? `<div class="aud-ficha" style="background:transparent;
+         border:none;opacity:1;padding-top:2px;">
+      <span class="aud-data"></span>
+      <span class="aud-produto"><span class="dp-var neutro">líquido, já sem o que voltou</span></span>
+      <span class="aud-detalhe"></span>
+      <span class="aud-valor valor-money"><b>${fmtMoeda(somaLista - devolvidoLista)}</b></span>
+      <span class="aud-sinais"></span><span class="aud-acoes"></span>
+    </div>` : ''}` : '';
   const corpoLista = lista.length
-    ? lista.map(v => audFicha(v, d, ehListaCheia)).join('')
+    ? lista.map(v => audFicha(v, d, ehListaCheia)).join('') + rodapeTotal
     : `<div class="vazio">${
         ehPendentes ? 'Nada pendente — todas as vendas do período já foram conferidas.'
         : ehTotal ? 'Nenhuma venda neste mês.'
