@@ -97,29 +97,44 @@ function avatarHtml(pessoa, classe){
    `pagina` diz onde a area mora enquanto as telas forem dois arquivos. */
 const ITENS = [
   // --- o proprio trabalho ---
-  {chave: 'meu_painel',        texto: 'Meu painel',         pagina: '/', hash: '#painel',      icone: 'painel'},
-  {chave: 'meu_atendimento',   texto: 'Esperando você',     pagina: '/', hash: '#atendimento', icone: 'retomada'},
-  {chave: 'minhas_vendas',     texto: 'Minhas vendas',      pagina: '/', hash: '#vendas',      icone: 'vendas'},
-  {chave: 'simulador',         texto: 'Simulação',          pagina: '/simulador',              icone: 'cifrao'},
-  {chave: 'meu_followup',      texto: 'Meu follow-up',      pagina: '/follow-up',              icone: 'retomada'},
-  {chave: 'minha_performance', texto: 'Minha performance',  pagina: '/', hash: '#performance', icone: 'desempenho'},
-  {chave: 'expedicao',         texto: 'Expedição',          pagina: '/', hash: '#expedicao',   icone: 'expedicao'},
+  {grupo: 'Meu trabalho', chave: 'meu_painel',        texto: 'Meu painel',         pagina: '/', hash: '#painel',      icone: 'painel'},
+  {grupo: 'Meu trabalho', chave: 'meu_atendimento',   texto: 'Esperando você',     pagina: '/', hash: '#atendimento', icone: 'retomada'},
+  {grupo: 'Meu trabalho', chave: 'minhas_vendas',     texto: 'Minhas vendas',      pagina: '/', hash: '#vendas',      icone: 'vendas'},
+  {grupo: 'Meu trabalho', chave: 'simulador',         texto: 'Simulação',          pagina: '/simulador',              icone: 'cifrao'},
+  {grupo: 'Meu trabalho', chave: 'meu_followup',      texto: 'Meu follow-up',      pagina: '/follow-up',              icone: 'retomada'},
+  {grupo: 'Meu trabalho', chave: 'minha_performance', texto: 'Minha performance',  pagina: '/', hash: '#performance', icone: 'desempenho'},
+  {grupo: 'Operação', chave: 'expedicao',         texto: 'Expedição',          pagina: '/', hash: '#expedicao',   icone: 'expedicao'},
   // --- gestao ---
-  {chave: 'painel',        texto: 'Painel geral',       pagina: '/admin.html', hash: '#painel',        icone: 'painel'},
-  {chave: 'marketing',     texto: 'Marketing',          pagina: '/admin.html', hash: '#marketing',     icone: 'marketing'},
-  {chave: 'analytics',     texto: 'Analytics',          pagina: '/admin.html', hash: '#analytics',     icone: 'desempenho'},
-  {chave: 'auditoria',     texto: 'Comissões',          pagina: '/admin.html', hash: '#auditoria',     icone: 'lupa'},
-  {chave: 'metabonus',     texto: 'Meta Bônus',         pagina: '/admin.html', hash: '#metabonus',     icone: 'bonus'},
-  {chave: 'desempenho',    texto: 'Desempenho do time', pagina: '/admin.html', hash: '#desempenho',    icone: 'desempenho'},
-  {chave: 'carros',        texto: 'Carros pra chegar',  pagina: '/admin.html', hash: '#carros',        icone: 'carro'},
-  {chave: 'rh',            texto: 'Gestão de pessoas',  pagina: '/admin.html', hash: '#rh',            icone: 'equipe'},
-  {chave: 'atendimento',   texto: 'Atendimento agora',  pagina: '/admin.html', hash: '#atendimento',   icone: 'retomada'},
-  {chave: 'retomada',      texto: 'Follow-up do time',  pagina: '/admin.html', hash: '#retomada',      icone: 'retomada'},
-  {chave: 'fechamento',    texto: 'Fechamento de mês',  pagina: '/admin.html', hash: '#fechamento',    icone: 'fechamento'},
-  {chave: 'ranking',       texto: 'Ranking de vendas',  pagina: '/painel.html',                        icone: 'ranking'},
-  {chave: 'permissoes',    texto: 'Permissões',         pagina: '/admin.html', hash: '#permissoes',    icone: 'equipe', soMaster: true},
-  {chave: 'configuracoes', texto: 'Configurações',      pagina: '/admin.html', hash: '#configuracoes', icone: 'config', soMaster: true},
+  {grupo: 'Comercial', chave: 'painel',        texto: 'Painel geral',       pagina: '/admin.html', hash: '#painel',        icone: 'painel'},
+  {grupo: 'Marketing', chave: 'marketing',     texto: 'Marketing',          pagina: '/admin.html', hash: '#marketing',     icone: 'marketing'},
+  {grupo: 'Marketing', chave: 'analytics',     texto: 'Analytics',          pagina: '/admin.html', hash: '#analytics',     icone: 'desempenho'},
+  {grupo: 'Comercial', chave: 'auditoria',     texto: 'Comissões',          pagina: '/admin.html', hash: '#auditoria',     icone: 'lupa'},
+  {grupo: 'Comercial', chave: 'metabonus',     texto: 'Meta Bônus',         pagina: '/admin.html', hash: '#metabonus',     icone: 'bonus'},
+  {grupo: 'Comercial', chave: 'desempenho',    texto: 'Desempenho do time', pagina: '/admin.html', hash: '#desempenho',    icone: 'desempenho'},
+  {grupo: 'Operação', chave: 'carros',        texto: 'Carros pra chegar',  pagina: '/admin.html', hash: '#carros',        icone: 'carro'},
+  {grupo: 'Administração', chave: 'rh',            texto: 'Gestão de pessoas',  pagina: '/admin.html', hash: '#rh',            icone: 'equipe'},
+  {grupo: 'Comercial', chave: 'atendimento',   texto: 'Atendimento agora',  pagina: '/admin.html', hash: '#atendimento',   icone: 'retomada'},
+  {grupo: 'Comercial', chave: 'retomada',      texto: 'Follow-up do time',  pagina: '/admin.html', hash: '#retomada',      icone: 'retomada'},
+  {grupo: 'Administração', chave: 'fechamento',    texto: 'Fechamento de mês',  pagina: '/admin.html', hash: '#fechamento',    icone: 'fechamento'},
+  {grupo: 'Marketing', chave: 'ranking',       texto: 'Ranking de vendas',  pagina: '/painel.html',                        icone: 'ranking'},
+  {grupo: 'Administração', chave: 'permissoes',    texto: 'Permissões',         pagina: '/admin.html', hash: '#permissoes',    icone: 'equipe', soMaster: true},
+  {grupo: 'Administração', chave: 'configuracoes', texto: 'Configurações',      pagina: '/admin.html', hash: '#configuracoes', icone: 'config', soMaster: true},
 ];
+
+/* Ordem dos grupos. Comercial primeiro pra quem supervisiona: e o que se olha
+   todo dia. "Meu trabalho" vem antes de tudo pra quem so vende, porque pra essa
+   pessoa e o unico grupo que existe. */
+const ORDEM_GRUPOS = ['Meu trabalho', 'Comercial', 'Marketing', 'Operação',
+                      'Administração'];
+
+const GRUPOS_FECHADOS = 'nevada_menu_grupos_fechados';
+function gruposFechados(){
+  try{ return new Set(JSON.parse(localStorage.getItem(GRUPOS_FECHADOS) || '[]')); }
+  catch(e){ return new Set(); }
+}
+function guardarGruposFechados(s){
+  try{ localStorage.setItem(GRUPOS_FECHADOS, JSON.stringify([...s])); }catch(e){}
+}
 
 /* Compatibilidade: as duas telas ainda chamam montarSidebar com `portal`.
    Enquanto isso, o titulo vem daqui — mas o conteudo ja vem das areas. */
@@ -210,6 +225,36 @@ document.addEventListener('visibilitychange', () => {
   if(!document.hidden) conferirAmbiente(false);
 });
 
+/* Um grupo com um item so nao e grupo — vira ruido de cabecalho. Nesse caso o
+   item sobe direto pra lista, sem titulo. */
+function montarGrupos(itens, ativo, linkItem){
+  const fechados = gruposFechados();
+  const porGrupo = new Map();
+  itens.forEach(it => {
+    const g = it.grupo || 'Outros';
+    if(!porGrupo.has(g)) porGrupo.set(g, []);
+    porGrupo.get(g).push(it);
+  });
+  const ordem = [...ORDEM_GRUPOS.filter(g => porGrupo.has(g)),
+                 ...[...porGrupo.keys()].filter(g => !ORDEM_GRUPOS.includes(g))];
+  // Com um grupo so, cabecalho nenhum ajuda: mostra a lista direto.
+  if(ordem.length <= 1) return itens.map(linkItem).join('');
+
+  return ordem.map(g => {
+    const lista = porGrupo.get(g);
+    if(lista.length === 1) return linkItem(lista[0]);
+    // O grupo do item aberto nunca aparece fechado: esconder onde a pessoa
+    // esta faz o menu parecer que perdeu a opcao.
+    const temAtivo = lista.some(it => it.chave === ativo);
+    const aberto = temAtivo || !fechados.has(g);
+    return '<div class="nav-grupo' + (aberto ? '' : ' fechado') + '" data-grupo="' + g + '">'
+      + '<button class="nav-grupo-titulo" data-grupo-btn="' + g + '">'
+      + '<span>' + g + '</span>' + ICONES.recolher + '</button>'
+      + '<div class="nav-grupo-itens">' + lista.map(linkItem).join('') + '</div>'
+      + '</div>';
+  }).join('');
+}
+
 function montarSidebar(ativo, opcoes){
   opcoes = opcoes || {};
   const portal = PORTAIS[opcoes.portal] ? opcoes.portal : 'vendedor';
@@ -245,9 +290,7 @@ function montarSidebar(ativo, opcoes){
     + '<div class="nome">' + cfg.titulo + '</div>'
     + '<button class="sidebar-recolher" id="recolherBtn" title="Guardar menu">' + ICONES.recolher + '</button>'
     + '</div>'
-    + '<nav class="nav-lista">'
-    + itens.map(linkItem).join('')
-    + '</nav>'
+    + '<nav class="nav-lista">' + montarGrupos(itens, ativo, linkItem) + '</nav>'
     + '<div class="sidebar-rodape">'
     + '<button class="tema-btn" id="temaBtn"></button>'
     + '<div class="perfil">'
@@ -255,6 +298,18 @@ function montarSidebar(ativo, opcoes){
     + '<div><div class="perfil-nome" id="perfilNome">—</div>'
     + '<button class="perfil-sair" id="sairBtn">Sair</button></div>'
     + '</div></div>';
+
+  alvo.querySelectorAll('[data-grupo-btn]').forEach(b => {
+    b.addEventListener('click', () => {
+      const g = b.dataset.grupoBtn;
+      const caixa = alvo.querySelector('[data-grupo="' + CSS.escape(g) + '"]');
+      const fechados = gruposFechados();
+      const vaiFechar = !caixa.classList.contains('fechado');
+      caixa.classList.toggle('fechado', vaiFechar);
+      if(vaiFechar) fechados.add(g); else fechados.delete(g);
+      guardarGruposFechados(fechados);
+    });
+  });
 
   aplicarMenuRecolhido(menuRecolhido());
   document.getElementById('recolherBtn').addEventListener('click', () => aplicarMenuRecolhido(true));
