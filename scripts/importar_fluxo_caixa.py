@@ -163,7 +163,7 @@ def dupla_contagem(wb, aba: str, formulas: dict) -> tuple:
 DRE = {
     "Sucatas":          ("cmv",          "Compra e preparo de sucata"),
     "Impostos":         ("deducoes",     "Impostos"),
-    "Devolucoes":       ("deducoes",     "Devolucoes e comissoes"),
+    "Devolucoes":       ("deducoes",     "Devolucoes"),
     "Colaboradores":    ("despesas",     "Pessoal"),
     "Fixo":             ("despesas",     "Fixas"),
     "Cartoes":          ("despesas",     "Cartoes"),
@@ -176,6 +176,10 @@ DRE = {
     "Patrimonial":      ("investimento", "Patrimonial"),
     "Imoveis":          ("investimento", "Imoveis"),
     "Parcelas e socios": ("socios",      "Parcelas e socios"),
+    "Comissoes":        ("despesas",     "Comissoes de venda"),
+    # Caucao entra e sai: mexe no caixa, nao mexe no resultado. Fica fora do
+    # DRE e visivel na reconciliacao, senao o mes fecha pior do que foi.
+    "Caucao e transito": ("nao_resultado", "Caucao e transito"),
 }
 
 

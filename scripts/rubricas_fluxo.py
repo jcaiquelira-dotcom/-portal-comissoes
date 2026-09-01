@@ -84,6 +84,68 @@ def rotulo_de(ws, cel):
     return SEM_TITULO.get(col_letra, '(sem rotulo)')
 
 
+# Nomes de vendedor no bloco de devolucoes sao COMISSAO paga, nao devolucao.
+# Ficam na mesma coluna porque e onde couberam, nao porque sao a mesma coisa.
+VENDEDORES = {"matheus", "brenda", "flavia", "gustavo", "lucas", "vinicius",
+              "caique", "nycollas", "rafael"}
+
+# Lancamentos que o rotulo nao revela e que o gestor identificou um a um.
+# "M. Ram" aparece duas vezes em agosto: R31 e o motor que voltou (devolucao de
+# verdade) e R32 e um cheque caucao que entrou e saiu da empresa. Caucao nao e
+# despesa nem receita — nao afeta resultado, so passa pelo caixa. Sem esta
+# linha os dois seriam lidos como devolucao, e o mes fecharia R$ 5.000 pior do
+# que foi.
+OVERRIDES = {
+    ("Ago", "R32"): ("Caucao e transito", "Cheque caucao — entrou e saiu"),
+}
+
+# Blocos que misturam naturezas diferentes e por isso sao abertos item a item
+# em vez de entrarem pelo subtotal.
+MISTURADOS = {"Devolucoes"}
+
+
+def detalhar_bloco(ws, aba, cel_subtotal, rubrica):
+    """Abre um bloco misturado item a item, classificando cada linha.
+
+    O bloco de Devolucoes de agosto tem tres naturezas na mesma coluna:
+    devolucao de venda, comissao de vendedor e um cheque caucao. Somar tudo
+    como "devolucao" jogava R$ 22.832 de comissao pra fora das despesas de
+    pessoal e R$ 5.000 de caucao pra dentro do resultado.
+    """
+    col = openpyxl.utils.column_index_from_string(
+        ''.join(c for c in cel_subtotal if c.isalpha()))
+    lin = int(''.join(c for c in cel_subtotal if c.isdigit()))
+    alvo_val = ws[cel_subtotal].value or 0
+    itens, soma = [], 0.0
+    for r in range(lin - 1, max(0, lin - 40), -1):
+        # Para assim que os itens reconstroem o subtotal. Subir por contagem de
+        # linhas passava do inicio do bloco e engolia o de cima — em agosto ia
+        # buscar os R$ 232.451 de sucata, que nao tem nada a ver com este.
+        if abs(soma - alvo_val) < 1 and itens:
+            break
+        val = ws.cell(row=r, column=col).value
+        rot = ws.cell(row=r, column=col - 1).value
+        if not isinstance(val, (int, float)) or not val:
+            continue
+        cel = ws.cell(row=r, column=col).coordinate
+        nome = ach(rot)
+        chave = OVERRIDES.get((aba, cel))
+        if chave:
+            destino, rotulo = chave
+        elif nome in VENDEDORES:
+            destino, rotulo = "Comissoes", f"Comissao {str(rot).strip()}"
+        else:
+            destino, rotulo = rubrica, str(rot or "").strip() or "(sem rotulo)"
+        itens.append({"celula": cel, "valor": round(float(val), 2),
+                      "rubrica": destino, "detalhe": rotulo})
+        soma += val
+    # So vale se os itens reconstruirem o subtotal. Se nao fecharem, e porque
+    # o bloco nao e o que eu penso que e — melhor cair fora e usar o subtotal.
+    if abs(soma - alvo_val) > 1:
+        return None
+    return itens
+
+
 def quebra_do_mes(caminho, aba):
     wv = openpyxl.load_workbook(caminho, data_only=True)
     wf = openpyxl.load_workbook(caminho, data_only=False)
@@ -107,8 +169,14 @@ def quebra_do_mes(caminho, aba):
         v = ws[ref].value
         if not isinstance(v, (int, float)) or not v:
             continue
+        rub = rotulo_de(ws, ref)
+        if rub in MISTURADOS:
+            det = detalhar_bloco(ws, aba, ref, rub)
+            if det:
+                partes.extend(det)
+                continue
         partes.append({'celula': ref, 'valor': round(float(v), 2),
-                       'rubrica': rotulo_de(ws, ref)})
+                       'rubrica': rub})
     return formula, partes
 
 
