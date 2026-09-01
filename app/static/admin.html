@@ -2717,12 +2717,20 @@ function renderAuditoria(d){
     kpi('Com sinal de atenção', d.com_sinal, `de ${d.total.vendas} vendas`, null, 'sinal'),
     // Devolucao so vira cartao quando existe: mes sem devolucao nao precisa de
     // um zero ocupando espaco no topo.
-    ...(dev.qtd ? [kpi('Devolvidas', dev.qtd,
-        `−${fmtMoeda(dev.valor_perdido)} de comissão`, 'var(--bad)', 'devolvidas')] : []),
+    // SEMPRE visivel, mesmo em zero. Eu tinha escondido quando nao havia
+    // devolucao, e o gestor foi procurar o filtro no mes corrente — que tem
+    // zero — e nao achou. Zero e resposta ("nao voltou nada"), e quem procura
+    // um filtro precisa ver que ele existe pra entender que e o periodo que
+    // esta errado, nao o portal. Mesmo erro que eu ja tinha feito no card do
+    // Mercado Livre.
+    kpi('Devolvidas', dev.qtd,
+        dev.qtd ? `−${fmtMoeda(dev.valor_perdido)} de comissão`
+                : 'nenhuma neste período',
+        dev.qtd ? 'var(--bad)' : 'var(--good)', 'devolvidas'),
     // Total e parcial so aparecem depois que se entra em Devolvidas. Antes
     // disso seriam dois cartoes competindo com os quatro que importam todo dia;
     // depois, sao a pergunta seguinte de quem ja esta conferindo devolucao.
-    ...(dev.qtd && String(d.foco).startsWith('devolvidas') ? [
+    ...(dev.qtd && String(d.foco || '').startsWith('devolvidas') ? [
       kpi('Devolveu tudo', dev.total, 'venda inteira volta', 'var(--bad)', 'devolvidas_total'),
       kpi('Devolveu em parte', dev.parcial, 'a venda continua, menor',
           dev.parcial ? 'var(--warn)' : null, 'devolvidas_parcial'),
