@@ -121,11 +121,17 @@ const ITENS = [
   {grupo: 'Administração', chave: 'configuracoes', texto: 'Configurações',      pagina: '/admin.html', hash: '#configuracoes', icone: 'config', soMaster: true},
 ];
 
-/* Ordem dos grupos. Comercial primeiro pra quem supervisiona: e o que se olha
-   todo dia. "Meu trabalho" vem antes de tudo pra quem so vende, porque pra essa
-   pessoa e o unico grupo que existe. */
-const ORDEM_GRUPOS = ['Meu trabalho', 'Comercial', 'Marketing', 'Operação',
-                      'Administração'];
+/* Ordem dos grupos. Comercial primeiro: e o que se olha todo dia.
+   "Meu trabalho" por ULTIMO — quem supervisiona nao usa, e quem so vende tem
+   ele como unico grupo (e aí nem cabecalho aparece). Deixar em cima
+   empurrava pra baixo justamente o que o gestor abre o dia inteiro. */
+const ORDEM_GRUPOS = ['Comercial', 'Marketing', 'Operação', 'Administração',
+                      'Meu trabalho'];
+
+/* Grupos que comecam recolhidos quando existe mais de um. Quem tem gestao E
+   vendas nao quer os dois blocos abertos competindo por altura; o do proprio
+   trabalho fica guardado ate ser preciso. */
+const FECHADOS_POR_PADRAO = ['Meu trabalho'];
 
 const GRUPOS_FECHADOS = 'nevada_menu_grupos_fechados';
 function gruposFechados(){
@@ -246,7 +252,11 @@ function montarGrupos(itens, ativo, linkItem){
     // O grupo do item aberto nunca aparece fechado: esconder onde a pessoa
     // esta faz o menu parecer que perdeu a opcao.
     const temAtivo = lista.some(it => it.chave === ativo);
-    const aberto = temAtivo || !fechados.has(g);
+    // Padrao fechado vale so na primeira vez: depois manda o que a pessoa
+    // escolheu, incluindo reabrir e deixar aberto.
+    const nuncaMexeu = !localStorage.getItem(GRUPOS_FECHADOS);
+    const fechaSozinho = nuncaMexeu && FECHADOS_POR_PADRAO.includes(g);
+    const aberto = temAtivo || (!fechados.has(g) && !fechaSozinho);
     return '<div class="nav-grupo' + (aberto ? '' : ' fechado') + '" data-grupo="' + g + '">'
       + '<button class="nav-grupo-titulo" data-grupo-btn="' + g + '">'
       + '<span>' + g + '</span>' + ICONES.recolher + '</button>'
