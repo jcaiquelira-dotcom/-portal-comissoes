@@ -730,7 +730,10 @@ def api_login():
         return jsonify({"erro": "Vendedor ou senha inválidos."}), 401
     session.clear()
     session["vendedor_id"] = vendedor_id
-    registrar_acesso("vendedor", True, vendedor_id, v["nome"])
+    # Quem administra entra com nome. Era exatamente isso que a senha sem dono
+    # nao permitia registrar.
+    registrar_acesso("master" if v.get("master") else "vendedor",
+                     True, vendedor_id, v["nome"])
     return jsonify({"ok": True, "nome": v["nome"]})
 
 
@@ -1670,7 +1673,10 @@ def api_admin_login():
         registrar_acesso("admin", False)
         return jsonify({"erro": "Senha incorreta."}), 401
     session["admin"] = True
-    registrar_acesso("admin", True)
+    # "chave-reserva", nao "admin". Entrar pela senha sem dono passa a ser um
+    # evento visivel no log — se aparecer todo dia, e sinal de que alguem esta
+    # usando a saida de emergencia como porta principal.
+    registrar_acesso("chave-reserva", True, None, "senha do gestor (sem usuario)")
     return jsonify({"ok": True})
 
 
@@ -1729,8 +1735,23 @@ def api_admin_logout():
     return jsonify({"ok": True})
 
 
+def usuario_master() -> bool:
+    """Se quem esta logado e um usuario com acesso master.
+
+    Separado de `session["admin"]` de proposito: aquele e a senha reserva, este
+    e uma pessoa com nome. Os dois abrem as mesmas portas, mas so um deles
+    aparece no log dizendo quem era.
+    """
+    vid = session.get("vendedor_id")
+    if not vid:
+        return False
+    v = carregar_vendedores().get(vid) or {}
+    # Desligado nao administra mais nada, por mais master que fosse.
+    return bool(v.get("master")) and not desligado(v)
+
+
 def exigir_admin():
-    return bool(session.get("admin"))
+    return bool(session.get("admin")) or usuario_master()
 
 
 # Sair da empresa nao apaga o passado: o Gustavo continua entrando pra conferir
@@ -1782,9 +1803,18 @@ def api_admin_me():
     nome = ""
     if vid and not exigir_admin():
         nome = (carregar_vendedores().get(vid) or {}).get("nome", "")
+    if exigir_admin() and not nome:
+        vid_m = session.get("vendedor_id")
+        if vid_m:
+            nome = (carregar_vendedores().get(vid_m) or {}).get("nome", "")
     return jsonify({
         "logado": bool(exigir_admin() or areas),
         "gestor": exigir_admin(),
+        # `master_nominal` e a pessoa com nome; `chave_reserva` e a senha sem
+        # dono. A tela avisa quando alguem esta usando a reserva — ela existe
+        # pra emergencia, e usar todo dia significa que algo esta errado.
+        "master_nominal": usuario_master(),
+        "chave_reserva": bool(session.get("admin")) and not usuario_master(),
         "areas": areas,
         "nome": nome,
         "todas_areas": AREAS,
@@ -4301,6 +4331,7 @@ def api_admin_listar_vendedores():
             "oculto": bool(v.get("oculto")),
             "desligado_em": v.get("desligado_em") or "",
             "areas": v.get("areas") or [],
+            "master": bool(v.get("master")),
             "perfil": v.get("perfil") or "vendedor",
             "liberacao_retroativa": retroativo_ativo(v),
             "liberacao_retroativa_ate": v.get("liberacao_retroativa_ate") if retroativo_ativo(v) else None,
@@ -4386,6 +4417,14 @@ def api_admin_salvar_vendedor():
     # deixa o historico intacto, tira a pessoa das telas de lancamento a
     # partir dali, e ainda diz na tela DESDE QUANDO — um `oculto` booleano
     # faria a pessoa evaporar sem explicar nada.
+    # Acesso master. Vem da tela de Permissoes; quem tem isso ve tudo e pode
+    # distribuir acesso, entao a marca e explicita e nunca deduzida de outra
+    # coisa.
+    if "master" in body:
+        vendedores[vendedor_id]["master"] = bool(body.get("master"))
+    elif existente.get("master"):
+        vendedores[vendedor_id]["master"] = True
+
     # Areas liberadas. Sempre a lista inteira que veio da tela: marcar e
     # desmarcar tem que funcionar, entao nao da pra "preservar se vier vazio".
     if "areas" in body:

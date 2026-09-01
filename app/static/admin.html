@@ -3643,9 +3643,12 @@ async function carregarPermissoes(){
       <td><b>${v.nome}</b>${desl}<br>
         <span class="dp-var neutro">${v.id}${
           v.perfil === 'expedicao' ? ' · expedição' : ''}</span></td>
+      <td style="text-align:center;">
+        <input type="checkbox" class="perm-master" data-vid="${v.id}"
+          ${v.master ? 'checked' : ''}></td>
       ${Object.keys(areas).map(k => `<td style="text-align:center;">
         <input type="checkbox" class="perm-chk" data-vid="${v.id}" data-area="${k}"
-          ${marcadas.has(k) ? 'checked' : ''}></td>`).join('')}
+          ${v.master || marcadas.has(k) ? 'checked' : ''}${v.master ? ' disabled' : ''}></td>`).join('')}
       <td style="text-align:center;">${marcadas.size
         ? `<b>${marcadas.size}</b>` : '<span class="dp-var neutro">—</span>'}</td>
     </tr>`;
@@ -3656,6 +3659,7 @@ async function carregarPermissoes(){
       <p class="card-titulo">Quem acessa o quê</p>
       <div class="tabela-rolante"><table>
         <thead><tr><th>Pessoa</th>
+          <th style="text-align:center;font-size:11px;">MASTER</th>
           ${Object.values(areas).map(t =>
             `<th style="text-align:center;font-size:11px;">${t}</th>`).join('')}
           <th style="text-align:center;">Áreas</th></tr></thead>
@@ -3669,43 +3673,63 @@ async function carregarPermissoes(){
         <br><br><b>Salva na hora.</b> Cada clique já vale — não existe botão de
         confirmar, porque um botão esquecido faria você achar que mudou quando
         não mudou.
-        <br><br>O gestor (senha master) vê tudo sempre e não aparece nesta lista:
-        não faria sentido poder tirar o acesso de quem administra o acesso.</div>
+        <br><br><b>MASTER</b> vê tudo e distribui acesso — é o que hoje se faz com a
+        senha do gestor. A diferença é que agora tem nome: o log de acesso passa a
+        dizer <b>quem</b> entrou, e desligar alguém que administra vira desligar uma
+        pessoa, não trocar a senha de todo mundo.
+        <br><br>A senha do gestor continua funcionando como <b>chave reserva</b>, pra
+        ninguém ficar trancado do lado de fora. Ela não é o caminho do dia a dia —
+        se estiver sendo usada toda hora, alguma coisa está errada.</div>
     </div>`;
 }
 
 document.addEventListener('change', async (ev) => {
+  const mst = ev.target.closest && ev.target.closest('.perm-master');
+  if(mst){ await salvarPermissao(mst.dataset.vid, {master: mst.checked}); return; }
   const chk = ev.target.closest && ev.target.closest('.perm-chk');
   if(!chk) return;
-  const st = document.getElementById('permStatus');
   const linha = chk.closest('tr');
   const areas = Array.from(linha.querySelectorAll('.perm-chk:checked'))
     .map(c => c.dataset.area);
-  // Manda o cadastro inteiro que a tela ja tem, senao salvar permissao apagaria
-  // percentual e overrides — o endpoint reescreve o registro.
+  await salvarPermissao(chk.dataset.vid, {areas}, chk);
+});
+
+/* Um caminho so pra gravar, usado pela caixa de area e pela de master.
+   Manda o cadastro INTEIRO porque o endpoint reescreve o registro: enviar so a
+   permissao apagaria percentual, overrides e data de desligamento. */
+async function salvarPermissao(vid, mudanca, chk){
+  const st = document.getElementById('permStatus');
   const lista = await fetch('/api/admin/vendedores').then(r => r.json());
-  const v = lista.find(x => x.id === chk.dataset.vid);
+  const v = lista.find(x => x.id === vid);
   if(!v) return;
   st.textContent = 'Salvando…';
   st.classList.add('show');
+  st.classList.remove('err');
   const res = await fetch('/api/admin/vendedores', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       id: v.id, nome: v.nome, percentual: v.percentual,
       overrides: v.overrides || [], avatar: v.avatar || '',
-      desligado_em: v.desligado_em || '', perfil: v.perfil, areas}),
+      desligado_em: v.desligado_em || '', perfil: v.perfil,
+      areas: v.areas || [], master: !!v.master, ...mudanca}),
   });
   if(res.ok){
-    st.textContent = `${v.nome}: ${areas.length} área${areas.length === 1 ? '' : 's'}`;
-    st.classList.remove('err');
-    linha.lastElementChild.innerHTML = areas.length
-      ? `<b>${areas.length}</b>` : '<span class="dp-var neutro">—</span>';
+    st.textContent = v.nome + ': salvo';
+    // Marcar master muda a linha inteira (todas as caixas passam a valer e
+    // travam), entao redesenha em vez de remendar celula por celula.
+    if('master' in mudanca) carregarPermissoes();
+    else{
+      const linha = chk.closest('tr');
+      const n = mudanca.areas.length;
+      linha.lastElementChild.innerHTML = n
+        ? `<b>${n}</b>` : '<span class="dp-var neutro">—</span>';
+    }
   }else{
     st.textContent = 'Não consegui salvar. A marca foi desfeita.';
     st.classList.add('err');
-    chk.checked = !chk.checked;      // a tela nunca mente sobre o que foi salvo
+    carregarPermissoes();            // a tela nunca mente sobre o que foi salvo
   }
-});
+}
 
 /* ---------- Analytics do site ----------
    Preenche o meio do funil. O painel ja sabia o lead (Totalk) e a venda
