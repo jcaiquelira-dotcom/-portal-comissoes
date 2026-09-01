@@ -108,7 +108,6 @@ const ITENS = [
   {grupo: 'Comercial', chave: 'painel',        texto: 'Painel geral',       pagina: '/admin.html', hash: '#painel',        icone: 'painel'},
   {grupo: 'Marketing', chave: 'marketing',     texto: 'Marketing',          pagina: '/admin.html', hash: '#marketing',     icone: 'marketing'},
   {grupo: 'Marketing', chave: 'analytics',     texto: 'Analytics',          pagina: '/admin.html', hash: '#analytics',     icone: 'desempenho'},
-  {grupo: 'Comercial', chave: 'vendas', area: 'auditoria', texto: 'Vendas do time', pagina: '/admin.html', hash: '#vendas', icone: 'vendas'},
   {grupo: 'Comercial', chave: 'auditoria',     texto: 'Comissões',          pagina: '/admin.html', hash: '#auditoria',     icone: 'lupa'},
   {grupo: 'Comercial', chave: 'metabonus',     texto: 'Meta Bônus',         pagina: '/admin.html', hash: '#metabonus',     icone: 'bonus'},
   {grupo: 'Comercial', chave: 'desempenho',    texto: 'Desempenho do time', pagina: '/admin.html', hash: '#desempenho',    icone: 'desempenho'},
@@ -286,11 +285,7 @@ function montarSidebar(ativo, opcoes){
     // Permissoes e Configuracoes nao sao areas liberaveis — quem distribui
     // acesso e so o master. Entao elas passam pelo cargo, nao pela lista.
     if(it.soMaster) return ehMaster;
-    // `area` existe pra item que e outra porta pra mesma tela: "Vendas do
-    // time" abre a tela de Comissoes no modo Total, entao quem libera os dois
-    // e a mesma permissao. Sem isso seria preciso inventar uma area nova pra
-    // uma porta que nao da acesso a nada novo.
-    return !permitidas || permitidas.includes(it.area || it.chave);
+    return !permitidas || permitidas.includes(it.chave);
   });
   // A pagina atual nao precisa recarregar: dentro dela o link e so o hash.
   const aqui = location.pathname.replace(/index\.html$/, '/') || '/';

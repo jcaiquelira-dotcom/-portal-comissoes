@@ -736,13 +736,17 @@
       <div class="card" id="cardMetas" style="margin-bottom:14px;">
         <p class="card-titulo">Metas do mês</p>
         <div id="metasPainel"></div>
+      </div>
 
-      <!-- Saúde da conta Mercado Livre: reputação e pós-venda ao lado das
-           vendas, porque a medalha caindo derruba o funil inteiro. -->
+      <!-- Um canal, um card. Os tres montam o proprio <div class="card">, e
+           antes moravam DENTRO do card de Metas — card dentro de card. O
+           primeiro deles colava no rodape das metas e os dois viravam um bloco
+           so, como se a reputacao do ML fizesse parte da meta do mes. Sao
+           assuntos diferentes: meta e pra onde o mes vai, conta e a saude de
+           cada canal. -->
       <div id="mlConta"></div>
       <div id="siteConta"></div>
       <div id="shopeeConta"></div>
-      </div>
 
       <div class="card" style="margin-bottom:14px;">
         <p class="card-titulo">Evolução de vendas no período</p>
@@ -5159,7 +5163,6 @@ const SECOES = {
   // Mesma tela da conferencia, outra porta: entra direto no modo Total, que e
   // a planilha inteira do mes venda por venda. Nao e uma segunda fonte de
   // dados — e a mesma, com o nome que o gestor procura quando quer "vendas".
-  vendas:     {titulo: 'Vendas · todas do período', el: 'secAuditoria'},
   configuracoes: {titulo: 'Configurações',  el: null},
 };
 
@@ -5226,11 +5229,6 @@ function irParaSecao(chave, sub){
   });
   // Entrar em Desempenho sempre comeca pela escolha do vendedor.
   if(chave === 'desempenho') abrirEscolhaDesempenho();
-  if(chave === 'vendas'){
-    // Entrar por "Vendas" significa querer ver tudo, nao conferir uma amostra.
-    if(audModo !== 'total') audAbrirModo('total');
-    else if(!audCarregado){ audPeriodoPadrao(); carregarAuditoria(); }
-  }
   if(chave === 'carros' && !carrosCarregado) carregarCarros();
   if(chave === 'atendimento') carregarAtendimento();
   clearInterval(atdTimerGestor);
