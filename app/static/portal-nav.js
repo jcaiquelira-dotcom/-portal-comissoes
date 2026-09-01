@@ -288,16 +288,29 @@ function montarSidebar(ativo, opcoes){
     return !permitidas || permitidas.includes(it.chave);
   });
   // A pagina atual nao precisa recarregar: dentro dela o link e so o hash.
+  const ehGestor = portal === 'gestor';
   const aqui = location.pathname.replace(/index\.html$/, '/') || '/';
   const linkItem = (it) => {
     const mesmaPagina = it.pagina === aqui || (it.pagina === '/' && aqui === '/');
-    const href = it.chave === 'expedicao' && !it.hash
+    /* "Expedicao" e duas coisas com o mesmo nome, e quem decide qual e o
+       portal de quem clicou:
+
+         no portal do vendedor -> a secao #expedicao do proprio index.html, que
+                                  e onde quem embala trabalha;
+         no portal do gestor   -> o servico separado da expedicao, que e o que
+                                  ele quer ver.
+
+       Antes o item mandava todo mundo pro #expedicao. Como essa secao NAO
+       existe no admin.html, o gestor clicava e nao acontecia nada — ele saia
+       pro portal do vendedor e voltava. */
+    const expedicaoFora = it.chave === 'expedicao' && (ehGestor || !it.hash);
+    const href = expedicaoFora
       ? urlExpedicao()
       : (mesmaPagina && it.hash ? it.hash : it.pagina + (it.hash || ''));
     // O ranking e um painel de TV e a expedicao roda em outro servico: os dois
     // sao destino final, nao navegacao. Abrir em aba nova evita que quem
     // clicou perca de onde veio.
-    const abaNova = it.chave === 'ranking' || (it.chave === 'expedicao' && !it.hash);
+    const abaNova = it.chave === 'ranking' || expedicaoFora;
     return '<a class="nav-item' + (it.chave === ativo ? ' ativo' : '') + '" href="' + href + '"'
       + (abaNova ? ' target="_blank" rel="noopener"' : '')
       + ' data-nav="' + it.chave + '">' + ICONES[it.icone] + '<span>' + it.texto + '</span>'
