@@ -4831,8 +4831,6 @@ async function carregarMlConta(){
       <span class="status-msg" id="mlStatus"></span>
     </div>
     <div class="dp-kpis conta-linha" style="margin-bottom:0;">
-      ${vm ? tile('Faturamento no mês', fmtMoeda(vm.total),
-             `${vm.pagamentos} pagamentos · ticket ${fmtMoeda(vm.ticket)}`) : ''}
       ${tile('Reclamações 60d', pct(rep.reclamacoes_60d), qtd(rep.reclamacoes_60d) + ' casos · limite 1%',
              cor(rep.reclamacoes_60d, 0.01))}
       ${tile('Cancelamentos 60d', pct(rep.cancelamentos_60d), qtd(rep.cancelamentos_60d) + ' casos · limite 2,5%',
@@ -4843,8 +4841,10 @@ async function carregarMlConta(){
              ? pos.mediacoes_agora + ' em mediação' : 'nenhuma em mediação',
              pos.abertas_agora > 0 ? 'var(--warn)' : 'var(--good)')}
     </div>
-    <details class="dp-recolhivel"><summary>30 dias, pós-venda e como isso é medido</summary>
+    <details class="dp-recolhivel"><summary>Faturamento, pós-venda e como isso é medido</summary>
       <div class="dp-kpis conta-linha" style="margin:9px 0 0;">
+        ${vm ? tile('Faturamento no mês', fmtMoeda(vm.total),
+               `${vm.pagamentos} pagamentos · ticket ${fmtMoeda(vm.ticket)}`) : ''}
         ${v30 ? tile('Faturamento 30 dias', fmtMoeda(v30.total),
                `${v30.pagamentos} pagamentos aprovados`) : ''}
         ${tile('Pós-venda 30d', (m30.mediacoes ?? 0) + ' casos',
@@ -4854,7 +4854,12 @@ async function carregarMlConta(){
                (ads.acos ? ` · ACOS ${String(ads.acos).replace('.', ',')}%` : '')) : ''}
       </div>
       <div class="dp-aviso" style="margin-top:0;border-top:none;padding-top:4px;">
-      ${motivos ? `Principais motivos de reclamação (30d): ${motivos}. ` : ''}Atualiza sozinho de hora em hora (6h–22h), no servidor — não depende deste computador. Faturamento = pagamentos aprovados no Mercado Pago com origem no ML — valor real.
+      ${motivos ? `Principais motivos de reclamação (30d): ${motivos}. ` : ''}Atualiza sozinho de hora em hora (6h–22h), no servidor — não depende deste computador.
+      <br><br><b>Este faturamento é o do mês inteiro e não segue o filtro do topo</b>,
+      por isso saiu da linha principal: ao lado do KPI consolidado ele parecia
+      um segundo total do mesmo período discordando do primeiro. O número que
+      acompanha o filtro é o de cima; aqui é o mês fechado do Mercado Pago
+      (pagamentos aprovados com origem no ML — valor real).
       Percentuais e limites são os oficiais do ML para manter a medalha.
       Sincronizado às ${(d.gerado_em || '').slice(11, 16)} de ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>
     </details>
