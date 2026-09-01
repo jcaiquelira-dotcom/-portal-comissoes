@@ -3655,8 +3655,31 @@ async function carregarMlResultado(){
 
 function pintarMlResultado(){
   const el = document.getElementById('mlResultado');
-  if(!el || !mlFatDados || mlFatDados.sem_dados){ if(el) el.innerHTML = ''; return; }
+  if(!el || !mlFatDados) return;
   if(document.getElementById('vendedorFiltro').value){ el.innerHTML = ''; return; }
+
+  /* Sem dado o card APARECE, dizendo em que pé está. Esconder era o que eu
+     fazia antes, e o efeito foi o gestor procurando um card que eu tinha
+     acabado de publicar: da cadeira dele, "não coletei ainda" e "não existe"
+     são a mesma tela em branco. */
+  if(mlFatDados.sem_dados){
+    const err = mlFatDados.erro;
+    el.innerHTML = `<div class="card" style="margin-bottom:14px;">
+      <div class="aud-cabecalho">
+        <p class="card-titulo" style="margin:0;">Resultado do Mercado Livre</p>
+        <span class="ml-selo">coletando</span>
+        <button class="btn btn-neutro btn-pequeno" id="mlFatAtualizar">Coletar agora</button>
+        <span class="status-msg" id="mlFatStatus"></span>
+      </div>
+      <div class="dp-aviso" style="margin-top:0;">Ainda não tenho o faturamento do ML
+        aqui. O Mercado Livre libera essa consulta a cada poucos minutos, então a
+        coleta roda uma vez por dia e avança por mês — cada mês são umas três
+        chamadas.${err ? `<br><br><b>Última tentativa falhou:</b> ${err}` : ''}
+        <br><br>Enquanto isso, o card de <b>Conta Mercado Livre</b> acima já mostra
+        faturamento e reputação; o que falta aqui é a parte de tarifa e frete.</div>
+    </div>`;
+    return;
+  }
 
   const de = document.getElementById('deInput').value;
   const ate = document.getElementById('ateInput').value;

@@ -322,7 +322,7 @@ def sincronizar(ler_cred, ler_atual, gravar, meses=2, log=print):
     # So os 6 meses mais recentes: historico mais antigo nao muda e ocupa banco.
     guardados = dict(sorted(guardados.items())[-6:])
     gravar({"gerado_em": datetime.now(FUSO).isoformat(timespec="seconds"),
-            "periodos": guardados})
+            "periodos": guardados})   # sem "erro": a volta boa apaga a anterior
     return f"{len(periodos)} período(s) atualizado(s)"
 
 
@@ -341,7 +341,17 @@ def iniciar(ler_cred, ler_atual, gravar, log=print):
             try:
                 log("[faturamento] " + sincronizar(ler_cred, ler_atual, gravar, log=log))
             except Exception as e:                      # nunca derruba o portal
+                # Grava o erro junto com o que ja existe. Antes ele so ia pro
+                # log do servidor — que ninguem abre — e a tela ficava calada,
+                # sem distinguir "ainda nao coletei" de "quebrou faz tres dias".
                 log(f"[faturamento] falhou: {type(e).__name__}: {e}")
+                try:
+                    atual = ler_atual() or {}
+                    atual["erro"] = f"{type(e).__name__}: {e}"
+                    atual["erro_em"] = datetime.now(FUSO).isoformat(timespec="seconds")
+                    gravar(atual)
+                except Exception:
+                    pass
             time.sleep(24 * 60 * 60)
 
     threading.Thread(target=ciclo, daemon=True).start()

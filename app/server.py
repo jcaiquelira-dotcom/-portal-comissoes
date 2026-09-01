@@ -3161,8 +3161,12 @@ def api_admin_ml_faturamento():
     if not exigir_area("painel"):
         return jsonify({"erro": "Não autenticado."}), 401
     d = ler_json(resolver_pasta_dados() / "ml_faturamento.json", None)
-    if not d:
-        return jsonify({"sem_dados": True, "parametros": parametros_ml()})
+    if not d or not (d.get("periodos") or {}):
+        # Sem periodo nenhum ainda. Devolve o erro da ultima tentativa junto,
+        # se houve: a tela precisa poder dizer "quebrou" e nao so "aguarde".
+        return jsonify({"sem_dados": True, "parametros": parametros_ml(),
+                        "erro": (d or {}).get("erro"),
+                        "erro_em": (d or {}).get("erro_em")})
     d["parametros"] = parametros_ml()
     return jsonify(d)
 
