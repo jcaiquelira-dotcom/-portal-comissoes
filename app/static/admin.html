@@ -179,7 +179,6 @@
     margin-left:auto;min-width:230px;
   }
   .carros-busca:focus{outline:none;border-color:var(--accent);}
-  .shopee-corpo{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,340px);gap:8px 26px;align-items:start;}
   .shopee-meses .dp-linha .nome{width:52px;}
   /* Lista longa que quase sempre so confirma o obvio: fica fechada e nao
      rouba a altura do card. Quem quiser o detalhe abre. */
@@ -256,7 +255,6 @@
     .canal-grid{grid-template-columns:minmax(100px,1.2fr) 60px 96px 112px 74px;}
     .canal-grid .barra,.canal-grid .cab-barra{display:none;}
   }
-  @media (max-width: 900px){ .shopee-corpo{grid-template-columns:1fr;} }
 
   /* ---- Conta Mercado Livre ---- */
   .ml-selo{
@@ -4569,7 +4567,7 @@ async function carregarMlConta(){
         title="Busca no Mercado Livre agora. Sozinho ele já atualiza de hora em hora.">Atualizar</button>
       <span class="status-msg" id="mlStatus"></span>
     </div>
-    <div class="dp-kpis" style="margin-bottom:0;">
+    <div class="dp-kpis conta-linha" style="margin-bottom:0;">
       ${vm ? tile('Faturamento no mês', fmtMoeda(vm.total),
              `${vm.pagamentos} pagamentos · ticket ${fmtMoeda(vm.ticket)}`) : ''}
       ${v30 ? tile('Faturamento 30 dias', fmtMoeda(v30.total),
@@ -4589,10 +4587,12 @@ async function carregarMlConta(){
              `${(ads.cliques || 0).toLocaleString('pt-BR')} cliques` +
              (ads.acos ? ` · ACOS ${String(ads.acos).replace('.', ',')}%` : '')) : ''}
     </div>
-    ${motivos ? `<div class="dp-aviso" style="margin-top:10px;">Principais motivos de reclamação (30d):
-      ${motivos}. Atualiza sozinho de hora em hora (6h–22h), no servidor — não depende deste computador. Faturamento = pagamentos aprovados no Mercado Pago com origem no ML — valor real.
+    <details class="dp-recolhivel"><summary>Motivos de reclamação e como isso é medido</summary>
+      <div class="dp-aviso" style="margin-top:0;border-top:none;padding-top:4px;">
+      ${motivos ? `Principais motivos de reclamação (30d): ${motivos}. ` : ''}Atualiza sozinho de hora em hora (6h–22h), no servidor — não depende deste computador. Faturamento = pagamentos aprovados no Mercado Pago com origem no ML — valor real.
       Percentuais e limites são os oficiais do ML para manter a medalha.
-      Sincronizado às ${(d.gerado_em || '').slice(11, 16)} de ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>` : ''}
+      Sincronizado às ${(d.gerado_em || '').slice(11, 16)} de ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}.</div>
+    </details>
   </div>`;
 }
 
@@ -4633,15 +4633,15 @@ async function carregarSiteConta(){
       <span class="ml-selo ok">venda direta</span>
       <span class="aud-conta">sem passar por vendedor</span>
     </div>
-    <div class="shopee-corpo">
-      <div class="dp-kpis" style="margin-bottom:0;">
-        ${tile('Vendas pagas', fmtMoeda(total), `${pedidos} pedidos · ${nm(chaves[0])} a ${nm(ult)}`)}
-        ${tile('Ticket médio', fmtMoeda(pedidos ? total / pedidos : 0), 'por pedido pago')}
-        ${tile('Mês atual (' + nm(ult) + ')', fmtMoeda(meses[ult].total),
-               `${meses[ult].qtd} pedidos` + (varUlt !== null
-                 ? ` · ${varUlt >= 0 ? '▲ +' : '▼ '}${varUlt}% vs ${nm(pen)}` : ''))}
-        ${tile('Média por mês', fmtMoeda(total / chaves.length), `${chaves.length} meses de histórico`)}
-      </div>
+    <div class="dp-kpis conta-linha" style="margin-bottom:0;">
+      ${tile('Vendas pagas', fmtMoeda(total), `${pedidos} pedidos · ${nm(chaves[0])} a ${nm(ult)}`)}
+      ${tile('Ticket médio', fmtMoeda(pedidos ? total / pedidos : 0), 'por pedido pago')}
+      ${tile('Mês atual (' + nm(ult) + ')', fmtMoeda(meses[ult].total),
+             `${meses[ult].qtd} pedidos` + (varUlt !== null
+               ? ` · ${varUlt >= 0 ? '▲ +' : '▼ '}${varUlt}% vs ${nm(pen)}` : ''))}
+      ${tile('Média por mês', fmtMoeda(total / chaves.length), `${chaves.length} meses de histórico`)}
+    </div>
+    <details class="dp-recolhivel"><summary>Mês a mês (${chaves.length} meses)</summary>
       <div class="dp-lista shopee-meses">
         ${ultimos.map(m => `<div class="dp-linha">
           <span class="nome">${nm(m)}</span>
@@ -4649,10 +4649,10 @@ async function carregarSiteConta(){
           <span class="t"><span class="f" style="width:${(meses[m].total / max * 100).toFixed(1)}%"></span></span>
         </div>`).join('')}
       </div>
-    </div>
-    <div class="dp-aviso" style="margin-top:10px;">Só pedidos pagos — cancelados e reembolsados
-      ficam de fora, mesmo critério do ML e da Shopee. Lido do painel do site em
-      ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)} às ${(d.gerado_em || '').slice(11, 16)}.</div>
+      <div class="dp-aviso" style="margin-top:8px;">Só pedidos pagos — cancelados e reembolsados
+        ficam de fora, mesmo critério do ML e da Shopee. Lido do painel do site em
+        ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)} às ${(d.gerado_em || '').slice(11, 16)}.</div>
+    </details>
   </div>`;
 }
 
@@ -4929,15 +4929,15 @@ async function carregarShopeeConta(){
       <span class="ml-selo">até ${nomeMes(ultimo)}</span>
       <span class="aud-conta">relatório mensal do Seller Centre</span>
     </div>
-    <div class="shopee-corpo">
-      <div class="dp-kpis" style="margin-bottom:0;">
-        ${tile('Vendas pagas no período', fmtMoeda(total), `${pedidos} pedidos · ${nomeMes(meses[0])} a ${nomeMes(ultimo)}`)}
-        ${tile('Ticket médio', fmtMoeda(pedidos ? total / pedidos : 0), 'por pedido pago')}
-        ${tile('Último mês (' + nomeMes(ultimo) + ')', fmtMoeda(serie[ultimo].total),
-               `${serie[ultimo].qtd} pedidos` + (varUlt !== null
-                 ? ` · ${varUlt >= 0 ? '▲ +' : '▼ '}${varUlt}% vs ${nomeMes(penultimo)}` : ''))}
-        ${tile('Melhor mês', nomeMes(melhor), fmtMoeda(serie[melhor].total))}
-      </div>
+    <div class="dp-kpis conta-linha" style="margin-bottom:0;">
+      ${tile('Vendas pagas no período', fmtMoeda(total), `${pedidos} pedidos · ${nomeMes(meses[0])} a ${nomeMes(ultimo)}`)}
+      ${tile('Ticket médio', fmtMoeda(pedidos ? total / pedidos : 0), 'por pedido pago')}
+      ${tile('Último mês (' + nomeMes(ultimo) + ')', fmtMoeda(serie[ultimo].total),
+             `${serie[ultimo].qtd} pedidos` + (varUlt !== null
+               ? ` · ${varUlt >= 0 ? '▲ +' : '▼ '}${varUlt}% vs ${nomeMes(penultimo)}` : ''))}
+      ${tile('Melhor mês', nomeMes(melhor), fmtMoeda(serie[melhor].total))}
+    </div>
+    <details class="dp-recolhivel"><summary>Mês a mês (${meses.length} meses)</summary>
       <div class="dp-lista shopee-meses">
         ${meses.map(m => `<div class="dp-linha">
           <span class="nome">${nomeMes(m)}</span>
@@ -4945,10 +4945,10 @@ async function carregarShopeeConta(){
           <span class="t"><span class="f" style="width:${(serie[m].total / max * 100).toFixed(1)}%"></span></span>
         </div>`).join('')}
       </div>
-    </div>
-    <div class="dp-aviso" style="margin-top:10px;">Dados da planilha importada (${d.fonte || ''}) —
-      a Shopee só entra no total consolidado do topo quando o período filtrado tem mês coberto.
-      Pra dado ao vivo, falta a API oficial (Partner ID + Key).</div>
+      <div class="dp-aviso" style="margin-top:8px;">Dados da planilha importada (${d.fonte || ''}) —
+        a Shopee só entra no total consolidado do topo quando o período filtrado tem mês coberto.
+        Pra dado ao vivo, falta a API oficial (Partner ID + Key).</div>
+    </details>
   </div>`;
 }
 

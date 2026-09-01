@@ -462,6 +462,20 @@ tr.dia-novo:first-child > td{border-top:none;padding-top:8px;}
 
 .dp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:12px;margin-bottom:14px;}
 .dp-kpi{padding:15px;border-radius:12px;background:var(--surface);border:1px solid var(--line);}
+
+/* Card de canal numa linha so. Sao numeros de acompanhamento diario — o que se
+   faz com eles e bater o olho — e tres deles empilhados em duas alturas cada
+   empurravam o resto do painel pra fora da tela. Quando nao couber, quem rola e
+   a propria faixa: o corpo da pagina nunca rola pro lado. */
+.dp-kpis.conta-linha{
+  grid-auto-flow:column;grid-template-columns:none;
+  grid-auto-columns:minmax(158px,1fr);
+  gap:9px;overflow-x:auto;padding-bottom:3px;
+}
+.dp-kpis.conta-linha .dp-kpi{padding:10px 12px;}
+.dp-kpis.conta-linha .dp-kpi .rot{font-size:10px;}
+.dp-kpis.conta-linha .dp-kpi .num{font-size:17px;margin:5px 0 3px;}
+.dp-kpis.conta-linha .dp-kpi .dp-var{font-size:10.5px;}
 .dp-kpi .rot{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
 .dp-kpi .num{
   font-family:'IBM Plex Mono',monospace;font-size:21px;font-weight:600;
