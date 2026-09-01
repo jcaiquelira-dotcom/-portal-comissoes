@@ -2062,142 +2062,215 @@ def api_admin_resumo():
         ritmo = {"dias_no_mes": dias_no_mes,
                  "dias_corridos": dias_corridos,
                  "pct_do_mes": round(100 * dias_corridos / dias_no_mes)}
+    def _marketplaces_periodo(de, ate):
+        """Vendas de marketplace no periodo, e os canais que existem mas
+        nao tiveram numero nele.
 
-    # Vendas de marketplace somadas no MESMO periodo do filtro, a partir da
-    # serie diaria que o sincronizador acumula. Lista, nao campo unico: quando
-    # a Shopee chegar, e mais um item aqui e o painel ja mostra. Filtrando um
-    # vendedor especifico o bloco sai — marketplace nao e de ninguem do time.
-    marketplaces = []
-    # Canal que EXISTE no sistema mas nao tem numero no periodo pedido entra
-    # aqui, nao no silencio: sumir da tela faz o gestor achar que o total ja
-    # inclui aquele canal. Foi o que aconteceu com a Shopee em agosto.
-    marketplaces_ausentes = []
-    if not filtro_vendedor:
-        ml = ler_json(resolver_pasta_dados() / "ml_conta.json", None) or {}
-        serie_ml = (ml.get("vendas") or {}).get("serie_dia") or {}
-        desde_ml = (ml.get("vendas") or {}).get("serie_desde") or "9999"
-        soma = round(sum(x.get("total", 0) for d, x in serie_ml.items() if de <= d <= ate), 2)
-        qtd = sum(x.get("qtd", 0) for d, x in serie_ml.items() if de <= d <= ate)
+        E funcao porque roda duas vezes: uma pro periodo filtrado e outra
+        pro anterior, que alimenta a comparacao dos cartoes do topo. Os
+        parametros se chamam `de` e `ate` de proposito — o corpo abaixo e o
+        mesmo de antes, sem uma linha trocada.
+        """
 
-        # Venda que o time lanca com canal "Mercado Livre" foi paga pelo
-        # checkout do ML — ela JA esta nos pagamentos da serie acima. Conta uma
-        # vez so: fica inteira no comercial (comissao e meta do vendedor nao
-        # mudam) e sai da fatia do ML no consolidado. Confirmado pelo gestor em
-        # 28/08/2026.
-        dup_total, dup_qtd = 0.0, 0
-        for v_ in vendas.values():
-            if (v_.get("tipo", "venda") == "venda" and de <= v_["data"] <= ate
-                    and str(v_.get("canal") or "").startswith("Mercado Livre")):
-                dup_total += valor_liquido(v_)
-                dup_qtd += 1
-        dup_total = round(dup_total, 2)
+        # Vendas de marketplace somadas no MESMO periodo do filtro, a partir da
+        # serie diaria que o sincronizador acumula. Lista, nao campo unico: quando
+        # a Shopee chegar, e mais um item aqui e o painel ja mostra. Filtrando um
+        # vendedor especifico o bloco sai — marketplace nao e de ninguem do time.
+        marketplaces = []
+        # Canal que EXISTE no sistema mas nao tem numero no periodo pedido entra
+        # aqui, nao no silencio: sumir da tela faz o gestor achar que o total ja
+        # inclui aquele canal. Foi o que aconteceu com a Shopee em agosto.
+        marketplaces_ausentes = []
+        if not filtro_vendedor:
+            ml = ler_json(resolver_pasta_dados() / "ml_conta.json", None) or {}
+            serie_ml = (ml.get("vendas") or {}).get("serie_dia") or {}
+            desde_ml = (ml.get("vendas") or {}).get("serie_desde") or "9999"
+            soma = round(sum(x.get("total", 0) for d, x in serie_ml.items() if de <= d <= ate), 2)
+            qtd = sum(x.get("qtd", 0) for d, x in serie_ml.items() if de <= d <= ate)
 
-        if qtd:
-            marketplaces.append({
-                "id": "mercado_livre", "nome": "Mercado Livre",
-                "total": round(max(0.0, soma - dup_total), 2),
-                "qtd": max(0, qtd - dup_qtd),
-                "descontado_comercial": {"total": dup_total, "qtd": dup_qtd},
-                # Serie comeca em serie_desde: periodo pedido antes disso vem
-                # incompleto, e a tela avisa em vez de fingir que ML nao vendia.
-                "cobre_periodo": desde_ml <= de,
-            })
+            # Venda que o time lanca com canal "Mercado Livre" foi paga pelo
+            # checkout do ML — ela JA esta nos pagamentos da serie acima. Conta uma
+            # vez so: fica inteira no comercial (comissao e meta do vendedor nao
+            # mudam) e sai da fatia do ML no consolidado. Confirmado pelo gestor em
+            # 28/08/2026.
+            dup_total, dup_qtd = 0.0, 0
+            for v_ in vendas.values():
+                if (v_.get("tipo", "venda") == "venda" and de <= v_["data"] <= ate
+                        and str(v_.get("canal") or "").startswith("Mercado Livre")):
+                    dup_total += valor_liquido(v_)
+                    dup_qtd += 1
+            dup_total = round(dup_total, 2)
 
-        # Site proprio: serie diaria, mesmo tratamento do ML. Venda direta,
-        # sem passar por vendedor — por isso nao ha o que descontar aqui.
-        st = ler_json(resolver_pasta_dados() / "site_conta.json", None) or {}
-        serie_st = (st.get("vendas") or {}).get("serie_dia") or {}
-        soma_t = round(sum(x.get("total", 0) for d, x in serie_st.items() if de <= d <= ate), 2)
-        qtd_t = sum(x.get("qtd", 0) for d, x in serie_st.items() if de <= d <= ate)
-        if qtd_t:
-            marketplaces.append({
-                "id": "site", "nome": "Site próprio",
-                "total": soma_t, "qtd": qtd_t,
-                "cobre_periodo": ((st.get("vendas") or {}).get("serie_desde") or "9999") <= de,
-            })
+            if qtd:
+                marketplaces.append({
+                    "id": "mercado_livre", "nome": "Mercado Livre",
+                    "total": round(max(0.0, soma - dup_total), 2),
+                    "qtd": max(0, qtd - dup_qtd),
+                    "descontado_comercial": {"total": dup_total, "qtd": dup_qtd},
+                    # Serie comeca em serie_desde: periodo pedido antes disso vem
+                    # incompleto, e a tela avisa em vez de fingir que ML nao vendia.
+                    "cobre_periodo": desde_ml <= de,
+                })
 
-        # Shopee vem do relatorio mensal do Seller Centre (importar_shopee_stats):
-        # mes cheio dentro do filtro soma exato; mes cortado no meio rateia por
-        # dia, o mesmo criterio do Meta e da agencia. Quando a API entrar com
-        # serie diaria, este bloco muda de fonte e o painel nem percebe.
-        shp = ler_json(resolver_pasta_dados() / "shopee_conta.json", None) or {}
-        serie_shp = (shp.get("vendas") or {}).get("serie_mes") or {}
-        serie_shp_dia = (shp.get("vendas") or {}).get("serie_dia") or {}
-        soma_s, qtd_s, rateado = 0.0, 0.0, False
-        d_de, d_ate = date.fromisoformat(de), date.fromisoformat(ate)
+            # Site proprio: serie diaria, mesmo tratamento do ML. Venda direta,
+            # sem passar por vendedor — por isso nao ha o que descontar aqui.
+            st = ler_json(resolver_pasta_dados() / "site_conta.json", None) or {}
+            serie_st = (st.get("vendas") or {}).get("serie_dia") or {}
+            soma_t = round(sum(x.get("total", 0) for d, x in serie_st.items() if de <= d <= ate), 2)
+            qtd_t = sum(x.get("qtd", 0) for d, x in serie_st.items() if de <= d <= ate)
+            if qtd_t:
+                marketplaces.append({
+                    "id": "site", "nome": "Site próprio",
+                    "total": soma_t, "qtd": qtd_t,
+                    "cobre_periodo": ((st.get("vendas") or {}).get("serie_desde") or "9999") <= de,
+                })
 
-        # Dia a dia primeiro (exportacao de periodo curto): soma exata, sem
-        # rateio. O mes que tem cobertura diaria ignora a linha mensal logo
-        # abaixo — senao a mesma venda entraria duas vezes.
-        meses_com_dia = set()
-        for dia_chave, dd in serie_shp_dia.items():
-            meses_com_dia.add(dia_chave[:7])
-            if de <= dia_chave <= ate:
-                soma_s += dd.get("total", 0)
-                qtd_s += dd.get("qtd", 0)
+            # Shopee vem do relatorio mensal do Seller Centre (importar_shopee_stats):
+            # mes cheio dentro do filtro soma exato; mes cortado no meio rateia por
+            # dia, o mesmo criterio do Meta e da agencia. Quando a API entrar com
+            # serie diaria, este bloco muda de fonte e o painel nem percebe.
+            shp = ler_json(resolver_pasta_dados() / "shopee_conta.json", None) or {}
+            serie_shp = (shp.get("vendas") or {}).get("serie_mes") or {}
+            serie_shp_dia = (shp.get("vendas") or {}).get("serie_dia") or {}
+            soma_s, qtd_s, rateado = 0.0, 0.0, False
+            d_de, d_ate = date.fromisoformat(de), date.fromisoformat(ate)
 
-        for mes_chave, mm in serie_shp.items():
-            if mes_chave in meses_com_dia:
-                continue
-            ano, mes_n = int(mes_chave[:4]), int(mes_chave[5:7])
-            dias_mes = calendar.monthrange(ano, mes_n)[1]
-            ini = max(d_de, date(ano, mes_n, 1))
-            fim = min(d_ate, date(ano, mes_n, dias_mes))
-            if ini > fim:
-                continue
-            dentro = (fim - ini).days + 1
-            fracao = dentro / dias_mes
-            if fracao < 1:
-                rateado = True
-            soma_s += mm.get("total", 0) * fracao
-            qtd_s += mm.get("qtd", 0) * fracao
-        if qtd_s >= 0.5:
-            marketplaces.append({
-                "id": "shopee", "nome": "Shopee",
-                "total": round(soma_s, 2), "qtd": int(round(qtd_s)),
-                "rateado": rateado,
-                "cobre_periodo": (min({**serie_shp, **{k[:7]: 1 for k in serie_shp_dia}})
-                                  <= de[:7] and ate[:7]
-                                  <= max({**serie_shp, **{k[:7]: 1 for k in serie_shp_dia}})),
-            })
-        elif serie_shp or serie_shp_dia:
-            # A serie diaria e mais precisa que a mensal pra dizer ate quando o
-            # dado vai; misturar as duas gerava "ate 08/2026" quando na verdade
-            # havia dado diario ate 27/08.
-            if serie_shp_dia:
-                ult = max(serie_shp_dia)
-                ate_quando = f"{ult[8:10]}/{ult[5:7]}"
-            else:
-                ult = max(serie_shp)
-                ate_quando = f"{ult[5:7]}/{ult[:4]}"
-            marketplaces_ausentes.append({
-                "id": "shopee", "nome": "Shopee",
-                "motivo": (f"sem venda neste período" if de <= ult
-                           else f"planilha importada — dados até {ate_quando}"),
-            })
+            # Dia a dia primeiro (exportacao de periodo curto): soma exata, sem
+            # rateio. O mes que tem cobertura diaria ignora a linha mensal logo
+            # abaixo — senao a mesma venda entraria duas vezes.
+            meses_com_dia = set()
+            for dia_chave, dd in serie_shp_dia.items():
+                meses_com_dia.add(dia_chave[:7])
+                if de <= dia_chave <= ate:
+                    soma_s += dd.get("total", 0)
+                    qtd_s += dd.get("qtd", 0)
 
-        # Mesma regra pros canais de serie diaria: existe historico, mas nada
-        # dentro do periodo filtrado.
-        # "Nao vendeu" e "ainda nao sincronizamos esse dia" sao coisas
-        # diferentes, e confundir as duas faz o gestor achar que o dia foi
-        # zerado quando na verdade o dado nao chegou. O ultimo dia da serie
-        # decide qual das duas e.
-        if not qtd and serie_ml:
-            ultimo_ml = max(serie_ml)
-            marketplaces_ausentes.append({
-                "id": "mercado_livre", "nome": "Mercado Livre",
-                "motivo": ("sem venda registrada neste período"
-                           if de <= ultimo_ml
-                           else f"ainda não sincronizado — dados até {ultimo_ml[8:10]}/{ultimo_ml[5:7]}"),
-            })
-        if not qtd_t and serie_st:
-            ultimo_st = max(serie_st)
-            marketplaces_ausentes.append({
-                "id": "site", "nome": "Site próprio",
-                "motivo": ("sem pedido pago neste período"
-                           if de <= ultimo_st
-                           else f"leitura manual — dados até {ultimo_st[8:10]}/{ultimo_st[5:7]}"),
-            })
+            for mes_chave, mm in serie_shp.items():
+                if mes_chave in meses_com_dia:
+                    continue
+                ano, mes_n = int(mes_chave[:4]), int(mes_chave[5:7])
+                dias_mes = calendar.monthrange(ano, mes_n)[1]
+                ini = max(d_de, date(ano, mes_n, 1))
+                fim = min(d_ate, date(ano, mes_n, dias_mes))
+                if ini > fim:
+                    continue
+                dentro = (fim - ini).days + 1
+                fracao = dentro / dias_mes
+                if fracao < 1:
+                    rateado = True
+                soma_s += mm.get("total", 0) * fracao
+                qtd_s += mm.get("qtd", 0) * fracao
+            if qtd_s >= 0.5:
+                marketplaces.append({
+                    "id": "shopee", "nome": "Shopee",
+                    "total": round(soma_s, 2), "qtd": int(round(qtd_s)),
+                    "rateado": rateado,
+                    "cobre_periodo": (min({**serie_shp, **{k[:7]: 1 for k in serie_shp_dia}})
+                                      <= de[:7] and ate[:7]
+                                      <= max({**serie_shp, **{k[:7]: 1 for k in serie_shp_dia}})),
+                })
+            elif serie_shp or serie_shp_dia:
+                # A serie diaria e mais precisa que a mensal pra dizer ate quando o
+                # dado vai; misturar as duas gerava "ate 08/2026" quando na verdade
+                # havia dado diario ate 27/08.
+                if serie_shp_dia:
+                    ult = max(serie_shp_dia)
+                    ate_quando = f"{ult[8:10]}/{ult[5:7]}"
+                else:
+                    ult = max(serie_shp)
+                    ate_quando = f"{ult[5:7]}/{ult[:4]}"
+                marketplaces_ausentes.append({
+                    "id": "shopee", "nome": "Shopee",
+                    "motivo": (f"sem venda neste período" if de <= ult
+                               else f"planilha importada — dados até {ate_quando}"),
+                })
+
+            # Mesma regra pros canais de serie diaria: existe historico, mas nada
+            # dentro do periodo filtrado.
+            # "Nao vendeu" e "ainda nao sincronizamos esse dia" sao coisas
+            # diferentes, e confundir as duas faz o gestor achar que o dia foi
+            # zerado quando na verdade o dado nao chegou. O ultimo dia da serie
+            # decide qual das duas e.
+            if not qtd and serie_ml:
+                ultimo_ml = max(serie_ml)
+                marketplaces_ausentes.append({
+                    "id": "mercado_livre", "nome": "Mercado Livre",
+                    "motivo": ("sem venda registrada neste período"
+                               if de <= ultimo_ml
+                               else f"ainda não sincronizado — dados até {ultimo_ml[8:10]}/{ultimo_ml[5:7]}"),
+                })
+            if not qtd_t and serie_st:
+                ultimo_st = max(serie_st)
+                marketplaces_ausentes.append({
+                    "id": "site", "nome": "Site próprio",
+                    "motivo": ("sem pedido pago neste período"
+                               if de <= ultimo_st
+                               else f"leitura manual — dados até {ultimo_st[8:10]}/{ultimo_st[5:7]}"),
+                })
+        return marketplaces, marketplaces_ausentes
+
+    marketplaces, marketplaces_ausentes = _marketplaces_periodo(de, ate)
+
+    # Consolidado do periodo atual: e o numero que aparece grande no cartao.
+    cons_total = round(total_geral + sum(m["total"] for m in marketplaces), 2)
+    cons_qtd = qtd_vendas_geral + sum(m["qtd"] for m in marketplaces)
+    cons_ticket = round(cons_total / cons_qtd, 2) if cons_qtd else 0.0
+
+    # ---- comparacao com o periodo anterior ----
+    # Mesmo numero de dias, nao o mes calendario: no dia 1o, comparar 1 dia
+    # contra 31 mostraria uma queda que e so o calendario andando.
+    #
+    # Reusa calcular_comissao(), a mesma funcao do periodo atual. Reescrever a
+    # soma aqui criaria duas contas de comissao que um dia divergiriam — e a
+    # que ninguem olha e a que fica errada.
+    d1, d2 = date.fromisoformat(de), date.fromisoformat(ate)
+    dias_janela = (d2 - d1).days + 1
+    anterior_kpis = None
+    if 0 < dias_janela <= 400:
+        ant_ate = (d1 - timedelta(days=1))
+        ant_de = ant_ate - timedelta(days=dias_janela - 1)
+        a_de, a_ate = ant_de.isoformat(), ant_ate.isoformat()
+        a_total = a_com = 0.0
+        a_qtd = 0
+        for vid in ids_alvo:
+            calc = calcular_comissao(vid, a_de, a_ate, vendedores, vendas)
+            a_total += calc["total_vendido"]
+            a_com += calc["comissao"]
+            a_qtd += sum(1 for v in vendas.values()
+                         if v["vendedor_id"] == vid and v.get("tipo", "venda") == "venda"
+                         and a_de <= v["data"] <= a_ate)
+        # O cartao mostra o CONSOLIDADO (comercial + marketplaces). Comparar
+        # consolidado contra so-comercial mostraria uma queda gigante que e so
+        # a falta do ML e da Shopee do outro lado da conta.
+        a_mkts, _ = _marketplaces_periodo(a_de, a_ate)
+        a_total += sum(m["total"] for m in a_mkts)
+        a_qtd += sum(m["qtd"] for m in a_mkts)
+        a_ticket = round(a_total / a_qtd, 2) if a_qtd else 0.0
+
+        def _var_kpi(agora, antes):
+            """Sem base anterior devolve None: nao existe 'subiu 100%' partindo
+            do zero, e mostrar isso engana mais do que nao mostrar nada."""
+            if not antes:
+                return None
+            return round(100 * (agora - antes) / antes, 1)
+
+        anterior_kpis = {
+            "de": a_de, "ate": a_ate, "dias": dias_janela,
+            "total_geral": round(a_total, 2),
+            "comissao_geral": round(a_com, 2),
+            "qtd_vendas_geral": a_qtd,
+            "ticket_medio": a_ticket,
+            "var": {
+                # Contra o consolidado dos dois lados. Comissao e a excecao:
+                # marketplace nao paga comissao a ninguem, entao ela compara
+                # comercial com comercial.
+                "total_geral": _var_kpi(cons_total, a_total),
+                "comissao_geral": _var_kpi(comissao_geral, a_com),
+                "qtd_vendas_geral": _var_kpi(cons_qtd, a_qtd),
+                "ticket_medio": _var_kpi(cons_ticket, a_ticket),
+            },
+        }
+
 
     return jsonify({
         "de": de,
@@ -2211,6 +2284,7 @@ def api_admin_resumo():
         "comissao_geral": round(comissao_geral, 2),
         "qtd_vendas_geral": qtd_vendas_geral,
         "ticket_medio": ticket_medio,
+        "anterior": anterior_kpis,
         "serie_mensal": serie_mensal,
         "serie_diaria": serie_diaria,
         "marketplaces": marketplaces,

@@ -161,6 +161,13 @@
     font-variant-numeric:tabular-nums;
   }
   .kpi-quebra:empty{display:none;}
+  /* Comparacao com o periodo anterior, logo abaixo do numero. Vem antes da
+     quebra por canal porque a primeira pergunta de quem olha um numero grande
+     e "subiu ou caiu?", nao "de onde veio". */
+  .kpi-var{margin-top:5px;font-size:12px;font-weight:600;display:flex;
+    align-items:center;gap:5px;flex-wrap:wrap;}
+  .kpi-var:empty{display:none;}
+  .kpi-var .base{font-weight:400;color:var(--muted);font-size:11px;}
   .kpi-nota{
     font-size:11px;color:var(--muted);margin:8px 2px 0;line-height:1.5;
   }
@@ -1988,6 +1995,32 @@ async function carregarResumo(){
   const consTotal = resumoAtual.total_geral + mktTotal;
   const consQtd = resumoAtual.qtd_vendas_geral + mktQtd;
   const sub = (id, txt) => { document.getElementById(id).innerHTML = txt || ''; };
+
+  /* Comparacao com a janela anterior de MESMO tamanho.
+
+     Sem base anterior nao mostra nada: "subiu 100%" partindo de zero e uma
+     frase que nao quer dizer nada, e ocupar o espaco com ela e pior do que
+     deixar vazio. */
+  const ant = resumoAtual.anterior;
+  const comparar = (id, chave, fmt) => {
+    const el = document.getElementById(id + 'Var');
+    if(!el) return;
+    const v = ant && ant.var ? ant.var[chave] : null;
+    if(v === null || v === undefined){ el.innerHTML = ''; return; }
+    const classe = Math.abs(v) < 0.05 ? 'neutro' : (v > 0 ? 'sobe' : 'desce');
+    const seta = Math.abs(v) < 0.05 ? '' : (v > 0 ? '▲ ' : '▼ ');
+    const texto = Math.abs(v) < 0.05 ? 'igual ao período anterior'
+      : `${seta}${Math.abs(v).toLocaleString('pt-BR', {maximumFractionDigits: 1})}%`;
+    const dm = x => x.slice(8, 10) + '/' + x.slice(5, 7);
+    /* Periodo que ainda esta correndo compara um pedaco contra um inteiro. No
+       dia 1o de manha isso da "-100%" em tudo — verdade literal, leitura
+       enganosa: o dia nao caiu, ele mal comecou. A tela diz isso em vez de
+       deixar a seta vermelha falar sozinha. */
+    const correndo = document.getElementById('ateInput').value >= todayStr();
+    el.innerHTML = `<span class="dp-var ${classe}">${texto}</span>`
+      + `<span class="base">${fmt(ant[chave])} · ${dm(ant.de)} a ${dm(ant.ate)}`
+      + (correndo ? ' · período ainda correndo' : '') + '</span>';
+  };
   const nomeCurto = {mercado_livre: 'ML', shopee: 'Shopee', site: 'Site'};
 
   document.getElementById('totalGeralValue').textContent = fmtMoeda(consTotal);
@@ -2023,6 +2056,11 @@ async function carregarResumo(){
     sub('totalGeralValueSub',
       (document.getElementById('totalGeralValueSub').innerHTML || '') + ' · ' + marca);
   }
+
+  comparar('totalGeralValue', 'total_geral', fmtMoeda);
+  comparar('comissaoGeralValue', 'comissao_geral', fmtMoeda);
+  comparar('qtdVendasValue', 'qtd_vendas_geral', x => `${x} vendas`);
+  comparar('ticketMedioValue', 'ticket_medio', fmtMoeda);
 
   const descontos = mkts.filter(m => m.descontado_comercial?.qtd);
   sub('kpiNota', descontos.length
@@ -2339,6 +2377,7 @@ function montarKpisGestor(){
     + '<div class="rotulo">' + rotulo + '</div>'
     + '<div class="numero' + (money ? ' valor-money' : '') + '" id="' + id + '">'
     + (money ? 'R$ 0,00' : '0') + '</div>'
+    + '<div class="kpi-var" id="' + id + 'Var"></div>'
     + '<div class="kpi-quebra" id="' + id + 'Sub"></div></div>';
   grid.innerHTML =
       cartao('Total vendido', 'totalGeralValue', ICG.dinheiro, 'i-laranja', true)
