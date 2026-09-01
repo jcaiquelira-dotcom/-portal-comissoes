@@ -215,6 +215,18 @@
      campo cujo efeito nao e obvio pelo rotulo — e a diferenca entre desligar e
      excluir precisa estar escrita ali, nao so na cabeca de quem programou. */
   .campo-dica{display:block;margin-top:4px;font-size:11.5px;color:var(--muted);line-height:1.45;}
+  /* Grade propria, sem reaproveitar a dos canais: aquela esconde a barra em
+     tela estreita, e a celula sumindo desalinhava a linha inteira. Aqui a
+     barra encolhe em vez de sumir. */
+  .fila-grid{display:grid;grid-template-columns:minmax(96px,1fr) minmax(40px,2fr) 78px 78px;
+    gap:7px 14px;align-items:center;font-size:12.5px;}
+  .fila-grid .cab{font-size:10px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);font-weight:700;padding-bottom:2px;border-bottom:1px solid var(--line);}
+  .fila-grid .n{font-family:'IBM Plex Mono',monospace;text-align:right;white-space:nowrap;}
+  .fila-nome{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .fila-barra{height:8px;border-radius:20px;background:var(--surface-2);overflow:hidden;}
+  .fila-barra span{display:block;height:100%;border-radius:20px;background:var(--accent);
+    min-width:3px;}
   .areas-box{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));
     gap:4px 12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;
     background:var(--surface-2);}
@@ -4724,12 +4736,12 @@ async function carregarAtendimento(){
   const maiorFila = Math.max(...porV.map(v => v.total), 1);
   const porVendedor = porV.length ? `<div class="card" style="margin-bottom:14px;">
     <p class="card-titulo">Quem está com fila agora</p>
-    <div class="canal-grid" style="grid-template-columns:minmax(110px,1fr) minmax(80px,2fr) 78px 92px;">
-      <span class="cab">Vendedor</span><span class="cab cab-barra"></span>
+    <div class="fila-grid">
+      <span class="cab">Vendedor</span><span class="cab"></span>
       <span class="cab n">Esperando</span><span class="cab n">Crítico</span>
       ${porV.map(v => `
-      <span class="canal-nome">${v.nome || v.id}</span>
-      <span class="barra"><span style="width:${(100 * v.total / maiorFila).toFixed(1)}%${
+      <span class="fila-nome">${v.nome || v.id}</span>
+      <span class="fila-barra"><span style="width:${(100 * v.total / maiorFila).toFixed(1)}%${
         v.critico ? ';background:var(--bad)' : ''}"></span></span>
       <span class="n">${v.total}</span>
       <span class="n">${v.critico
