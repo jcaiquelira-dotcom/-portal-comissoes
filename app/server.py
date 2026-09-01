@@ -982,7 +982,21 @@ def areas_do_usuario() -> list:
     area nenhuma da area do gestor, que e o comportamento de sempre.
     """
     if exigir_admin():
-        return list(AREAS)
+        # Master NAO herda as areas do proprio trabalho. Quem supervisiona nao
+        # atende nem vende — dar "Esperando voce" e "Minhas vendas" pra ele
+        # enche o menu com o que ele nunca vai usar, e pior: esses itens moram
+        # na outra tela, entao clicar neles parecia sair do portal e entrar de
+        # novo. O equivalente dele ja existe e e outro: "Atendimento agora",
+        # "Follow-up do time", "Desempenho do time".
+        #
+        # Se o gestor tambem vender, basta marcar as areas dele na grade —
+        # decisao explicita, nao heranca automatica.
+        base = [a for a in AREAS if a not in AREAS_PROPRIAS]
+        vid_m = session.get("vendedor_id")
+        if vid_m:
+            v_m = carregar_vendedores().get(vid_m) or {}
+            base += [a for a in (v_m.get("areas") or []) if a in AREAS_PROPRIAS]
+        return base
     vid = session.get("vendedor_id")
     if not vid:
         return []

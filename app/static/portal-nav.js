@@ -279,7 +279,12 @@ function montarSidebar(ativo, opcoes){
     const href = it.chave === 'expedicao' && !it.hash
       ? urlExpedicao()
       : (mesmaPagina && it.hash ? it.hash : it.pagina + (it.hash || ''));
+    // O ranking e um painel de TV e a expedicao roda em outro servico: os dois
+    // sao destino final, nao navegacao. Abrir em aba nova evita que quem
+    // clicou perca de onde veio.
+    const abaNova = it.chave === 'ranking' || (it.chave === 'expedicao' && !it.hash);
     return '<a class="nav-item' + (it.chave === ativo ? ' ativo' : '') + '" href="' + href + '"'
+      + (abaNova ? ' target="_blank" rel="noopener"' : '')
       + ' data-nav="' + it.chave + '">' + ICONES[it.icone] + '<span>' + it.texto + '</span>'
       + '<span class="nav-badge oculto" data-badge="' + it.chave + '"></span></a>';
   };
