@@ -4709,6 +4709,38 @@ async function carregarAtendimento(){
     <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${num}</div>
     ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
 
+  /* Resumo por vendedor. O servidor ja calculava `por_vendedor` e ninguem
+     mostrava — a tela tinha o total do time e a lista de conversas, e pra
+     saber quem estava afogado era preciso contar a coluna "atendente" com o
+     olho. Supervisao e justamente isso: ver onde a fila esta, nao ler a fila.
+
+     Ordena pelo pior primeiro (critico, depois total). Ranking de problema se
+     le de cima pra baixo; em ordem alfabetica, quem esta em apuros pode cair
+     no fim da lista. */
+  const porV = Object.entries(d.por_vendedor || {})
+    .map(([id, v]) => ({id, ...v}))
+    .filter(v => v.total > 0)
+    .sort((a_, b_) => (b_.critico - a_.critico) || (b_.total - a_.total));
+  const maiorFila = Math.max(...porV.map(v => v.total), 1);
+  const porVendedor = porV.length ? `<div class="card" style="margin-bottom:14px;">
+    <p class="card-titulo">Quem está com fila agora</p>
+    <div class="canal-grid" style="grid-template-columns:minmax(110px,1fr) minmax(80px,2fr) 78px 92px;">
+      <span class="cab">Vendedor</span><span class="cab cab-barra"></span>
+      <span class="cab n">Esperando</span><span class="cab n">Crítico</span>
+      ${porV.map(v => `
+      <span class="canal-nome">${v.nome || v.id}</span>
+      <span class="barra"><span style="width:${(100 * v.total / maiorFila).toFixed(1)}%${
+        v.critico ? ';background:var(--bad)' : ''}"></span></span>
+      <span class="n">${v.total}</span>
+      <span class="n">${v.critico
+        ? `<b style="color:var(--bad)">${v.critico}</b>` : '—'}</span>`).join('')}
+    </div>
+    <div class="dp-aviso">Barra vermelha = tem cliente esperando há mais de
+      ${d.limites.critico} minutos. A ordem é pelo pior, não alfabética: quem
+      precisa de ajuda primeiro aparece primeiro.
+      ${porV.some(v => !v.id) ? '<br>Conversa sem atendente definido aparece na lista abaixo, mas não entra neste resumo — não há a quem atribuir.' : ''}</div>
+  </div>` : '';
+
   const linhas = (d.conversas || []).map(x => `
     <tr>
       <td><b style="color:${NIVEL[x.nivel]}">${x.minutos >= 60
@@ -4744,6 +4776,7 @@ async function carregarAtendimento(){
       ${kpi('Só agradeceram', d.so_agradeceram || 0, 'fora do alerta: não pedem resposta')}
       ${kpi('Resolvidas hoje', d.resolvidas || 0, 'voltam amanhã se continuarem sem resposta')}
     </div>
+    ${porVendedor}
     <div class="card">
       <div class="aud-cabecalho">
         <p class="card-titulo" style="margin:0;">Clientes esperando a loja responder</p>
