@@ -211,9 +211,43 @@ def coletar_vendas(token, user_id):
         d["total"] = round(d["total"] + float(c.get("transaction_amount") or 0), 2)
         d["qtd"] += 1
 
+    # Devolucao. Duas formas, e elas entram no faturamento de jeitos opostos:
+    #
+    #   integral  -> o pagamento sai de "approved" e vira "refunded", ou seja,
+    #                ja NAO esta no faturamento acima. Aparece aqui so pra dizer
+    #                o tamanho do problema.
+    #   parcial   -> o pagamento continua "approved" pelo valor cheio, e o que
+    #                voltou pro comprador esta em amount_refunded. Esse SIM
+    #                precisa sair, senao o faturamento conta dinheiro que a
+    #                empresa devolveu.
+    devolvidos = [c for c in pagamentos
+                  if c.get("marketplace") == "MELI" and c.get("status") == "refunded"]
+    parciais = round(sum(float(c.get("amount_refunded") or 0) for c in validos), 2)
+
+    def dev(grupo):
+        return {"qtd": len(grupo),
+                "total": round(sum(float(c.get("transaction_amount") or 0)
+                                   for c in grupo), 2)}
+
+    serie_dev = {}
+    for c in devolvidos:
+        try:
+            dia = datetime.fromisoformat(c["date_approved"]).astimezone(FUSO).date().isoformat()
+        except (KeyError, ValueError, TypeError):
+            continue
+        d_ = serie_dev.setdefault(dia, {"total": 0.0, "qtd": 0})
+        d_["total"] = round(d_["total"] + float(c.get("transaction_amount") or 0), 2)
+        d_["qtd"] += 1
+
     return {
         "dias30": resumo([c for c in validos if (c.get("date_approved") or "") >= corte]),
         "mes_atual": resumo([c for c in validos if (c.get("date_approved") or "")[:7] == mes]),
+        "devolucoes": {
+            "dias30": dev([c for c in devolvidos if (c.get("date_approved") or "") >= corte]),
+            "mes_atual": dev([c for c in devolvidos if (c.get("date_approved") or "")[:7] == mes]),
+            "parcial_no_periodo": parciais,
+            "serie_dia": serie_dev,
+        },
         "fora_meli_30d": len([c for c in pagamentos
                               if c.get("status") == "approved"
                               and c.get("marketplace") != "MELI"]),
