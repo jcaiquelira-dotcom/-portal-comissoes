@@ -62,6 +62,11 @@ ENCERRAMENTOS = {
     "isso", "certo", "perfeito", "show", "otimo", "ótimo", "legal", "top",
     "entendi", "ta bom", "tá bom", "tabom", "ta certo", "tudo bem", "de nada",
     "bom dia", "boa tarde", "boa noite", "att", "amem", "amém",
+    # Vistos na fila real de 29-31/08/2026 — todos viraram alarme CRITICO so
+    # por nao estarem nesta lista:
+    "grato", "grata", "gratidao", "obrigadao", "tudo sim", "sim tudo", "ah sim",
+    "disponha", "imagina", "tranquilo", "tranquila", "suave", "fechado",
+    "combinado", "aham", "uhum", "opa", "certinho", "maravilha",
 }
 SO_EMOJI = re.compile(r"^[\W_]+$", re.UNICODE)
 _PONTAS = re.compile(r"^[\W_]+|[\W_]+$", re.UNICODE)
@@ -115,18 +120,63 @@ def minutos_uteis(desde_utc, agora_utc) -> int:
     return int(total)
 
 
+_REPETIDA = re.compile(r"(.)\1{2,}", re.UNICODE)
+_ENC_ACHATADO = None
+
+
+def _achatar(t: str) -> str:
+    """Tira acento e encolhe letra esticada: "Blzzz" -> "blz", "ahhh" -> "ah".
+
+    Cliente escreve como fala. Sem isto, "blz" era encerramento e "blzzz" era
+    urgencia critica — a mesma pessoa dizendo a mesma coisa.
+    """
+    import unicodedata
+    sem = "".join(c for c in unicodedata.normalize("NFKD", t)
+                  if not unicodedata.combining(c))
+    return _REPETIDA.sub(r"\1", sem)
+
+
+def _encerramentos():
+    """ENCERRAMENTOS na mesma forma achatada do texto que chega.
+
+    Comparar texto sem acento contra uma lista COM acento nunca casaria "otimo"
+    com "ótimo" — o achatamento tem que valer pros dois lados.
+    """
+    global _ENC_ACHATADO
+    if _ENC_ACHATADO is None:
+        _ENC_ACHATADO = {_achatar(x) for x in ENCERRAMENTOS}
+    return _ENC_ACHATADO
+
+
+# Palavras que nao encerram sozinhas, mas acompanham quem encerra: "obrigado
+# MESMO", "brigado VC", "TA BOM obrigado". Os primeiros nomes dos atendentes
+# entram junto, porque "Obrigado Flavia" e agradecimento e nao pergunta — e
+# saem do proprio mapa ATENDENTES, pra nao virar lista paralela pra manter.
+REFORCO = {"muito", "mesmo", "entao", "ai", "ja", "e", "eh", "ah", "ok",
+           "vc", "voce", "vcs", "ta", "tah", "bom", "boa", "sim", "por", "isso",
+           "tudo", "nada", "de", "pra", "pela", "pelo", "a", "o", "tb", "tbm"}
+
+
 def so_agradeceu(texto: str) -> bool:
     t = (texto or "").strip().lower()
     if not t or len(t) > 40:
         return False
     if SO_EMOJI.fullmatch(t):
         return True
-    limpo = _PONTAS.sub("", t)
-    if limpo in ENCERRAMENTOS:
+    enc = _encerramentos()
+    limpo = _achatar(_PONTAS.sub("", t))
+    if limpo in enc:
         return True
-    reforco = {"muito", "mesmo", "entao", "então", "ai", "aí", "ja", "já", "e", "eh"}
+    nomes = {_achatar(nome.split()[0].lower()) for _, nome in ATENDENTES.values()}
     palavras = [p for p in _SEPARA.split(limpo) if p]
-    return bool(palavras) and all(p in ENCERRAMENTOS or p in reforco for p in palavras)
+    if not palavras:
+        return False
+    # Exige PELO MENOS UMA palavra de encerramento de verdade. Sem isso, uma
+    # mensagem so de reforco ("ta bom?", "voce ai") seria lida como despedida e
+    # a conversa sumiria da fila com o cliente ainda esperando.
+    if not any(p in enc for p in palavras):
+        return False
+    return all(p in enc or p in REFORCO or p in nomes for p in palavras)
 
 
 def _get(token, path, params=None):

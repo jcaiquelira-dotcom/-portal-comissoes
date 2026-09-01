@@ -1133,6 +1133,14 @@ def api_atendimento_resolver():
                           or agora_br().isoformat(timespec="seconds")),
             # A data do clique e o que faz a marcacao expirar amanha.
             "em": hoje_br().isoformat(),
+            # Quem marcou e a que horas. Em 01/09/2026 o gestor viu a fila de
+            # uma vendedora despencar e perguntou se ela tinha saido clicando
+            # em tudo — e nao havia como responder, porque o registro nao
+            # guardava autor nem hora. Guardar isso nao e vigiar: e conseguir
+            # distinguir "resolveu 13 ao longo do dia" de "resolveu 13 em um
+            # minuto", que sao coisas muito diferentes.
+            "por": session.get("vendedor_id") or ("gestor" if exigir_admin() else "?"),
+            "quando": agora_br().isoformat(timespec="seconds"),
         }
     # Marcacao de ontem pra tras ja nao vale — nao precisa ficar no arquivo.
     hoje = hoje_br().isoformat()
