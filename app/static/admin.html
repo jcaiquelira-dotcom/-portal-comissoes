@@ -3724,6 +3724,21 @@ function pintarMlResultado(){
   const ate = document.getElementById('ateInput').value;
   const periodos = mlFatDados.periodos || {};
 
+  /* Faturamento vem do MESMO lugar que a fatia do ML no cartao do topo — os
+     pagamentos aprovados no Mercado Pago com origem MELI. Nao da fatura.
+
+     A fatura tambem traz o valor de cada venda, e eu estava usando: dava
+     R$ 376 mil em agosto contra R$ 283 mil dos pagamentos. A diferenca ainda
+     nao esta explicada, mas isso e secundario — o erro foi ter criado um
+     TERCEIRO numero de faturamento do ML na mesma tela. Dois ja e demais.
+
+     Aqui e o BRUTO do canal (com as vendas que o time lancou como "Mercado
+     Livre"), porque a tarifa e o frete que a fatura cobra sao dessas vendas
+     tambem. O cartao do topo mostra o liquido, sem elas, pra nao contar a mesma
+     venda duas vezes no consolidado. */
+  const mktMl = (resumoAtual.marketplaces || []).find(m => m.id === 'mercado_livre');
+  const dcMl = (mktMl && mktMl.descontado_comercial) || {total: 0, qtd: 0};
+
   const soma = {receita: 0, vendas: 0, tarifa_venda: 0, tarifa_pagamento: 0,
                 parcelamento: 0, frete: 0, ads: 0, outros: 0};
   const itens = {}, estados = {};
@@ -3763,6 +3778,8 @@ function pintarMlResultado(){
     return;
   }
 
+  soma.receita = mktMl ? mktMl.total + (dcMl.total || 0) : 0;
+  soma.vendas = mktMl ? mktMl.qtd + (dcMl.qtd || 0) : 0;
   const cobrancas = soma.tarifa_venda + soma.tarifa_pagamento + soma.parcelamento
                   + soma.frete + soma.ads + soma.outros;
   const sobra = soma.receita - cobrancas;
@@ -3794,7 +3811,8 @@ function pintarMlResultado(){
       <span class="status-msg" id="mlFatStatus"></span>
     </div>
     <div class="dp-kpis conta-linha" style="margin-bottom:0;">
-      ${tile('Faturamento', fmtMoeda(soma.receita), `${soma.vendas} vendas cobradas`)}
+      ${tile('Faturamento', fmtMoeda(soma.receita),
+             `${soma.vendas} vendas · mesma fonte do cartão do topo`)}
       ${tile('O ML cobrou', fmtMoeda(cobrancas), p1(cobrancas) + ' do faturamento', 'var(--bad)')}
       ${tile('O que sobra', fmtMoeda(sobra), p1(sobra) + ' do faturamento',
              sobra > 0 ? 'var(--good)' : 'var(--bad)')}
@@ -3813,9 +3831,15 @@ function pintarMlResultado(){
         ${soma.outros ? linha('Outras cobranças', soma.outros) : ''}
       </div>
       <div class="dp-aviso" style="margin-top:8px;">
-        Tudo pela data da <b>venda</b>, cobranças inclusive — a tarifa de uma venda
-        do dia 29 conta no dia 29, mesmo que o ML só cobre no mês seguinte.
-        Estornos entram negativos, então cobrança devolvida não infla a conta.
+        Faturamento igual ao do cartão do topo, <b>somando de volta as ${
+          dcMl.qtd || 0} vendas</b> (${fmtMoeda(dcMl.total || 0)}) que o time lançou
+        como "Mercado Livre": lá elas saem pra não contar duas vezes no consolidado,
+        aqui precisam entrar porque o ML cobrou tarifa e frete delas também.
+        <br><br>As cobranças vão pela data da <b>venda</b> — a tarifa de uma venda do
+        dia 29 conta no dia 29, mesmo que o ML só cobre no mês seguinte. Venda do fim
+        do mês pode ainda não ter a cobrança dela aqui: ela chega quando o período
+        seguinte for coletado. Estornos entram negativos, então cobrança devolvida
+        não infla a conta.
         <br><br>Descontando ainda os ${String(par.custo_pct || 0).replace('.', ',')}%
         de custo da peça e ${String(par.imposto_pct || 0).replace('.', ',')}% de
         imposto que você definiu, sobrariam <b>${fmtMoeda(depois)}</b>. Esse número
