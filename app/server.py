@@ -728,10 +728,15 @@ def api_login():
         return jsonify({"erro": f"Muitas tentativas erradas. Aguarde {LOGIN_JANELA_MINUTOS} minutos e tente de novo."}), 429
     vendedores = carregar_vendedores()
     v = vendedores.get(vendedor_id)
-    if not v or v.get("senha") != senha:
+    if not v or not _senha_confere(v.get("senha"), senha):
         registrar_acesso("vendedor", False, vendedor_id, v["nome"] if v else None)
         return jsonify({"erro": "Vendedor ou senha inválidos."}), 401
     session.clear()
+    # Promocao silenciosa: senha antiga em texto puro vira hash no primeiro
+    # login que der certo. Ninguem precisa trocar senha pra migracao acontecer.
+    if not str(v.get("senha") or "").startswith(("pbkdf2:", "scrypt:")):
+        vendedores[vendedor_id]["senha"] = _hash_senha(senha)
+        salvar_vendedores(vendedores)
     session.permanent = True      # sem isso o lifetime acima nem se aplica
     session["vendedor_id"] = vendedor_id
     # Quem administra entra com nome. Era exatamente isso que a senha sem dono
@@ -1799,9 +1804,12 @@ def api_admin_login():
     if excedeu_tentativas_login("admin"):
         return jsonify({"erro": f"Muitas tentativas erradas. Aguarde {LOGIN_JANELA_MINUTOS} minutos e tente de novo."}), 429
     cred = carregar_credenciais()
-    if senha != cred.get("admin_senha"):
+    if not _senha_confere(cred.get("admin_senha"), senha):
         registrar_acesso("admin", False)
         return jsonify({"erro": "Senha incorreta."}), 401
+    if not str(cred.get("admin_senha") or "").startswith(("pbkdf2:", "scrypt:")):
+        cred["admin_senha"] = _hash_senha(senha)
+        escrever_json(CREDENCIAIS_FILE, cred)
     session.permanent = True
     session["admin"] = True
     # "chave-reserva", nao "admin". Entrar pela senha sem dono passa a ser um
@@ -1809,6 +1817,28 @@ def api_admin_login():
     # usando a saida de emergencia como porta principal.
     registrar_acesso("chave-reserva", True, None, "senha do gestor (sem usuario)")
     return jsonify({"ok": True})
+
+
+def _hash_senha(senha: str) -> str:
+    from werkzeug.security import generate_password_hash
+    return generate_password_hash(senha)
+
+
+def _senha_confere(guardada: str, digitada: str) -> bool:
+    """Confere a senha aceitando os dois formatos.
+
+    O banco guardava senha em texto puro — qualquer um com acesso ao banco (ou
+    a um backup) lia a senha de todo mundo. Agora grava hash; o formato antigo
+    continua aceito porque trocar a senha de 8 pessoas de uma vez nao e opcao.
+    Quem loga com senha em texto puro tem ela promovida a hash NAQUELE momento
+    (ver os dois logins) — a migracao acontece sozinha, um login de cada vez.
+    """
+    if not guardada or not digitada:
+        return False
+    if guardada.startswith(("pbkdf2:", "scrypt:")):
+        from werkzeug.security import check_password_hash
+        return check_password_hash(guardada, digitada)
+    return guardada == digitada
 
 
 def _hash_codigo(codigo: str) -> str:
@@ -1852,7 +1882,7 @@ def api_recuperar_senha_admin():
     if len(nova_senha) < 4:
         return jsonify({"erro": "A nova senha precisa ter pelo menos 4 caracteres."}), 400
 
-    cred["admin_senha"] = nova_senha
+    cred["admin_senha"] = _hash_senha(nova_senha)
     cred.pop("recuperacao_hash", None)
     cred.pop("recuperacao_gerado_em", None)
     escrever_json(CREDENCIAIS_FILE, cred)
@@ -4764,7 +4794,7 @@ def api_admin_salvar_vendedor():
         return jsonify({"erro": "Defina uma senha para o vendedor."}), 400
     vendedores[vendedor_id] = {
         "nome": nome,
-        "senha": senha if senha else existente.get("senha"),
+        "senha": _hash_senha(senha) if senha else existente.get("senha"),
         "percentual": percentual,
         "overrides": overrides,
     }
@@ -4851,7 +4881,7 @@ def api_recuperar_senha_vendedor():
     if len(nova_senha) < 4:
         return jsonify({"erro": "A nova senha precisa ter pelo menos 4 caracteres."}), 400
 
-    vendedores[vendedor_id]["senha"] = nova_senha
+    vendedores[vendedor_id]["senha"] = _hash_senha(nova_senha)
     vendedores[vendedor_id].pop("recuperacao_hash", None)
     salvar_vendedores(vendedores)
     registrar_acesso("vendedor_recuperacao", True, vendedor_id)

@@ -14,3 +14,4 @@ __pycache__/
 
 # Pacote de deploy antigo (PythonAnywhere)
 *.zip
+segredos/backups/
