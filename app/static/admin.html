@@ -179,7 +179,6 @@
     margin-left:auto;min-width:230px;
   }
   .carros-busca:focus{outline:none;border-color:var(--accent);}
-  .shopee-meses .dp-linha .nome{width:52px;}
   /* Lista longa que quase sempre so confirma o obvio: fica fechada e nao
      rouba a altura do card. Quem quiser o detalhe abre. */
   .dp-recolhivel{border-top:1px solid var(--line);margin-top:10px;}
@@ -1293,6 +1292,10 @@ document.getElementById('toggleValoresBtn').addEventListener('click', () => {
 atualizarIconeOlho();
 
 let resumoAtual = null;
+/* Payload cru de cada canal. Guardado porque trocar o filtro nao muda o
+   historico — muda so o recorte — e refazer a chamada a cada clique de preset
+   seria pagar rede pra receber a mesma coisa. */
+let siteContaDados = null, shopeeContaDados = null;
 /* Quem esta usando a tela. `gestor` e a senha master (ve tudo); um usuario
    comum ve so as areas marcadas no cadastro dele. A tela inteira se monta a
    partir disso — menu, KPIs do topo e o que carrega no primeiro acesso. */
@@ -1963,6 +1966,11 @@ async function carregarResumo(){
 
   // Consolidado: comercial (portal) + marketplaces (serie diaria do ML, e o
   // que mais chegar). A quebra por origem fica pequena embaixo de cada numero.
+  // Os cards de canal se repintam junto: eles leem deste mesmo payload, entao
+  // o periodo deles nunca fica atras do periodo do topo.
+  pintarSiteConta();
+  pintarShopeeConta();
+
   const mkts = resumoAtual.marketplaces || [];
   const mktTotal = mkts.reduce((t, m) => t + m.total, 0);
   const mktQtd = mkts.reduce((t, m) => t + m.qtd, 0);
@@ -4599,62 +4607,72 @@ async function carregarMlConta(){
 }
 
 async function carregarSiteConta(){
-  const el = document.getElementById('siteConta');
-  if(!el) return;
+  if(!document.getElementById('siteConta')) return;
   const res = await fetch('/api/admin/site-conta');
   if(!res.ok) return;
-  const d = await res.json();
-  if(d.sem_dados){ el.innerHTML = ''; return; }
+  siteContaDados = await res.json();
+  pintarSiteConta();
+}
 
-  const serie = d.vendas.serie_dia;
-  const meses = {};
-  Object.entries(serie).forEach(([dia, v]) => {
-    const m = dia.slice(0, 7);
-    meses[m] = meses[m] || {total: 0, qtd: 0};
-    meses[m].total = Math.round((meses[m].total + v.total) * 100) / 100;
-    meses[m].qtd += v.qtd;
-  });
-  const chaves = Object.keys(meses).sort();
-  const total = chaves.reduce((t, m) => t + meses[m].total, 0);
-  const pedidos = chaves.reduce((t, m) => t + meses[m].qtd, 0);
-  const ult = chaves[chaves.length - 1], pen = chaves[chaves.length - 2];
-  const max = Math.max(...chaves.map(m => meses[m].total), 1);
-  const NOMES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  const nm = m => NOMES[Number(m.slice(5, 7)) - 1] + '/' + m.slice(2, 4);
-  const varUlt = pen && meses[pen].total
-    ? Math.round(100 * (meses[ult].total - meses[pen].total) / meses[pen].total) : null;
-  const ultimos = chaves.slice(-8);
+/* Card do site no periodo do filtro.
+
+   O total e a quantidade NAO sao calculados aqui: vem do mesmo /api/admin/resumo
+   que monta o consolidado do topo. Se eu somasse a serie de novo neste ponto,
+   passariam a existir dois lugares que respondem "quanto o site vendeu em
+   agosto" — e um dia eles discordariam por uma regra que mudou so de um lado. */
+function pintarSiteConta(){
+  const el = document.getElementById('siteConta');
+  if(!el || !siteContaDados) return;
+  const d = siteContaDados;
+  if(d.sem_dados){ el.innerHTML = ''; return; }
+  if(!resumoAtual){ el.innerHTML = ''; return; }
+
+  // Filtrando um vendedor o bloco sai: marketplace nao e venda de ninguem do
+  // time, e deixar o card ali sugeriria que aquele numero e daquela pessoa.
+  if(document.getElementById('vendedorFiltro').value){ el.innerHTML = ''; return; }
+
+  const de = document.getElementById('deInput').value;
+  const ate = document.getElementById('ateInput').value;
+  const mkt = (resumoAtual.marketplaces || []).find(m => m.id === 'site');
+  const ausente = (resumoAtual.marketplaces_ausentes || []).find(m => m.id === 'site');
+
+  const serie = d.vendas.serie_dia || {};
+  const dias = Object.keys(serie).filter(x => de <= x && x <= ate).sort();
+  const dm = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const dData = x => x.slice(8, 10) + '/' + dm[Number(x.slice(5, 7)) - 1];
+  const cab = `<div class="aud-cabecalho">
+      <p class="card-titulo" style="margin:0;">Site próprio</p>
+      <span class="ml-selo ok">venda direta</span>
+      <span class="aud-conta">sem passar por vendedor</span>
+    </div>`;
+
+  if(!mkt){
+    el.innerHTML = `<div class="card" style="margin-bottom:14px;">${cab}
+      <div class="dp-aviso" style="margin-top:0;">${ausente ? ausente.motivo
+        : 'Sem venda neste período.'} O card fica aqui de propósito: sumir faria
+        parecer que o total do topo já inclui o site.</div></div>`;
+    return;
+  }
 
   const tile = (rot, valor, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
     <div class="num valor-money">${valor}</div>
     ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+  const melhor = dias.length
+    ? dias.reduce((x, y) => serie[x].total >= serie[y].total ? x : y) : null;
 
-  el.innerHTML = `<div class="card" style="margin-bottom:14px;">
-    <div class="aud-cabecalho">
-      <p class="card-titulo" style="margin:0;">Site próprio</p>
-      <span class="ml-selo ok">venda direta</span>
-      <span class="aud-conta">sem passar por vendedor</span>
-    </div>
+  el.innerHTML = `<div class="card" style="margin-bottom:14px;">${cab}
     <div class="dp-kpis conta-linha" style="margin-bottom:0;">
-      ${tile('Vendas pagas', fmtMoeda(total), `${pedidos} pedidos · ${nm(chaves[0])} a ${nm(ult)}`)}
-      ${tile('Ticket médio', fmtMoeda(pedidos ? total / pedidos : 0), 'por pedido pago')}
-      ${tile('Mês atual (' + nm(ult) + ')', fmtMoeda(meses[ult].total),
-             `${meses[ult].qtd} pedidos` + (varUlt !== null
-               ? ` · ${varUlt >= 0 ? '▲ +' : '▼ '}${varUlt}% vs ${nm(pen)}` : ''))}
-      ${tile('Média por mês', fmtMoeda(total / chaves.length), `${chaves.length} meses de histórico`)}
+      ${tile('Vendas pagas', fmtMoeda(mkt.total), `${mkt.qtd} pedidos no período`)}
+      ${tile('Ticket médio', fmtMoeda(mkt.qtd ? mkt.total / mkt.qtd : 0), 'por pedido pago')}
+      ${melhor ? tile('Melhor dia', fmtMoeda(serie[melhor].total),
+             `${dData(melhor)} · ${serie[melhor].qtd} pedidos`) : ''}
+      ${tile('Dias com venda', dias.length, `de ${dData(de)} a ${dData(ate)}`)}
     </div>
-    <details class="dp-recolhivel"><summary>Mês a mês (${chaves.length} meses)</summary>
-      <div class="dp-lista shopee-meses">
-        ${ultimos.map(m => `<div class="dp-linha">
-          <span class="nome">${nm(m)}</span>
-          <span class="v valor-money">${fmtMoeda(meses[m].total)}</span>
-          <span class="t"><span class="f" style="width:${(meses[m].total / max * 100).toFixed(1)}%"></span></span>
-        </div>`).join('')}
-      </div>
-      <div class="dp-aviso" style="margin-top:8px;">Só pedidos pagos — cancelados e reembolsados
-        ficam de fora, mesmo critério do ML e da Shopee. Lido do painel do site em
-        ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)} às ${(d.gerado_em || '').slice(11, 16)}.</div>
-    </details>
+    <div class="dp-aviso">Só pedidos pagos — cancelados e reembolsados ficam de fora,
+      mesmo critério do ML e da Shopee.${mkt.cobre_periodo === false
+        ? ' <b>A série começa depois do início do período</b> — o que veio antes disso não está aqui.' : ''}
+      Lido do painel do site em ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}
+      às ${(d.gerado_em || '').slice(11, 16)}.</div>
   </div>`;
 }
 
@@ -4901,56 +4919,71 @@ async function carregarPerfilGoogle(){
 }
 
 async function carregarShopeeConta(){
-  const el = document.getElementById('shopeeConta');
-  if(!el) return;
+  if(!document.getElementById('shopeeConta')) return;
   const res = await fetch('/api/admin/shopee-conta');
   if(!res.ok) return;
-  const d = await res.json();
-  if(d.sem_dados){ el.innerHTML = ''; return; }
+  shopeeContaDados = await res.json();
+  pintarShopeeConta();
+}
 
-  const serie = d.vendas.serie_mes;
-  const meses = Object.keys(serie).sort();
-  const total = meses.reduce((t, m) => t + serie[m].total, 0);
-  const pedidos = meses.reduce((t, m) => t + serie[m].qtd, 0);
-  const max = Math.max(...meses.map(m => serie[m].total), 1);
-  const melhor = meses.reduce((a, b) => serie[a].total >= serie[b].total ? a : b);
+/* Mesma ideia do site: numero do periodo vem do resumo, nao daqui.
+
+   Aqui isso importa ainda mais. A Shopee vem em relatorio MENSAL, entao um
+   periodo que corta o mes no meio precisa ratear por dia — e essa regra ja
+   existe no servidor. Repeti-la em JavaScript seria manter duas contas
+   diferentes pro mesmo mes de agosto. */
+function pintarShopeeConta(){
+  const el = document.getElementById('shopeeConta');
+  if(!el || !shopeeContaDados) return;
+  const d = shopeeContaDados;
+  if(d.sem_dados){ el.innerHTML = ''; return; }
+  if(!resumoAtual){ el.innerHTML = ''; return; }
+  if(document.getElementById('vendedorFiltro').value){ el.innerHTML = ''; return; }
+
+  const de = document.getElementById('deInput').value;
+  const ate = document.getElementById('ateInput').value;
+  const mkt = (resumoAtual.marketplaces || []).find(m => m.id === 'shopee');
+  const ausente = (resumoAtual.marketplaces_ausentes || []).find(m => m.id === 'shopee');
+
+  const serie = d.vendas.serie_mes || {};
   const NOMES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const nomeMes = m => NOMES[Number(m.slice(5, 7)) - 1] + '/' + m.slice(2, 4);
-  const ultimo = meses[meses.length - 1];
-  const penultimo = meses[meses.length - 2];
-  const varUlt = penultimo && serie[penultimo].total
-    ? Math.round(100 * (serie[ultimo].total - serie[penultimo].total) / serie[penultimo].total) : null;
+  // Mes que encosta no periodo, mesmo que so em parte — e o mesmo conjunto que
+  // o servidor rateia pra chegar no total.
+  const meses = Object.keys(serie)
+    .filter(m => m >= de.slice(0, 7) && m <= ate.slice(0, 7)).sort();
+  const cab = `<div class="aud-cabecalho">
+      <p class="card-titulo" style="margin:0;">Shopee</p>
+      <span class="ml-selo">${meses.length ? nomeMes(meses[0]) + ' a ' + nomeMes(meses[meses.length - 1])
+        : 'sem mês no período'}</span>
+      <span class="aud-conta">relatório mensal do Seller Centre</span>
+    </div>`;
+
+  if(!mkt){
+    el.innerHTML = `<div class="card" style="margin-bottom:14px;">${cab}
+      <div class="dp-aviso" style="margin-top:0;">${ausente ? ausente.motivo
+        : 'Sem venda neste período.'} O card fica aqui de propósito: sumir faria
+        parecer que o total do topo já inclui a Shopee.</div></div>`;
+    return;
+  }
 
   const tile = (rot, valor, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
     <div class="num valor-money">${valor}</div>
     ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+  const melhor = meses.length
+    ? meses.reduce((x, y) => serie[x].total >= serie[y].total ? x : y) : null;
 
-  el.innerHTML = `<div class="card" style="margin-bottom:14px;">
-    <div class="aud-cabecalho">
-      <p class="card-titulo" style="margin:0;">Shopee</p>
-      <span class="ml-selo">até ${nomeMes(ultimo)}</span>
-      <span class="aud-conta">relatório mensal do Seller Centre</span>
-    </div>
+  el.innerHTML = `<div class="card" style="margin-bottom:14px;">${cab}
     <div class="dp-kpis conta-linha" style="margin-bottom:0;">
-      ${tile('Vendas pagas no período', fmtMoeda(total), `${pedidos} pedidos · ${nomeMes(meses[0])} a ${nomeMes(ultimo)}`)}
-      ${tile('Ticket médio', fmtMoeda(pedidos ? total / pedidos : 0), 'por pedido pago')}
-      ${tile('Último mês (' + nomeMes(ultimo) + ')', fmtMoeda(serie[ultimo].total),
-             `${serie[ultimo].qtd} pedidos` + (varUlt !== null
-               ? ` · ${varUlt >= 0 ? '▲ +' : '▼ '}${varUlt}% vs ${nomeMes(penultimo)}` : ''))}
-      ${tile('Melhor mês', nomeMes(melhor), fmtMoeda(serie[melhor].total))}
+      ${tile('Vendas pagas', fmtMoeda(mkt.total), `${mkt.qtd} pedidos no período`)}
+      ${tile('Ticket médio', fmtMoeda(mkt.qtd ? mkt.total / mkt.qtd : 0), 'por pedido pago')}
+      ${melhor ? tile('Melhor mês', fmtMoeda(serie[melhor].total),
+             `${nomeMes(melhor)} · ${serie[melhor].qtd} pedidos`) : ''}
+      ${tile('Meses no período', meses.length, meses.length === 1 ? 'um mês' : 'com dado importado')}
     </div>
-    <details class="dp-recolhivel"><summary>Mês a mês (${meses.length} meses)</summary>
-      <div class="dp-lista shopee-meses">
-        ${meses.map(m => `<div class="dp-linha">
-          <span class="nome">${nomeMes(m)}</span>
-          <span class="v valor-money">${fmtMoeda(serie[m].total)}</span>
-          <span class="t"><span class="f" style="width:${(serie[m].total / max * 100).toFixed(1)}%"></span></span>
-        </div>`).join('')}
-      </div>
-      <div class="dp-aviso" style="margin-top:8px;">Dados da planilha importada (${d.fonte || ''}) —
-        a Shopee só entra no total consolidado do topo quando o período filtrado tem mês coberto.
-        Pra dado ao vivo, falta a API oficial (Partner ID + Key).</div>
-    </details>
+    <div class="dp-aviso">Planilha importada (${d.fonte || ''}).${mkt.rateado
+      ? ' <b>O período corta um mês no meio</b> — como o relatório é mensal, esse mês entrou rateado por dia.'
+      : ''} Pra dado ao vivo, falta a API oficial (Partner ID + Key).</div>
   </div>`;
 }
 
