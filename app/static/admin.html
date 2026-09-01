@@ -2646,6 +2646,22 @@ function audPeriodoTexto(d){
   return d.de === d.ate ? br(d.de) : `${br(d.de)} a ${br(d.ate)}`;
 }
 
+/* Marca de devolucao na propria linha da venda: conferindo devolucao, o que se
+   precisa saber e QUANTO voltou, nao so que voltou.
+
+   Fica no escopo do modulo, e nao dentro de renderAuditoria, porque quem usa e
+   audFicha() — outra funcao. Declarado la dentro, dava ReferenceError na
+   primeira venda devolvida que aparecesse na lista. */
+function seloDevolucao(v){
+  const dv = v.devolucao;
+  if(!dv) return '';
+  const parcial = dv.tipo === 'parcial';
+  const cor = parcial ? 'var(--warn)' : 'var(--bad)';
+  return `<span class="ml-selo" style="border-color:${cor};color:${cor};margin-left:6px;"`
+    + ` title="${parcial ? 'Parte da venda voltou' : 'A venda inteira voltou'}">`
+    + (parcial ? `devolveu ${fmtMoeda(dv.valor_devolvido || 0)}` : 'devolvida') + '</span>';
+}
+
 function audFicha(v, d, revisada){
   const dt = v.data.slice(8) + '/' + v.data.slice(5,7);
   const sinais = (v.sinais || []).map(s => (d.sinais[s] || s));
@@ -2656,7 +2672,7 @@ function audFicha(v, d, revisada){
                    v.sku ? 'SKU ' + v.sku : null].filter(Boolean).join(' · ');
   return `<div class="aud-ficha${v.status ? ' marcada' : ''}" data-ficha="${v.id}">
     <span class="aud-data">${dt}</span>
-    <span class="aud-produto" title="${(v.produto || '').replace(/"/g, '&quot;')}">${v.produto || 'Sem descrição'}</span>
+    <span class="aud-produto" title="${(v.produto || '').replace(/"/g, '&quot;')}">${v.produto || 'Sem descrição'}${seloDevolucao(v)}</span>
     <span class="aud-detalhe" title="${detalhe}">${detalhe}</span>
     <span class="aud-valor valor-money">${fmtMoeda(v.valor)}</span>
     <span class="aud-sinais">${sinais.length
@@ -2679,6 +2695,7 @@ function renderAuditoria(d){
     return;
   }
   const c = d.cobertura, q = d.qualidade || {};
+  const dev = d.devolucoes || {qtd: 0, total: 0, parcial: 0, valor_perdido: 0};
 
   // Cada numero do topo e um filtro: clicar mostra exatamente aquelas vendas.
   const kpi = (rot, num, sub, cor, foco) => {
@@ -2698,6 +2715,18 @@ function renderAuditoria(d){
     kpi('Divergências', c.divergentes, c.divergentes ? 'precisam de retorno' : 'nenhuma até agora',
         c.divergentes ? 'var(--bad)' : 'var(--good)', 'divergentes'),
     kpi('Com sinal de atenção', d.com_sinal, `de ${d.total.vendas} vendas`, null, 'sinal'),
+    // Devolucao so vira cartao quando existe: mes sem devolucao nao precisa de
+    // um zero ocupando espaco no topo.
+    ...(dev.qtd ? [kpi('Devolvidas', dev.qtd,
+        `−${fmtMoeda(dev.valor_perdido)} de comissão`, 'var(--bad)', 'devolvidas')] : []),
+    // Total e parcial so aparecem depois que se entra em Devolvidas. Antes
+    // disso seriam dois cartoes competindo com os quatro que importam todo dia;
+    // depois, sao a pergunta seguinte de quem ja esta conferindo devolucao.
+    ...(dev.qtd && String(d.foco).startsWith('devolvidas') ? [
+      kpi('Devolveu tudo', dev.total, 'venda inteira volta', 'var(--bad)', 'devolvidas_total'),
+      kpi('Devolveu em parte', dev.parcial, 'a venda continua, menor',
+          dev.parcial ? 'var(--warn)' : null, 'devolvidas_parcial'),
+    ] : []),
   ].join('');
 
   // Amostragem sorteia e vem em `amostra`; total e pendentes vem prontos do

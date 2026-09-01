@@ -2474,6 +2474,7 @@ def api_admin_auditoria():
             "amostra": [], "revisadas": [], "total_lista": [],
             "rotulos": STATUS_AUDITORIA, "sinais": {k: x[0] for k, x in SINAIS_AUDITORIA.items()},
             "total": {"vendas": 0, "valor": 0.0},
+            "devolucoes": {"qtd": 0, "total": 0, "parcial": 0, "valor_perdido": 0.0},
             "cobertura": {"conferidas": 0, "divergentes": 0, "valor_conferido": 0.0,
                           "pct_qtd": 0, "pct_valor": 0},
             "com_sinal": 0,
@@ -2520,7 +2521,7 @@ def api_admin_auditoria():
     def enxuto(v):
         return {k: v.get(k) for k in ("id", "data", "produto", "valor", "canal", "sku",
                                       "vendedor_id", "criado_em", "sinais", "risco",
-                                      "status", "obs", "conferida_em")}
+                                      "status", "obs", "conferida_em", "devolucao")}
 
     conferidas = [v for v in vendas if v["status"] == "conferida"]
     divergentes = [v for v in vendas if v["status"] in ("divergente", "nao_achei")]
@@ -2539,6 +2540,11 @@ def api_admin_auditoria():
         "conferidas": lambda v: v["status"] == "conferida",
         "divergentes": lambda v: v["status"] in ("divergente", "nao_achei"),
         "sinal": lambda v: v["risco"] > 0,
+        # Devolucao: o dado ja existia na venda e nao tinha como procurar por
+        # ele. Tres recortes porque sao tres perguntas diferentes no fechamento.
+        "devolvidas": lambda v: bool(v.get("devolucao")),
+        "devolvidas_total": lambda v: (v.get("devolucao") or {}).get("tipo") == "total",
+        "devolvidas_parcial": lambda v: (v.get("devolucao") or {}).get("tipo") == "parcial",
     }
     foco = request.args.get("foco") or ""
     lista_total = None
@@ -2572,6 +2578,18 @@ def api_admin_auditoria():
         "nomes": {k: v["nome"] for k, v in vendedores.items()},
         "filtro": {"vendedor": filtro_vendedor, "tamanho": tamanho},
         "total": {"vendas": len(vendas), "valor": total_mes},
+        # Quanto voltou, e quanto disso e comissao que o vendedor nao ganha.
+        # `valor_perdido` usa a mesma regra do calculo de comissao: devolucao
+        # total tira a venda inteira, parcial tira so o pedaco devolvido.
+        "devolucoes": {
+            "qtd": sum(1 for v in vendas if v.get("devolucao")),
+            "total": sum(1 for v in vendas
+                         if (v.get("devolucao") or {}).get("tipo") == "total"),
+            "parcial": sum(1 for v in vendas
+                           if (v.get("devolucao") or {}).get("tipo") == "parcial"),
+            "valor_perdido": round(sum(
+                v["valor"] - valor_liquido(v) for v in vendas if v.get("devolucao")), 2),
+        },
         "cobertura": {
             "conferidas": len(conferidas),
             "divergentes": len(divergentes),
