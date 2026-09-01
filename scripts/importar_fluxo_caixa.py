@@ -98,22 +98,58 @@ def ler_geral(wb) -> dict:
     return fora
 
 
-def ler_mes(wb, aba: str) -> dict:
-    """Os totais que a propria aba do mes calcula: Debitos, Veiculos, Saldo."""
+ROTULOS = ("debitos", "veiculos", "saldo", "credito", "debito t.")
+
+
+def ler_mes(wb, aba: str, wbf=None) -> dict:
+    """Os totais que a propria aba do mes calcula: Debitos, Veiculos, Saldo.
+
+    Le tambem a FORMULA de cada total (por isso o wbf, o mesmo arquivo aberto
+    sem data_only). E como se descobre dupla contagem: em agosto/2026 a formula
+    de Debitos somava R12 e U12 — exatamente as duas celulas que formam
+    Veiculos — e o Debito Total somava os dois de novo. R$ 251.541 entrando
+    duas vezes contra o mes.
+    """
     if aba not in wb.sheetnames:
         return {}
-    achados = {}
-    for linha in wb[aba].iter_rows(values_only=True):
+    achados, formulas = {}, {}
+    ws, wsf = wb[aba], (wbf[aba] if wbf else None)
+    for linha in ws.iter_rows():
         for ci, cel in enumerate(linha):
-            chave = ach(cel)
-            if chave not in ("debitos", "veiculos", "saldo", "credito", "debito t."):
+            chave = ach(cel.value)
+            if chave not in ROTULOS:
                 continue
-            for k in range(ci + 1, min(ci + 3, len(linha))):
-                v = num(linha[k])
+            for k in range(1, 3):
+                alvo = ws.cell(row=cel.row, column=cel.column + k)
+                v = num(alvo.value)
                 if v:
                     achados.setdefault(chave, round(v, 2))
+                    if wsf and chave not in formulas:
+                        f = wsf.cell(row=alvo.row, column=alvo.column).value
+                        if isinstance(f, str) and f.startswith("="):
+                            formulas[chave] = f
                     break
+    achados["_formulas"] = formulas
     return achados
+
+
+def dupla_contagem(wb, aba: str, formulas: dict) -> tuple:
+    """Quanto de Veiculos ja esta somado dentro de Debitos.
+
+    Compara as celulas citadas nas duas formulas. O que aparece nas duas foi
+    contado duas vezes, e o valor dessa sobreposicao volta como desconto — com
+    a lista de celulas, pra conferencia na planilha.
+    """
+    fd, fv = formulas.get("debitos"), formulas.get("veiculos")
+    if not fd or not fv:
+        return 0.0, []
+    refs = lambda f: set(re.findall(r"[A-Z]{1,2}[0-9]{1,4}", f))
+    comum = sorted(refs(fd) & refs(fv))
+    if not comum:
+        return 0.0, []
+    ws = wb[aba]
+    total = sum(num(ws[c].value) or 0 for c in comum)
+    return round(total, 2), comum
 
 
 def main() -> int:
@@ -127,17 +163,19 @@ def main() -> int:
     import openpyxl
     wb = openpyxl.load_workbook(caminho, data_only=True)
 
+    wbf = openpyxl.load_workbook(caminho, data_only=False)   # so pelas formulas
     fluxo = ler_geral(wb)
     avisos = []
 
     # As abas mensais mandam no ano corrente: elas tem o detalhe, a Geral so o
     # resumo — e o resumo parou de ser preenchido em marco.
     for aba in MESES:
-        d = ler_mes(wb, aba)
+        d = ler_mes(wb, aba, wbf)
         if not d:
             continue
         chave = f"{ano:04d}-{NUM_MES[aba]:02d}"
-        saidas = round(d.get("debitos", 0) + d.get("veiculos", 0), 2)
+        repetido, celulas = dupla_contagem(wb, aba, d.get("_formulas") or {})
+        saidas = round(d.get("debitos", 0) + d.get("veiculos", 0) - repetido, 2)
         if not saidas:
             continue
         atual = fluxo.get(chave, {})
@@ -162,6 +200,15 @@ def main() -> int:
             "debitos": d.get("debitos", 0),
             "fonte": f"aba {aba}",
         }
+        if repetido:
+            registro["dupla_contagem"] = repetido
+            registro["celulas_repetidas"] = celulas
+            avisos.append(
+                f"{chave}: R$ {repetido:,.2f} contados DUAS vezes — as celulas "
+                f"{', '.join(celulas)} estao na formula de Debitos e tambem "
+                f"formam Veiculos. Descontei uma vez. Saidas da planilha: "
+                f"R$ {d.get('debitos', 0) + d.get('veiculos', 0):,.2f}; corrigidas: "
+                f"R$ {saidas:,.2f}.")
         # Conferencia contra o saldo que a aba escreve. Divergencia fica no
         # dado, visivel na tela: nao da pra corrigir o que ninguem ve.
         saldo_aba = d.get("saldo")
