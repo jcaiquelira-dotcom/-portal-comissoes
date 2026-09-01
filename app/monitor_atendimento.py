@@ -42,10 +42,18 @@ JANELAS = {0: ("08:30", "17:30"), 1: ("08:30", "17:30"), 2: ("08:30", "17:30"),
            3: ("08:30", "17:30"), 4: ("08:30", "17:30"), 5: ("09:00", "12:00")}
 TETO_UTEIS = 2 * 9 * 60          # dois dias cheios de expediente
 
+# userId do Totalk -> (id no portal, nome na tela).
+#
+# O terceiro assento era do Gustavo, que se desligou em 31/08/2026; o Lucas
+# assumiu o MESMO WhatsApp. Aqui nao ha corte por data como no historico de
+# vendas: esta fila e "quem esta esperando resposta AGORA", e quem tem de
+# responder e quem senta na cadeira hoje. Enquanto apontava pro gustavo, 19
+# conversas (13 criticas) ficavam num usuario bloqueado — ninguem via, e o
+# cliente esperando do outro lado.
 ATENDENTES = {
     "75f20108-887e-47c1-b245-b1c12565e484": ("flavia", "Flávia"),
     "1d6778d5-d482-43bc-9d5b-dcbb4ed0528d": ("matheus", "Matheus"),
-    "26ccb5d3-df37-429b-b509-7a122a2deb2d": ("gustavo", "Gustavo"),
+    "26ccb5d3-df37-429b-b509-7a122a2deb2d": ("lucas", "Lucas"),
 }
 
 ENCERRAMENTOS = {
