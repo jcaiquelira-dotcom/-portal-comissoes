@@ -737,6 +737,12 @@ def api_login():
     if not str(v.get("senha") or "").startswith(("pbkdf2:", "scrypt:")):
         vendedores[vendedor_id]["senha"] = _hash_senha(senha)
         salvar_vendedores(vendedores)
+    # Uma sessao, uma identidade. Entrar como vendedor DERRUBA a sessao de
+    # gestor que estivesse aberta: sem isso o portal do vendedor montava o menu
+    # do gestor (o Pedro via 15 areas em vez de 3), e clicar em qualquer item
+    # de gestao jogava a pessoa de volta pro /admin.html — que da cadeira de
+    # quem clicou parece o portal quebrando.
+    session.pop("admin", None)
     session.permanent = True      # sem isso o lifetime acima nem se aplica
     session["vendedor_id"] = vendedor_id
     # Quem administra entra com nome. Era exatamente isso que a senha sem dono
@@ -1921,6 +1927,9 @@ def api_admin_login():
     if not str(cred.get("admin_senha") or "").startswith(("pbkdf2:", "scrypt:")):
         cred["admin_senha"] = _hash_senha(senha)
         escrever_json(CREDENCIAIS_FILE, cred)
+    # Mesma regra do outro lado: a chave reserva e uma identidade sem dono, e
+    # nao deve herdar o vendedor que estava logado antes.
+    session.pop("vendedor_id", None)
     session.permanent = True
     session["admin"] = True
     # "chave-reserva", nao "admin". Entrar pela senha sem dono passa a ser um
