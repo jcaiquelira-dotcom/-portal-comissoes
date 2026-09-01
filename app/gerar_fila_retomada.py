@@ -76,7 +76,12 @@ POR_VENDEDOR_CRM = 200
 DIAS_MAX_CRM = 5
 SAIDA_CRM = ROOT / "Fila_CRM_CONFIDENCIAL.json"
 # nome que o Totalk usa pro atendente -> id do vendedor no portal-comissoes
-ID_PORTAL = {"Flávia": "flavia", "Gustavo": "gustavo", "Matheus": "matheus"}
+# "Gustavo" -> "lucas" NAO e erro: o historico e do Gustavo (desligado em
+# 31/08/2026), mas a FILA e trabalho de quem pode ligar — e quem assumiu o
+# assento e os clientes dele foi o Lucas. Fila na mao de um usuario bloqueado
+# e cliente que ninguem chama.
+ID_PORTAL = {"Flávia": "flavia", "Gustavo": "lucas", "Matheus": "matheus",
+             "Lucas": "lucas"}
 
 # motivos onde nao ha o que reverter numa segunda tentativa
 MOTIVO_MORTO = {"so_pesquisando", "peca_errada"}
@@ -185,15 +190,27 @@ def exportar_json(fila, datas):
     saida = {"gerado_em": HOJE.isoformat(), "de": max(inicio, datas[0]),
              "ate": datas[-1], "vendedores": {}}
     print("\njson pro painel de CRM:")
+    # Dois nomes podem desaguar no MESMO vid — "Gustavo" e "Lucas" apontam os
+    # dois pra fila do lucas desde a troca de assento. Atribuir direto fazia o
+    # segundo sobrescrever o primeiro: os 11 clientes do Gustavo sumiam da fila
+    # em vez de mudar de dono. Junta primeiro, corta o teto depois.
+    por_vid = {}
     for vend, vid in ID_PORTAL.items():
         # O corte por data vem ANTES do teto de POR_VENDEDOR_CRM: filtrar depois
         # deixaria de fora um cliente recente só porque a nota dele não entrou
         # entre as maiores do período inteiro.
         todos = [it for it in fila.get(vend, []) if it["dias"] <= DIAS_MAX_CRM]
-        itens = sorted(todos, key=lambda x: -x["nota"])[:POR_VENDEDOR_CRM]
-        saida["vendedores"][vid] = {"nome": vend, "itens": itens}
-        print(f"  {vend}: {len(itens)} de {len(todos)} elegíveis nos últimos "
-              f"{DIAS_MAX_CRM} dias")
+        alvo = por_vid.setdefault(vid, {"nome": vend, "itens": [], "de": 0})
+        alvo["itens"].extend(todos)
+        alvo["de"] += len(todos)
+        # o nome mostrado e o de quem TRABALHA a fila — o dono do vid
+        if vend.lower().startswith(vid[:4]):
+            alvo["nome"] = vend
+    for vid, bloco in por_vid.items():
+        itens = sorted(bloco["itens"], key=lambda x: -x["nota"])[:POR_VENDEDOR_CRM]
+        saida["vendedores"][vid] = {"nome": bloco["nome"], "itens": itens}
+        print(f"  {bloco['nome']} ({vid}): {len(itens)} de {bloco['de']} elegíveis "
+              f"nos últimos {DIAS_MAX_CRM} dias")
     SAIDA_CRM.write_text(json.dumps(saida, ensure_ascii=False), encoding="utf-8")
     print(f"salvo: {SAIDA_CRM.name} ({SAIDA_CRM.stat().st_size/1024:.0f} KB)")
 
@@ -400,7 +417,10 @@ def main():
     CORES = {"ALTA": "F8D7DA", "MÉDIA": "FFF9E6"}
     QUEBRA = {7, 11}  # peca e resumo precisam de wrap
 
-    for vend in ["Flávia", "Gustavo", "Matheus"]:
+    # Gustavo continua na lista de proposito: sessoes dele anteriores ao corte
+    # de 31/08 ainda podem estar na janela de 5 dias, e cliente nao evapora
+    # porque o vendedor saiu — a fila dele morre sozinha quando a janela andar.
+    for vend in ["Flávia", "Gustavo", "Matheus", "Lucas"]:
         todos = fila.get(vend, [])
         itens = sorted(todos, key=lambda x: -x["nota"])[:POR_VENDEDOR]
         if not itens:

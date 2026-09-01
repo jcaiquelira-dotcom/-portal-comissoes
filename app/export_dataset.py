@@ -18,6 +18,23 @@ AGENTES = {
     "edac79e2-5f58-443a-af8f-ad6c3fbdc148": "Comercial",
 }
 
+# O assento do Totalk sobrevive a quem senta nele. O Gustavo saiu em 31/08/2026
+# e o Lucas assumiu o MESMO usuario — sem isto, o Lucas atenderia o dia inteiro
+# e o credito (fila, conversao, insights) iria pro nome de quem ja saiu, e o
+# followup dos clientes dele cairia numa fila que ninguem mais trabalha.
+# A data decide: sessao criada antes do corte e do Gustavo (o historico e
+# dele); dali em diante, e do Lucas. Regra do gestor, dita em 31/08.
+ASSENTO_TRANSFERIDO = {
+    "26ccb5d3-df37-429b-b509-7a122a2deb2d": ("2026-08-31", "Lucas"),
+}
+
+
+def agente_da_sessao(user_id, created_at):
+    corte = ASSENTO_TRANSFERIDO.get(user_id)
+    if corte and str(created_at or "") >= corte[0]:
+        return corte[1]
+    return AGENTES.get(user_id, "N/A" if not user_id else "Outro")
+
 PAGAMENTO = [
     "pix", "comprovante", "paguei", " pago", "pago.", "pago!", "pago,",
     "transferi", "transferência", "transferencia", "chave pix", "caiu aqui",
@@ -274,7 +291,7 @@ def main():
                 pass
 
         data_str = created_at[:10] if created_at else None
-        vendedor = AGENTES.get(user_id, "N/A" if not user_id else "Outro")
+        vendedor = agente_da_sessao(user_id, created_at)
 
         atencao = (rt_min is None) or (rt_min is not None and rt_min > 240) or (sid in loop_sessoes)
         motivos = []
