@@ -4923,10 +4923,20 @@ def api_admin_salvar_vendedor():
     vendedor_id = (body.get("id") or "").strip().lower()
     nome = (body.get("nome") or "").strip()
     senha = body.get("senha")
-    try:
-        percentual = float(body.get("percentual"))
-    except (TypeError, ValueError):
-        return jsonify({"erro": "Percentual inválido."}), 400
+    # Conta de gestao nao tem comissao: master nao vende, so controla dado.
+    # Antes o cadastro exigia percentual de todo mundo, e criar um usuario
+    # master travava num campo que nao se aplica a ele — foi exatamente onde o
+    # gestor bateu ao cadastrar o segundo administrador.
+    existente_pre = carregar_vendedores().get(vendedor_id, {})
+    eh_master = bool(body.get("master", existente_pre.get("master")))
+    bruto = body.get("percentual")
+    if eh_master and (bruto is None or str(bruto).strip() == ""):
+        percentual = 0.0
+    else:
+        try:
+            percentual = float(bruto)
+        except (TypeError, ValueError):
+            return jsonify({"erro": "Percentual inválido."}), 400
     if not vendedor_id or not nome:
         return jsonify({"erro": "Informe id e nome do vendedor."}), 400
     if percentual < 0 or percentual > 100:

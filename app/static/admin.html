@@ -940,9 +940,10 @@
             <label class="campo-rotulo" for="vCodigoRecuperacaoInput">Código de recuperação (opcional)</label>
             <input type="text" id="vCodigoRecuperacaoInput" placeholder="mín. 6 caracteres">
           </div>
-          <div class="campo">
+          <div class="campo" id="vCampoPercentual">
             <label class="campo-rotulo" for="vPercentualInput">Percentual próprio (%)</label>
             <input type="number" id="vPercentualInput" min="0" max="100" step="0.01" value="1">
+            <span class="dp-var neutro" id="vPercentualNota"></span>
           </div>
           <div class="campo">
             <label class="campo-rotulo" for="vFotoInput">Foto</label>
@@ -2241,6 +2242,52 @@ document.getElementById('exportBtn').addEventListener('click', () => {
 
 let vendedoresAtuais = [];
 
+/* Conta de gestao nao vende: comissao, override e percentual nao se aplicam a
+   ela. Deixar os campos ali pedindo numero foi o que travou o cadastro do
+   segundo administrador — o formulario cobrava uma resposta que a pergunta nem
+   tem. Some da tela em vez de ficar cinza: campo desabilitado ainda parece
+   algo que falta preencher. */
+function aplicarModoConta(ehMaster){
+  const campo = document.getElementById('vCampoPercentual');
+  const nota = document.getElementById('vPercentualNota');
+  const over = document.getElementById('overridesEditor');
+  const blocoOver = over ? over.closest('.campo') : null;
+  if(campo) campo.classList.toggle('oculto', ehMaster);
+  if(blocoOver) blocoOver.classList.toggle('oculto', ehMaster);
+  if(nota) nota.textContent = '';
+  const areas = document.getElementById('areasEditor');
+  if(areas){
+    const bloco = areas.closest('.campo');
+    if(bloco){
+      let aviso = bloco.querySelector('.aviso-master');
+      if(ehMaster && !aviso){
+        aviso = document.createElement('span');
+        aviso.className = 'dp-var neutro aviso-master';
+        aviso.textContent = 'Conta de gestão: vê todas as áreas e não tem comissão.';
+        bloco.appendChild(aviso);
+      }else if(!ehMaster && aviso){
+        aviso.remove();
+      }
+      areas.classList.toggle('oculto', ehMaster);
+    }
+  }
+}
+
+/* Caixas de area do cadastro de vendedor.
+   Esta funcao existia, foi apagada por engano no commit que unificou o menu
+   (ela morava colada na filtrarMenuPorArea, que eu removi de proposito) e
+   ninguem percebeu porque o erro nao aparece na tela: o clique em "Editar"
+   estourava ReferenceError, o formulario nao preenchia, e quem clicou so via
+   nada acontecer. Voltou. */
+function montarCaixasDeArea(marcadas){
+  const box = document.getElementById('vAreasBox');
+  if(!box) return;
+  const sel = new Set(marcadas || []);
+  box.innerHTML = Object.entries(AREAS_DISPONIVEIS || {}).map(([k, rotulo]) =>
+    `<label><input type="checkbox" class="area-chk" value="${k}"${
+      sel.has(k) ? ' checked' : ''}> ${rotulo}</label>`).join('');
+}
+
 function renderOverridesEditor(overridesAtuais){
   const el = document.getElementById('overridesEditor');
   if(vendedoresAtuais.length === 0){
@@ -2310,6 +2357,7 @@ async function carregarVendedores(){
         document.getElementById('vSenhaInput').value = '';
         document.getElementById('vCodigoRecuperacaoInput').value = '';
         document.getElementById('vPercentualInput').value = v.percentual;
+        aplicarModoConta(!!v.master);
         document.getElementById('vAvatarInput').value = v.avatar || '';
         document.getElementById('vDesligadoInput').value = v.desligado_em || '';
         montarCaixasDeArea(v.areas || []);
@@ -2409,6 +2457,7 @@ document.getElementById('salvarVendedorBtn').addEventListener('click', async () 
     document.getElementById('vSenhaInput').value = '';
     document.getElementById('vCodigoRecuperacaoInput').value = '';
     document.getElementById('vPercentualInput').value = '';
+    aplicarModoConta(false);
     document.getElementById('vAvatarInput').value = '';
     document.getElementById('vDesligadoInput').value = '';
     montarCaixasDeArea([]);
