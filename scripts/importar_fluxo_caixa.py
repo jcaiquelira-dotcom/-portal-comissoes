@@ -98,7 +98,12 @@ def ler_geral(wb) -> dict:
     return fora
 
 
-ROTULOS = ("debitos", "veiculos", "saldo", "credito", "debito t.")
+# A planilha escreve o mesmo total de jeitos diferentes conforme o mes:
+# "Credito" em agosto, "Creditos" em abril, "D.Total" no lugar de "Debito T.".
+# Aceitar so uma grafia fazia o mes cair no numero da aba Geral, que e digitado
+# na mao — foi assim que abril ficou R$ 11.623 acima do que ele mesmo soma.
+ROTULOS = ("debitos", "veiculos", "saldo", "credito", "creditos",
+           "debito t.", "d.total", "d. total")
 
 
 def ler_mes(wb, aba: str, wbf=None) -> dict:
@@ -164,6 +169,8 @@ def main() -> int:
     wb = openpyxl.load_workbook(caminho, data_only=True)
 
     wbf = openpyxl.load_workbook(caminho, data_only=False)   # so pelas formulas
+    import server
+    mes_corrente = server.hoje_br().isoformat()[:7]
     fluxo = ler_geral(wb)
     avisos = []
 
@@ -184,15 +191,28 @@ def main() -> int:
         # Setembro a dezembro de 2026 traziam, byte a byte, as saidas de 2025.
         # Sem esta trava o portal mostraria quatro meses de prejuizo inventado.
         # O sinal de que o mes existe e a Geral ter entrada dele.
-        if not d.get("credito") and not atual.get("entradas"):
-            avisos.append(f"{chave}: aba {aba} ignorada — sem entrada registrada "
-                          f"(provavelmente ainda e o dado do ano anterior)")
+        # Mes que ainda nao fechou nao entra. A planilha e reaproveitada de um
+        # ano pro outro, e a aba de um mes futuro ainda carrega os numeros do
+        # ano passado — setembro a dezembro de 2026 traziam 2025. Testar "tem
+        # entrada?" nao bastava, porque o resto do ano passado TEM entrada.
+        # Mes fechado e um fato de calendario, e nao depende de heuristica.
+        if chave >= mes_corrente:
+            avisos.append(f"{chave}: aba {aba} ignorada — o mes ainda nao fechou "
+                          f"(o que esta la e resto do ano anterior)")
             continue
-        entradas = d.get("credito") or atual.get("entradas") or 0
-        if d.get("credito") and atual.get("entradas") and                 abs(d["credito"] - atual["entradas"]) > 1:
-            avisos.append(f"{chave}: aba do mes diz entradas {d['credito']:,.2f}, "
-                          f"aba Geral diz {atual['entradas']:,.2f} "
-                          f"(usei a do mes, que tem o detalhe)")
+        cred_mes = d.get("credito") or d.get("creditos")
+        if not cred_mes and not atual.get("entradas"):
+            avisos.append(f"{chave}: aba {aba} ignorada — sem entrada registrada")
+            continue
+        entradas = cred_mes or atual.get("entradas") or 0
+        if cred_mes and atual.get("entradas") and abs(cred_mes - atual["entradas"]) > 1:
+            # A aba do mes SOMA as linhas; a Geral e digitada na mao. Quando
+            # discordam, vale a que da pra refazer.
+            avisos.append(f"{chave}: a aba do mes soma entradas de "
+                          f"R$ {cred_mes:,.2f}, a aba Geral traz R$ "
+                          f"{atual['entradas']:,.2f} digitado "
+                          f"(diferenca R$ {atual['entradas'] - cred_mes:,.2f}). "
+                          f"Usei a do mes.")
         registro = {
             "entradas": round(entradas, 2),
             "saidas": saidas,
@@ -245,7 +265,6 @@ def main() -> int:
         print("\n(--seco: nada gravado)")
         return 0
 
-    import server
     pacote["gerado_em"] = server.agora_br().isoformat(timespec="seconds")
     server.escrever_json(server.resolver_pasta_dados() / "financeiro_fluxo.json", pacote)
     print(f"\ngravado financeiro_fluxo com {len(fluxo)} meses.")
