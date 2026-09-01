@@ -1342,9 +1342,12 @@ function mostrarApp(){
   if(!sessaoAtual.gestor && !podeVer(secaoAtual)){
     secaoAtual = sessaoAtual.areas[0] || 'painel';
   }
+  /* Passa as areas SEMPRE, inclusive pro gestor. Antes eu mandava `null` pra
+     ele, que na barra significa "mostra tudo" — e isso anulava o filtro:
+     o servidor ja excluia as areas de vendedor do master, e a tela mostrava
+     mesmo assim. Quem decide o que aparece e a lista do servidor, nao o cargo. */
   montarSidebar(secaoAtual, {aoSair: sairDoGestor, portal: 'gestor',
-    areas: sessaoAtual.gestor ? null : sessaoAtual.areas,
-    master: sessaoAtual.gestor});
+    areas: sessaoAtual.areas, master: sessaoAtual.gestor});
   preencherPerfil(sessaoAtual.gestor ? 'Gestor' : (sessaoAtual.nome || 'Equipe'), null);
   if(sessaoAtual.gestor) montarKpisGestor();
   irParaSecao(secaoAtual, topicoAtual);

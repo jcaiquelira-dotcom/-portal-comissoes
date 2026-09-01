@@ -280,7 +280,9 @@ function montarSidebar(ativo, opcoes){
   const permitidas = opcoes.areas || null;
   const ehMaster = !!opcoes.master;
   const itens = ITENS.filter(it => {
-    if(it.soMaster && !ehMaster) return false;
+    // Permissoes e Configuracoes nao sao areas liberaveis — quem distribui
+    // acesso e so o master. Entao elas passam pelo cargo, nao pela lista.
+    if(it.soMaster) return ehMaster;
     // `area` existe pra item que e outra porta pra mesma tela: "Vendas do
     // time" abre a tela de Comissoes no modo Total, entao quem libera os dois
     // e a mesma permissao. Sem isso seria preciso inventar uma area nova pra
