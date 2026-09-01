@@ -805,13 +805,43 @@ def mes_para_intervalo(mes: str) -> tuple[str, str]:
 
 
 def valor_liquido(v: dict) -> float:
-    """Valor de uma venda descontando o que foi devolvido, sem apagar o histórico original."""
+    """Valor da venda menos o que foi devolvido, sem apagar o histórico.
+
+    Exceção: devolução marcada depois que o mês já tinha fechado NÃO mexe na
+    venda. Aquele mês já foi pago com esse valor, e mudar um número que virou
+    pagamento significa que o relatório de ontem não bate mais com o dinheiro
+    que saiu. O acerto vira estorno no mês corrente — ver `estorno_devolucoes`.
+    """
     devolucao = v.get("devolucao")
     if not devolucao:
+        return v["valor"]
+    if devolucao.get("apos_fechamento"):
         return v["valor"]
     if devolucao.get("tipo") == "total":
         return 0.0
     return max(0.0, v["valor"] - float(devolucao.get("valor_devolvido", 0)))
+
+
+def estorno_devolucoes(vendedor_id: str, de: str, ate: str, vendas: dict) -> tuple:
+    """Quanto voltou, no período, de vendas cujo mês já estava fechado.
+
+    Devolve (valor devolvido, lista das devoluções) — o valor é de VENDA; quem
+    aplica o percentual é quem calcula a comissão, porque cada um tem o seu.
+    """
+    total, itens = 0.0, []
+    for vid, v in vendas.items():
+        d = v.get("devolucao") or {}
+        if not d.get("apos_fechamento") or v.get("vendedor_id") != vendedor_id:
+            continue
+        if not (de <= (d.get("mes_estorno") or "") + "-01" <= ate):
+            continue
+        valor = float(d.get("valor_devolvido") or 0)
+        total += valor
+        itens.append({"id": vid, "data": v.get("data"), "produto": v.get("produto"),
+                      "valor_venda": v.get("valor"), "valor_devolvido": round(valor, 2),
+                      "tipo": d.get("tipo"), "mes_estorno": d.get("mes_estorno")})
+    itens.sort(key=lambda x: x["data"])
+    return round(total, 2), itens
 
 
 def total_vendido(vendedor_id: str, de: str, ate: str, vendas: dict, tipo: str = "venda") -> float:
@@ -823,11 +853,62 @@ def total_vendido(vendedor_id: str, de: str, ate: str, vendas: dict, tipo: str =
     return round(total, 2)
 
 
+def residuo_estorno(vendedor_id: str, mes: str, vendedores: dict, vendas: dict) -> float:
+    """Estorno que sobrou dos meses ANTERIORES a `mes` e ainda nao foi abatido.
+
+    Comissao de 1% e devolucao de peca cara nao cabem no mesmo mes: um motor de
+    R$ 10.000 que volta gera R$ 100 de estorno, mais do que a comissao mensal
+    inteira de quem vendeu pouco. Sem carregar o resto, a diferenca simplesmente
+    sumiria — a empresa perdoaria a divida sem ninguem decidir isso.
+
+    Percorre mes a mes consumindo o que cabe em cada um. So faz sentido no
+    fechamento de UM mes, que e como a comissao e paga de verdade.
+    """
+    meses = sorted({(v.get("devolucao") or {}).get("mes_estorno")
+                    for v in vendas.values()
+                    if (v.get("devolucao") or {}).get("apos_fechamento")
+                    and v.get("vendedor_id") == vendedor_id
+                    and (v.get("devolucao") or {}).get("mes_estorno")})
+    meses = [m for m in meses if m and m < mes]
+    if not meses:
+        return 0.0
+    # Percorre TODOS os meses do primeiro estorno ate aqui, e nao so os que tem
+    # estorno: o mes que ABATEU a divida tambem precisa entrar na conta. Sem
+    # isso a divida ressuscitava todo mes seguinte, ja quitada.
+    todos, cursor, limite = [], min(meses), mes
+    while cursor < limite:
+        todos.append(cursor)
+        ano, m_ = int(cursor[:4]), int(cursor[5:7])
+        ano, m_ = (ano + 1, 1) if m_ == 12 else (ano, m_ + 1)
+        cursor = f"{ano:04d}-{m_:02d}"
+        if len(todos) > 240:
+            break
+    pct = float(vendedores.get(vendedor_id, {}).get("percentual", 0))
+    sobra = 0.0
+    for m in todos:
+        d0, d1 = mes_para_intervalo(m)
+        bruto = total_vendido(vendedor_id, d0, d1, vendas) * pct / 100
+        estorno, _ = estorno_devolucoes(vendedor_id, d0, d1, vendas)
+        divida = estorno * pct / 100 + sobra
+        sobra = max(0.0, divida - bruto)
+    return round(sobra, 2)
+
+
 def calcular_comissao(vendedor_id: str, de: str, ate: str, vendedores: dict, vendas: dict):
     info = vendedores[vendedor_id]
     proprio = total_vendido(vendedor_id, de, ate, vendas)
     percentual = float(info.get("percentual", 0))
     comissao = proprio * percentual / 100
+
+    # Devolucao de venda de mes ja pago: abate aqui, no mes em que a peca
+    # voltou. O mes de origem fica intacto porque ele ja virou pagamento.
+    estorno_valor, estorno_itens = estorno_devolucoes(vendedor_id, de, ate, vendas)
+    # Sobra dos meses anteriores entra junto: divida de estorno nao caduca por
+    # nao caber no mes em que nasceu.
+    vem_de_antes = (residuo_estorno(vendedor_id, de[:7], vendedores, vendas)
+                    if de[:7] == ate[:7] else 0.0)
+    estorno_comissao = round(estorno_valor * percentual / 100 + vem_de_antes, 2)
+    comissao -= estorno_comissao
 
     overrides_detalhe = []
     for over in info.get("overrides", []):
@@ -836,13 +917,17 @@ def calcular_comissao(vendedor_id: str, de: str, ate: str, vendedores: dict, ven
         if outro_id not in vendedores:
             continue
         outro_total = total_vendido(outro_id, de, ate, vendas)
-        valor_over = round(outro_total * outro_percentual / 100, 2)
+        # O override tambem estorna: se a venda voltou, quem ganhava por cima
+        # dela recebeu por venda que nao houve, igual ao vendedor.
+        outro_estorno, _ = estorno_devolucoes(outro_id, de, ate, vendas)
+        valor_over = round((outro_total - outro_estorno) * outro_percentual / 100, 2)
         comissao += valor_over
         overrides_detalhe.append({
             "vendedor_id": outro_id,
             "nome": vendedores[outro_id]["nome"],
             "percentual": outro_percentual,
             "total_vendido": outro_total,
+            "estorno": outro_estorno,
             "valor": valor_over,
         })
 
@@ -851,7 +936,17 @@ def calcular_comissao(vendedor_id: str, de: str, ate: str, vendedores: dict, ven
         "percentual": percentual,
         "comissao_propria": round(proprio * percentual / 100, 2),
         "overrides": overrides_detalhe,
-        "comissao": round(comissao, 2),
+        # Nunca negativa: se o estorno for maior que a comissao do mes, o que
+        # sobra fica devendo pro mes seguinte em vez de virar cobranca. O saldo
+        # a carregar vai em `estorno_a_carregar`, visivel na tela.
+        "comissao": round(max(0.0, comissao), 2),
+        "estorno": {
+            "valor_devolvido": estorno_valor,
+            "comissao": estorno_comissao,
+            "de_meses_anteriores": round(vem_de_antes, 2),
+            "a_carregar": round(max(0.0, -comissao), 2),
+            "itens": estorno_itens,
+        },
         "total_bonus": total_vendido(vendedor_id, de, ate, vendas, tipo="bonus"),
     }
 
@@ -1629,6 +1724,12 @@ def api_marcar_devolucao(venda_id):
             "tipo": tipo,
             "valor_devolvido": valor_devolvido,
             "marcado_em": agora_br().isoformat(timespec="seconds"),
+            # Congelado AQUI, e nao consultado depois: o mes da venda vai fechar
+            # em algum momento, e uma devolucao marcada com o mes aberto viraria
+            # estorno retroativo so porque o tempo passou.
+            "apos_fechamento": mes_esta_fechado(atual["data"]),
+            "mes_estorno": (hoje_br().isoformat()[:7]
+                            if mes_esta_fechado(atual["data"]) else None),
         },
     }
     salvar_vendas_vendedor(vendedor_id, vendas)
@@ -2073,6 +2174,7 @@ def api_admin_resumo():
             "comissao_propria": calc["comissao_propria"],
             "overrides": calc["overrides"],
             "comissao": calc["comissao"],
+            "estorno": calc.get("estorno"),
             "total_bonus": calc["total_bonus"],
             "qtd_vendas": len(lista_vendas),
             "vendas": lista_vendas,

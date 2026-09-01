@@ -1432,10 +1432,31 @@ function renderPainel(){
   const c = d.comissao || {};
 
   // ---- cartões de indicadores ----
-  const detalheComissao = (c.overrides && c.overrides.length)
+  /* Estorno de devolucao de mes ja pago. Aparece no detalhe da comissao com a
+     peca e a data da venda: o vendedor ve a comissao menor e precisa poder
+     conferir por que, sem ter que perguntar pra alguem. */
+  const est = c.estorno || {};
+  const linhasEstorno = (est.itens || []).map(i =>
+      '<div>− ' + fmtMoeda(i.valor_devolvido) + ' · ' + (i.produto || 'sem descrição')
+      + ' (vendido em ' + i.data.slice(8,10) + '/' + i.data.slice(5,7)
+      + (i.tipo === 'parcial' ? ', devolução parcial' : '') + ')</div>').join('')
+    + (est.de_meses_anteriores
+        ? '<div>− ' + fmtMoeda(est.de_meses_anteriores) + ' que sobrou de meses anteriores</div>'
+        : '');
+
+  const temDetalhe = (c.overrides && c.overrides.length) || linhasEstorno;
+  const detalheComissao = temDetalhe
     ? '<span class="detalhe-dica">ⓘ</span><div class="override-note valor-money" id="overrideNote">'
       + '<div>Própria: ' + fmtMoeda(c.comissao_propria) + '</div>'
-      + c.overrides.map(o => '<div>+ ' + o.percentual + '% sobre ' + o.nome + ': ' + fmtMoeda(o.valor) + '</div>').join('')
+      + (c.overrides || []).map(o => '<div>+ ' + o.percentual + '% sobre ' + o.nome + ': ' + fmtMoeda(o.valor) + '</div>').join('')
+      + (linhasEstorno
+          ? '<div style="margin-top:6px;border-top:1px solid var(--line);padding-top:6px;">'
+            + '<b>Devolvido de mês já pago</b>' + linhasEstorno + '</div>'
+          : '')
+      + (est.a_carregar
+          ? '<div style="margin-top:4px;">' + fmtMoeda(est.a_carregar)
+            + ' fica para o mês que vem</div>'
+          : '')
       + '</div>'
     : '';
 
@@ -1447,7 +1468,9 @@ function renderPainel(){
       kpi('Total vendido no mês', fmtMoeda(d.total_mes),
           d.mes_corrente ? 'Hoje: ' + fmtMoeda(d.total_hoje) : '', IC.dinheiro, 'i-laranja')
     + kpi('Comissão prevista (<span id="percentualLabel">' + (c.percentual || 0) + '%</span>)',
-          fmtMoeda(c.comissao), '', IC.subir, 'i-verde',
+          fmtMoeda(c.comissao),
+          est.comissao ? '−' + fmtMoeda(est.comissao) + ' de devolução já paga' : '',
+          IC.subir, 'i-verde',
           {id:'cardComissao', classe: detalheComissao ? 'tem-detalhe' : '', html: detalheComissao})
     + kpi('Vendas no mês', String(d.qtd_vendas), 'Ticket médio: ' + fmtMoeda(d.ticket_medio), IC.carrinho, 'i-azul')
     + kpi('Ticket médio', fmtMoeda(d.ticket_medio), devolucaoRodape, IC.etiqueta, 'i-roxo')

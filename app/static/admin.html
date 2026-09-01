@@ -2140,7 +2140,13 @@ async function carregarResumo(){
         <td>${v.qtd_vendas}</td>
         <td class="valor-money">${fmtMoeda(v.total_vendido)}</td>
         <td>${v.percentual}%</td>
-        <td class="valor-money">${fmtMoeda(v.comissao)}</td>
+        <td class="valor-money">${fmtMoeda(v.comissao)}${
+          (v.estorno && v.estorno.comissao) ? `<br><span class="dp-var desce"
+            title="Devolução de venda de mês já pago — descontada aqui">−${
+            fmtMoeda(v.estorno.comissao)} devolvido</span>` : ''}${
+          (v.estorno && v.estorno.a_carregar) ? `<br><span class="dp-var neutro"
+            title="O estorno é maior que a comissão do mês; o resto desconta no mês que vem">
+            ${fmtMoeda(v.estorno.a_carregar)} fica pro mês seguinte</span>` : ''}</td>
         <td class="bonus-note valor-money">${v.total_bonus > 0 ? fmtMoeda(v.total_bonus) : '—'}</td>
         <td>${renderConfirmacaoCelula(v.confirmado_em)}</td>
       `;
@@ -2153,6 +2159,20 @@ async function carregarResumo(){
           `<div>+ ${o.percentual}% sobre ${o.nome} (${fmtMoeda(o.total_vendido)}) = ${fmtMoeda(o.valor)}</div>`
         ).join('');
         overridesHtml = `<div class="override-breakdown"><div>Comissão própria: ${fmtMoeda(v.comissao_propria)}</div>${linhasOver}</div>`;
+      }
+
+      /* Detalhe do estorno: quais pecas voltaram e de que mes. Sem isso o
+         vendedor ve a comissao menor e nao tem como conferir por que. */
+      let estornoHtml = '';
+      const est = v.estorno;
+      if(est && (est.itens || []).length){
+        estornoHtml = `<div class="override-breakdown">
+          <div><b>Devoluções de meses já pagos</b> — descontadas nesta comissão</div>
+          ${est.itens.map(i => `<div>− ${fmtMoeda(i.valor_devolvido)} · ${
+            i.produto || 'sem descrição'} (vendido em ${i.data.slice(8,10)}/${i.data.slice(5,7)}${
+            i.tipo === 'parcial' ? ', devolução parcial' : ''})</div>`).join('')}
+          ${est.de_meses_anteriores ? `<div>− ${fmtMoeda(est.de_meses_anteriores)} que sobrou de meses anteriores</div>` : ''}
+        </div>`;
       }
 
       let vendasHtml;
@@ -2188,7 +2208,7 @@ async function carregarResumo(){
         bonusHtml = `<div class="detalhe-wrap"><p class="section-title" style="margin:10px 0 6px;font-size:11px;">Bônus / avaliações (fora da comissão)</p><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody>${linhasBonus}</tbody></table></div>`;
       }
 
-      detalheTr.innerHTML = `<td colspan="7" class="valor-money">${overridesHtml}${vendasHtml}${bonusHtml}</td>`;
+      detalheTr.innerHTML = `<td colspan="7" class="valor-money">${overridesHtml}${estornoHtml}${vendasHtml}${bonusHtml}</td>`;
       tr.addEventListener('click', () => {
         const aberta = detalheTr.classList.toggle('show');
         tr.classList.toggle('aberta', aberta);
