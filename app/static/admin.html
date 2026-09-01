@@ -167,6 +167,38 @@
   .kpi-var{margin-top:5px;font-size:12px;font-weight:600;display:flex;
     align-items:center;gap:5px;flex-wrap:wrap;}
   .kpi-var:empty{display:none;}
+
+  /* DRE: hierarquia por indentacao e peso, nao por cor. Um demonstrativo se le
+     de cima pra baixo somando e subtraindo — a linha de resultado tem que
+     saltar sem depender de o leitor distinguir tons. */
+  .dre-tab{width:100%;border-collapse:collapse;font-size:13.5px;}
+  .dre-tab td{padding:7px 10px;border-bottom:1px solid var(--line);}
+  .dre-tab td:last-child{text-align:right;font-family:'IBM Plex Mono',monospace;
+    white-space:nowrap;}
+  .dre-tab tr.grupo td{font-weight:700;background:var(--surface-2);}
+  .dre-tab tr.item td:first-child{padding-left:28px;color:var(--muted);}
+  .dre-tab tr.resultado td{font-weight:700;font-size:15px;
+    border-top:2px solid var(--line);border-bottom:2px solid var(--line);}
+  .dre-tab tr.resultado.bom td:last-child{color:var(--good);}
+  .dre-tab tr.resultado.ruim td:last-child{color:var(--bad);}
+  .dre-tab .pct{color:var(--muted);font-weight:400;font-size:11.5px;
+    margin-left:7px;}
+  /* Barras do fluxo: entrada pra cima, saida pra baixo, a partir de uma linha
+     do meio. E o desenho que responde "sobrou ou faltou?" antes de qualquer
+     numero ser lido. */
+  .fx-linha{display:grid;grid-template-columns:64px 1fr 108px 104px;
+    align-items:center;gap:9px;padding:3px 0;}
+  .fx-mes{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+  .fx-barras{position:relative;height:19px;background:var(--surface-2);
+    border-radius:4px;overflow:hidden;}
+  .fx-ent,.fx-sai{position:absolute;top:0;height:100%;}
+  .fx-ent{left:0;background:var(--good);opacity:.75;}
+  .fx-sai{left:0;background:var(--bad);opacity:.62;height:100%;}
+  .fx-saldo{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12.5px;
+    font-weight:600;}
+  .fx-saldo.pos{color:var(--good);} .fx-saldo.neg{color:var(--bad);}
+  .fx-val{text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;
+    color:var(--muted);}
   .kpi-var .base{font-weight:400;color:var(--muted);font-size:11px;}
   .kpi-nota{
     font-size:11px;color:var(--muted);margin:8px 2px 0;line-height:1.5;
@@ -1133,6 +1165,12 @@
         </div>
       </div>
     </section>
+
+    <!-- ---------- FLUXO DE CAIXA ---------- -->
+    <section id="secFluxoCaixa" class="oculto"><div id="fluxoCorpo"></div></section>
+
+    <!-- ---------- DRE ---------- -->
+    <section id="secDre" class="oculto"><div id="dreCorpo"></div></section>
 
     <!-- ---------- PERMISSÕES ---------- -->
     <section id="secPermissoes" class="oculto">
@@ -3680,6 +3718,227 @@ function mktPeriodoPadrao(){
   return {de: primeiroDiaMes(), ate: todayStr()};
 }
 
+/* ---------- Financeiro: Fluxo de caixa e DRE ----------
+   As duas telas leem o MESMO pacote. A sobra do DRE fecha no saldo do fluxo —
+   e o que garante que os dois relatorios contam a mesma historia. */
+let finDados = null;
+
+async function carregarFinanceiro(){
+  if(finDados) return finDados;
+  const r = await fetch('/api/admin/financeiro');
+  if(!r.ok) return null;
+  finDados = await r.json();
+  return finDados;
+}
+
+const MES_CURTO = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const rotuloMes = k => MES_CURTO[Number(k.slice(5,7)) - 1] + '/' + k.slice(2,4);
+
+function finVazio(el, oque){
+  el.innerHTML = `<div class="card"><p class="card-titulo">${oque}</p>
+    <div class="dp-aviso" style="margin-top:0;">Ainda não importei a planilha de
+      fluxo de caixa. Ela vem do arquivo do Drive e é atualizada por importação —
+      rode <code>scripts/importar_fluxo_caixa.py</code>.</div></div>`;
+}
+
+/* ---------- tela 1: fluxo de caixa ---------- */
+async function carregarFluxoCaixa(){
+  const el = document.getElementById('fluxoCorpo');
+  if(!el) return;
+  const d = await carregarFinanceiro();
+  if(!d || d.sem_dados) return finVazio(el, 'Fluxo de caixa');
+
+  const chaves = Object.keys(d.meses).sort();
+  const anos = [...new Set(chaves.map(k => k.slice(0,4)))].sort().reverse();
+  const anoSel = el.dataset.ano && anos.includes(el.dataset.ano) ? el.dataset.ano : anos[0];
+  const doAno = chaves.filter(k => k.startsWith(anoSel));
+  const m = k => d.meses[k];
+
+  const somaE = doAno.reduce((s,k) => s + m(k).entradas, 0);
+  const somaS = doAno.reduce((s,k) => s + m(k).saidas, 0);
+  const teto = Math.max(...doAno.map(k => Math.max(m(k).entradas, m(k).saidas)), 1);
+
+  const positivos = doAno.filter(k => m(k).saldo > 0).length;
+  const melhor = doAno.reduce((a,b) => m(a).saldo >= m(b).saldo ? a : b, doAno[0]);
+  const pior = doAno.reduce((a,b) => m(a).saldo <= m(b).saldo ? a : b, doAno[0]);
+
+  const tile = (rot, valor, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${valor}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+
+  const linhas = doAno.map(k => {
+    const v = m(k);
+    const le = (v.entradas / teto * 100).toFixed(1);
+    const ls = (v.saidas / teto * 100).toFixed(1);
+    const alerta = v.dupla_contagem || v.divergencia
+      ? ` <span title="${v.dupla_contagem
+            ? 'R$ ' + fmtMoeda(v.dupla_contagem).slice(3) + ' estavam contados duas vezes na planilha; descontei.'
+            : 'O saldo que a planilha escreve difere do calculado.'}">⚠</span>` : '';
+    return `<div class="fx-linha" title="entradas ${fmtMoeda(v.entradas)} · saídas ${fmtMoeda(v.saidas)}">
+      <span class="fx-mes">${rotuloMes(k)}${alerta}</span>
+      <span class="fx-barras">
+        <span class="fx-ent" style="width:${le}%"></span>
+        <span class="fx-sai" style="width:${ls}%;height:8px;top:11px"></span>
+      </span>
+      <span class="fx-val">${fmtMoeda(v.entradas)}</span>
+      <span class="fx-saldo ${v.saldo >= 0 ? 'pos' : 'neg'}">${fmtMoeda(v.saldo)}</span>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="aud-cabecalho">
+        <p class="card-titulo" style="margin:0;">Fluxo de caixa</p>
+        <span class="aud-conta">${chaves.length} meses · ${chaves[0].slice(0,4)} a ${chaves[chaves.length-1].slice(0,4)}</span>
+      </div>
+      <div class="preset-row">${anos.map(x => `<button class="preset-btn${
+        x === anoSel ? ' active' : ''}" data-fx-ano="${x}">${x}</button>`).join('')}</div>
+      <div class="dp-kpis conta-linha" style="margin:12px 0 0;">
+        ${tile('Entradas', fmtMoeda(somaE), `${doAno.length} meses de ${anoSel}`)}
+        ${tile('Saídas', fmtMoeda(somaS), '', 'var(--bad)')}
+        ${tile('Saldo do ano', fmtMoeda(somaE - somaS), `${positivos} de ${doAno.length} meses no positivo`,
+               somaE - somaS >= 0 ? 'var(--good)' : 'var(--bad)')}
+        ${tile('Melhor mês', fmtMoeda(m(melhor).saldo), rotuloMes(melhor), 'var(--good)')}
+        ${tile('Pior mês', fmtMoeda(m(pior).saldo), rotuloMes(pior),
+               m(pior).saldo < 0 ? 'var(--bad)' : '')}
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px;">
+      <p class="card-titulo">Mês a mês · ${anoSel}</p>
+      <div class="fx-linha" style="color:var(--muted);font-size:11px;
+           text-transform:uppercase;letter-spacing:.04em;">
+        <span></span><span>entradas (barra cheia) e saídas (barra fina)</span>
+        <span style="text-align:right">entrou</span><span style="text-align:right">saldo</span>
+      </div>
+      ${linhas}
+    </div>
+
+    ${(d.avisos || []).length ? `<details class="dp-recolhivel">
+      <summary>O que a planilha não fecha (${d.avisos.length})</summary>
+      <div class="dp-aviso" style="margin-top:8px;">
+        ${d.avisos.map(x => `<div style="margin-bottom:6px;">• ${x}</div>`).join('')}
+        <br>Nenhuma dessas foi corrigida em silêncio: onde eu mudei o número, o
+        valor da planilha fica gravado do lado.
+      </div></details>` : ''}`;
+}
+
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('[data-fx-ano]');
+  if(!b) return;
+  document.getElementById('fluxoCorpo').dataset.ano = b.dataset.fxAno;
+  carregarFluxoCaixa();
+});
+
+/* ---------- tela 2: DRE ---------- */
+const DRE_ORDEM = [
+  ['deducoes',     '(−) Deduções', -1],
+  ['cmv',          '(−) Custo da mercadoria', -1],
+  ['despesas',     '(−) Despesas operacionais', -1],
+  ['investimento', '(−) Investimentos', -1],
+  ['socios',       '(−) Distribuição aos sócios', -1],
+  ['nao_classificado', '(−) Não classificado', -1],
+];
+
+async function carregarDre(){
+  const el = document.getElementById('dreCorpo');
+  if(!el) return;
+  const d = await carregarFinanceiro();
+  if(!d || d.sem_dados) return finVazio(el, 'DRE');
+
+  const comDre = Object.keys(d.meses).filter(k => d.meses[k].dre).sort();
+  if(!comDre.length) return finVazio(el, 'DRE');
+  const mesSel = el.dataset.mes && comDre.includes(el.dataset.mes)
+    ? el.dataset.mes : comDre[comDre.length - 1];
+  const m = d.meses[mesSel];
+  const g = m.dre || {};
+  const soma = grupo => Object.values(g[grupo] || {}).reduce((s,i) => s + i.valor, 0);
+  const receita = m.entradas;
+  const pct = v => receita ? `<span class="pct">${(v / receita * 100).toFixed(1).replace('.', ',')}%</span>` : '';
+
+  /* Ordem de um DRE de verdade: o que sai do preço antes de sobrar margem vem
+     primeiro. Investimento e sócios ficam DEPOIS do resultado operacional, e
+     e essa separacao que muda a leitura do mes. */
+  const lucroBruto = receita - soma('deducoes') - soma('cmv');
+  const operacional = lucroBruto - soma('despesas');
+  const sobra = operacional - soma('investimento') - soma('socios') - soma('nao_classificado');
+
+  const linhasDe = grupo => Object.entries(g[grupo] || {})
+    .sort((x,y) => y[1].valor - x[1].valor)
+    .map(([rot, i]) => `<tr class="item"><td>${rot}</td>
+      <td>${fmtMoeda(i.valor)}${pct(i.valor)}</td></tr>`).join('');
+
+  const bloco = (chave, rotulo) => {
+    const t = soma(chave);
+    if(!t) return '';
+    return `<tr class="grupo"><td>${rotulo}</td><td>${fmtMoeda(t)}${pct(t)}</td></tr>`
+         + linhasDe(chave);
+  };
+
+  const resultado = (rot, v, dica) => `<tr class="resultado ${v >= 0 ? 'bom' : 'ruim'}">
+    <td>${rot}${dica ? `<br><span class="pct" style="margin:0">${dica}</span>` : ''}</td>
+    <td>${fmtMoeda(v)}${pct(v)}</td></tr>`;
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;">
+      <div class="aud-cabecalho">
+        <p class="card-titulo" style="margin:0;">DRE</p>
+        <span class="aud-conta">${comDre.length} meses disponíveis</span>
+      </div>
+      <div class="preset-row">${comDre.map(k => `<button class="preset-btn${
+        k === mesSel ? ' active' : ''}" data-dre-mes="${k}">${rotuloMes(k)}</button>`).join('')}</div>
+    </div>
+
+    <div class="dp-grid duas">
+      <div class="card">
+        <p class="card-titulo">Resultado de ${rotuloMes(mesSel)}</p>
+        <div class="tabela-rolante"><table class="dre-tab">
+          <tr class="grupo"><td>RECEITA</td><td>${fmtMoeda(receita)}</td></tr>
+          ${bloco('deducoes', '(−) Deduções')}
+          ${bloco('cmv', '(−) Custo da mercadoria')}
+          ${resultado('= LUCRO BRUTO', lucroBruto)}
+          ${bloco('despesas', '(−) Despesas operacionais')}
+          ${resultado('= RESULTADO OPERACIONAL', operacional,
+                      'o que a operação gerou, antes de investir ou distribuir')}
+          ${bloco('investimento', '(−) Investimentos')}
+          ${bloco('socios', '(−) Distribuição aos sócios')}
+          ${bloco('nao_classificado', '(−) Não classificado')}
+          ${resultado('= SOBRA DE CAIXA', sobra, 'confere com o saldo do fluxo de caixa')}
+        </table></div>
+      </div>
+
+      <div class="card">
+        <p class="card-titulo">Por que isso muda a leitura</p>
+        <div class="dp-lista">
+          <div class="dp-destaque"><span class="rot">Margem operacional</span>
+            <span class="val">${receita ? (operacional / receita * 100).toFixed(1).replace('.',',') : '0'}%</span></div>
+          <div class="dp-destaque"><span class="rot">Custo da mercadoria</span>
+            <span class="val">${receita ? (soma('cmv') / receita * 100).toFixed(1).replace('.',',') : '0'}%</span></div>
+          <div class="dp-destaque"><span class="rot">Não é despesa, mas sai do caixa</span>
+            <span class="val">${fmtMoeda(soma('investimento') + soma('socios'))}</span></div>
+        </div>
+        <div class="dp-aviso">
+          <b>Investimento</b> (imóveis, obras, equipamentos) e <b>distribuição aos
+          sócios</b> saem do caixa mas não são custo do negócio: um vira patrimônio,
+          o outro é o próprio lucro sendo repartido. Na planilha os dois somam junto
+          com as despesas, e é por isso que o mês parece pior do que foi — em
+          ${rotuloMes(mesSel)} são <b>${fmtMoeda(soma('investimento') + soma('socios'))}</b>.
+          <br><br><b>Custo da mercadoria</b> é a compra da sucata mais o que ela custa
+          pra virar peça vendável: guincho e oficina. Sem eles a peça não existe pra
+          vender, então são custo de matéria-prima e não despesa operacional.
+          ${m.dre_incompleto ? '<br><br><b>⚠ Este mês não fecha:</b> a soma das rubricas não bate com as saídas.' : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('[data-dre-mes]');
+  if(!b) return;
+  document.getElementById('dreCorpo').dataset.mes = b.dataset.dreMes;
+  carregarDre();
+});
+
 /* ---------- Resultado do Mercado Livre ----------
    Faturamento menos o que o ML cobra: tarifa de venda, tarifa de pagamento,
    parcelamento, frete e Ads. Sem custo de peca e sem imposto — decisao do
@@ -5547,6 +5806,8 @@ const SECOES = {
   marketing:  {titulo: 'Marketing',         el: 'secMarketing'},
   analytics:  {titulo: 'Analytics · o site',  el: 'secAnalytics'},
   permissoes: {titulo: 'Permissões de acesso', el: 'secPermissoes'},
+  fluxo_caixa:{titulo: 'Fluxo de caixa',      el: 'secFluxoCaixa'},
+  dre:        {titulo: 'DRE · resultado do mês', el: 'secDre'},
   carros:     {titulo: 'Carros pra chegar', el: 'secCarros'},
   rh:         {titulo: 'Gestão de pessoas', el: 'secRh'},
   metabonus:  {titulo: 'Meta Bônus',        el: 'secMetaBonus'},
@@ -5632,6 +5893,8 @@ function irParaSecao(chave, sub){
     carregarAuditoria();
   }
   if(chave === 'marketing') carregarPerfilGoogle();
+  if(chave === 'fluxo_caixa') carregarFluxoCaixa();
+  if(chave === 'dre') carregarDre();
   if(chave === 'permissoes') carregarPermissoes();
   if(chave === 'analytics' && !gaDados){
     // Abre no mes corrente, o recorte que se olha todo dia.

@@ -157,6 +157,45 @@ def dupla_contagem(wb, aba: str, formulas: dict) -> tuple:
     return round(total, 2), comum
 
 
+# Onde cada rubrica entra no DRE. E aqui que a planilha vira demonstrativo: as
+# tres ultimas linhas NAO sao despesa, e hoje somam junto com elas — e por isso
+# que o mes parece pior do que foi.
+DRE = {
+    "Sucatas":          ("cmv",          "Compra e preparo de sucata"),
+    "Impostos":         ("deducoes",     "Impostos"),
+    "Devolucoes":       ("deducoes",     "Devolucoes e comissoes"),
+    "Colaboradores":    ("despesas",     "Pessoal"),
+    "Fixo":             ("despesas",     "Fixas"),
+    "Cartoes":          ("despesas",     "Cartoes"),
+    "Diversos":         ("despesas",     "Diversos"),
+    "Transportes":      ("despesas",     "Fretes e transportes"),
+    "Marketing":        ("despesas",     "Marketing"),
+    "Embalagem":        ("despesas",     "Embalagem"),
+    "Nevada Ecopecas":  ("despesas",     "Obrigacoes Nevada"),
+    "Investimentos":    ("investimento", "Investimentos"),
+    "Patrimonial":      ("investimento", "Patrimonial"),
+    "Imoveis":          ("investimento", "Imoveis"),
+    "Parcelas e socios": ("socios",      "Parcelas e socios"),
+}
+
+
+def montar_dre(partes: list) -> dict:
+    """Agrupa as parcelas do mes nas linhas do DRE.
+
+    Parcela sem rubrica reconhecida vai pra "nao classificado" e aparece na
+    tela. Somar o desconhecido dentro de "despesas" faria o numero parecer
+    completo quando nao e.
+    """
+    grupos = {}
+    for p in partes:
+        grupo, rotulo = DRE.get(p["rubrica"], ("nao_classificado", p["rubrica"]))
+        d = grupos.setdefault(grupo, {})
+        item = d.setdefault(rotulo, {"valor": 0.0, "celulas": []})
+        item["valor"] = round(item["valor"] + p["valor"], 2)
+        item["celulas"].append(p["celula"])
+    return grupos
+
+
 def main() -> int:
     arg = sys.argv
     if "--arquivo" not in arg:
@@ -243,6 +282,38 @@ def main() -> int:
         if atual.get("saidas") and abs(atual["saidas"] - saidas) > 1:
             avisos.append(f"{chave}: aba Geral diz saidas {atual['saidas']:,.2f}, "
                           f"a aba do mes soma {saidas:,.2f}")
+        # Quebra por rubrica, pela formula da propria planilha.
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            import rubricas_fluxo
+            _f, partes = rubricas_fluxo.quebra_do_mes(caminho, aba)
+            if partes:
+                soma = round(sum(p["valor"] for p in partes), 2)
+                # A compra de veiculo so esta dentro da formula de Debitos em
+                # agosto — e la por engano, que e a dupla contagem. Nos outros
+                # meses ela e uma linha a parte, entao entra aqui como CMV.
+                # Sem isto julho aparecia sem custo de mercadoria nenhum, num
+                # negocio que vive de comprar carro pra desmontar.
+                falta = round(saidas - soma, 2)
+                veic = d.get("veiculos", 0)
+                if falta > 1 and veic and abs(falta - veic) < 2:
+                    partes.append({"celula": "(Veiculos)", "valor": veic,
+                                   "rubrica": "Sucatas"})
+                    soma = round(soma + veic, 2)
+                registro["rubricas"] = partes
+                registro["dre"] = montar_dre(partes)
+                # A quebra TEM que fechar nas SAIDAS do mes. Se nao fechar, o
+                # DRE estaria mostrando um mes que nao existe.
+                if abs(soma - saidas) > 1:
+                    avisos.append(f"{chave}: a quebra por rubrica soma "
+                                  f"R$ {soma:,.2f} mas as saidas sao "
+                                  f"R$ {saidas:,.2f} (faltam R$ "
+                                  f"{saidas - soma:,.2f}) — DRE marcado como "
+                                  f"incompleto")
+                    registro["dre_incompleto"] = True
+        except Exception as e:
+            avisos.append(f"{chave}: nao consegui quebrar por rubrica ({e})")
+
         fluxo[chave] = registro
 
     for k, v in fluxo.items():

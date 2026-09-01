@@ -882,6 +882,8 @@ AREAS = {
     "atendimento": "Atendimento agora",
     "retomada": "Follow-up do time",
     "fechamento": "Fechamento de mes",
+    "fluxo_caixa": "Fluxo de caixa",
+    "dre": "DRE",
     # Estes dois nao sao secoes da tela do gestor, sao links pra outras
     # paginas. Entram aqui pra o gestor poder decidir quem ve o atalho — o
     # menu nao deve oferecer porta que a pessoa nao usa.
@@ -3374,6 +3376,22 @@ def api_admin_sincronizar_faturamento():
                         "(~4 min por página); o card atualiza sozinho quando terminar."})
     except Exception as e:
         return jsonify({"erro": f"{type(e).__name__}: {e}"}), 502
+
+
+@app.route("/api/admin/financeiro")
+def api_admin_financeiro():
+    """Fluxo de caixa e DRE, do mesmo pacote.
+
+    Um endpoint so porque as duas telas leem o MESMO mes: separar em dois
+    convidaria a divergirem, e o valor deste modulo e justamente as duas contas
+    fecharem uma na outra.
+    """
+    if not exigir_area("fluxo_caixa") and not exigir_area("dre"):
+        return jsonify({"erro": "Nao autenticado."}), 401
+    d = ler_json(resolver_pasta_dados() / "financeiro_fluxo.json", None)
+    if not d or not (d.get("meses") or {}):
+        return jsonify({"sem_dados": True})
+    return jsonify(d)
 
 
 @app.route("/api/admin/shopee-conta")
