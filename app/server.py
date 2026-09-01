@@ -689,7 +689,10 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=PRODUCAO,
-    PERMANENT_SESSION_LIFETIME=timedelta(hours=2),
+    # 7 dias, nao 2 horas: o portal e ferramenta de dia inteiro, e a sessao
+    # morrendo no meio do expediente derrubou o gestor duas vezes num so dia
+    # (01/09/2026). Logout continua existindo pra maquina compartilhada.
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7),
 )
 
 
@@ -729,6 +732,7 @@ def api_login():
         registrar_acesso("vendedor", False, vendedor_id, v["nome"] if v else None)
         return jsonify({"erro": "Vendedor ou senha inválidos."}), 401
     session.clear()
+    session.permanent = True      # sem isso o lifetime acima nem se aplica
     session["vendedor_id"] = vendedor_id
     # Quem administra entra com nome. Era exatamente isso que a senha sem dono
     # nao permitia registrar.
@@ -1798,6 +1802,7 @@ def api_admin_login():
     if senha != cred.get("admin_senha"):
         registrar_acesso("admin", False)
         return jsonify({"erro": "Senha incorreta."}), 401
+    session.permanent = True
     session["admin"] = True
     # "chave-reserva", nao "admin". Entrar pela senha sem dono passa a ser um
     # evento visivel no log — se aparecer todo dia, e sinal de que alguem esta
@@ -3289,13 +3294,25 @@ def api_admin_ml_parametros():
     return jsonify({"ok": True, **novo})
 
 
+_FAT_RODANDO = None
+
+
 @app.route("/api/admin/sincronizar-faturamento", methods=["POST"])
 def api_admin_sincronizar_faturamento():
     """Dispara a coleta na hora. Ela e retomavel: o limitador do ML e apertado,
     entao cada disparo avanca o que der e guarda onde parou."""
     if not exigir_admin():
         return jsonify({"erro": "Não autenticado."}), 401
+    # Em segundo plano, SEMPRE. A coleta espera 4 minutos entre paginas por
+    # causa do limitador do ML — rodar dentro da requisicao estourava o timeout
+    # do servidor e o botao respondia "Falhou" mesmo com a coleta indo bem.
+    global _FAT_RODANDO
+    if _FAT_RODANDO and _FAT_RODANDO.is_alive():
+        return jsonify({"ok": True, "resumo": "Já tem uma coleta em andamento — "
+                        "ela avança sozinha, pode fechar a tela."})
     try:
+        import threading
+
         import coletor_faturamento_ml as _cf
 
         def ler_cred():
@@ -3307,8 +3324,16 @@ def api_admin_sincronizar_faturamento():
         def gravar(p):
             escrever_json(resolver_pasta_dados() / "ml_faturamento.json", p)
 
-        return jsonify({"ok": True,
-                        "resumo": _cf.sincronizar(ler_cred, ler_atual, gravar)})
+        def _roda():
+            try:
+                _cf.sincronizar(ler_cred, ler_atual, gravar)
+            except Exception as e:
+                print(f"[faturamento] disparo manual falhou: {e}")
+
+        _FAT_RODANDO = threading.Thread(target=_roda, daemon=True)
+        _FAT_RODANDO.start()
+        return jsonify({"ok": True, "resumo": "Coleta iniciada. O ML libera devagar "
+                        "(~4 min por página); o card atualiza sozinho quando terminar."})
     except Exception as e:
         return jsonify({"erro": f"{type(e).__name__}: {e}"}), 502
 
@@ -5547,6 +5572,34 @@ try:
         escrever_json(resolver_pasta_dados() / "marketing_gasto.json", corpo)
 
     _sn.iniciar(_sn_chave, _sn_atual, _sn_gravar)
+
+    # Perfil da Empresa (Google) na mesma cadencia diaria. Ate hoje esse card
+    # so atualizava quando alguem clicava em "Atualizar" — e o gestor disse que
+    # e um dos que ele mais olha. Card favorito nao pode depender de clique.
+    def _perfil_atual():
+        return ler_json(resolver_pasta_dados() / "perfil_google.json", None)
+
+    def _perfil_gravar(d):
+        escrever_json(resolver_pasta_dados() / "perfil_google.json", d)
+
+    def _laco_perfil():
+        import time as _t
+        from datetime import datetime as _dt
+        _t.sleep(120)
+        while True:
+            try:
+                agora = _dt.now(FUSO_BRASILIA)
+                hoje = agora.date().isoformat()
+                if agora.strftime("%H:%M") >= "06:50":
+                    atual = _perfil_atual() or {}
+                    if str(atual.get("gerado_em", ""))[:10] != hoje:
+                        _sn.sincronizar_perfil(_sn_chave, _perfil_atual, _perfil_gravar)
+            except Exception as e:   # nunca derruba o portal
+                print(f"[perfil-google] {type(e).__name__}: {str(e)[:140]}")
+            _t.sleep(30 * 60)
+
+    import threading as _th
+    _th.Thread(target=_laco_perfil, daemon=True, name="perfil-google").start()
 except Exception as _e:
     print(f"[sinc-nuvem] não subiu: {_e}")
 
