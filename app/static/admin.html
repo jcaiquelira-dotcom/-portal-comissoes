@@ -2007,16 +2007,22 @@ async function carregarResumo(){
     if(!el) return;
     const v = ant && ant.var ? ant.var[chave] : null;
     if(v === null || v === undefined){ el.innerHTML = ''; return; }
+    const dm = x => x.slice(8, 10) + '/' + x.slice(5, 7);
+    const correndo = document.getElementById('ateInput').value >= todayStr();
+    /* -100% com o periodo ainda correndo significa "ainda nao vendeu NADA no
+       recorte novo" — dia 1o de manha, por exemplo. Quatro setas vermelhas de
+       -100% leem como desastre, e o unico fato e que o periodo mal comecou.
+       Nesse caso o badge vira neutro e diz isso com palavras. */
+    if(correndo && v <= -99.95){
+      const el2 = el;
+      el2.innerHTML = `<span class="dp-var neutro">período recém-começado</span>`
+        + `<span class="base">anterior: ${fmt(ant[chave])} · ${dm(ant.de)} a ${dm(ant.ate)}</span>`;
+      return;
+    }
     const classe = Math.abs(v) < 0.05 ? 'neutro' : (v > 0 ? 'sobe' : 'desce');
     const seta = Math.abs(v) < 0.05 ? '' : (v > 0 ? '▲ ' : '▼ ');
     const texto = Math.abs(v) < 0.05 ? 'igual ao período anterior'
       : `${seta}${Math.abs(v).toLocaleString('pt-BR', {maximumFractionDigits: 1})}%`;
-    const dm = x => x.slice(8, 10) + '/' + x.slice(5, 7);
-    /* Periodo que ainda esta correndo compara um pedaco contra um inteiro. No
-       dia 1o de manha isso da "-100%" em tudo — verdade literal, leitura
-       enganosa: o dia nao caiu, ele mal comecou. A tela diz isso em vez de
-       deixar a seta vermelha falar sozinha. */
-    const correndo = document.getElementById('ateInput').value >= todayStr();
     el.innerHTML = `<span class="dp-var ${classe}">${texto}</span>`
       + `<span class="base">${fmt(ant[chave])} · ${dm(ant.de)} a ${dm(ant.ate)}`
       + (correndo ? ' · período ainda correndo' : '') + '</span>';

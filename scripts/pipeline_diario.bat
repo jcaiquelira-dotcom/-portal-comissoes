@@ -23,6 +23,11 @@ set /p DATABASE_URL=<"%PORTAL%\segredos\database_url.txt"
 echo. >> "%LOG%"
 echo ===== %date% %time% - inicio ===== >> "%LOG%"
 
+rem Backup ANTES de qualquer escrita do dia: se algum passo abaixo gravar
+rem besteira, o estado de ontem ainda existe inteiro.
+echo --- backup do banco --- >> "%LOG%"
+"%PY%" "%PORTAL%\scripts\backup_dados.py" >> "%LOG%" 2>&1
+
 cd /d "%INSIGHTS%"
 echo --- totalk (sync incremental) --- >> "%LOG%"
 "%PY%" app\sync_incremental.py >> "%LOG%" 2>&1
@@ -46,6 +51,17 @@ echo --- google ads (windsor) --- >> "%LOG%"
 echo --- desempenho e marketing --- >> "%LOG%"
 "%PY%" app\sincronizar_desempenho.py >> "%LOG%" 2>&1
 "%PY%" app\sincronizar_marketing.py >> "%LOG%" 2>&1
+
+rem Orfaos ate 01/09/2026: existiam como script mas ninguem os chamava — o
+rem gestor via "Carros pra chegar" 5 dias velho sem saber por que.
+echo --- carros pra chegar --- >> "%LOG%"
+"%PY%" "%PORTAL%\scripts\sincronizar_carros.py" >> "%LOG%" 2>&1
+
+echo --- metas bonus (producao) --- >> "%LOG%"
+"%PY%" "%PORTAL%\scripts\sincronizar_metas_bonus.py" >> "%LOG%" 2>&1
+
+echo --- google analytics do site --- >> "%LOG%"
+"%PY%" app\sincronizar_analytics.py >> "%LOG%" 2>&1
 
 echo --- conta mercado livre --- >> "%LOG%"
 "%PY%" "%PORTAL%\scripts\sincronizar_ml.py" >> "%LOG%" 2>&1
