@@ -277,7 +277,10 @@ function montarSidebar(ativo, opcoes){
      `opcoes.areas` vem de /api/admin/me ou /api/me; sem ela (tela ainda nao
      sabe quem e), mostra tudo — o servidor recusa o que nao for permitido, e
      esconder aqui e cortesia, nao seguranca. */
-  const permitidas = opcoes.areas || null;
+  // Array vazio e diferente de ausente: [] quer dizer "nenhuma area", null quer
+  // dizer "a tela ainda nao sabe quem e". Tratar os dois igual faria quem
+  // perdeu todo o acesso ver o menu inteiro.
+  const permitidas = Array.isArray(opcoes.areas) ? opcoes.areas : null;
   const ehMaster = !!opcoes.master;
   const itens = ITENS.filter(it => {
     // Permissoes e Configuracoes nao sao areas liberaveis — quem distribui

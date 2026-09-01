@@ -632,7 +632,11 @@ function mostrarApp(){
   /* A barra do portal do vendedor tambem se monta pelas areas — e o mesmo
      menu da outra tela. Quem so vende ve so o proprio trabalho; quem tambem
      gere ve os dois blocos, sem trocar de lugar. */
-  montarSidebar(secaoAtual, {aoSair: logout, areas: eu.areas || null,
+  // Lista vazia e uma resposta: "nada liberado". Com `|| null` ela virava
+  // "ainda nao sei" e a barra mostrava tudo — ou seja, tirar todo o acesso de
+  // alguem na tela de Permissoes devolvia a ela o menu inteiro.
+  montarSidebar(secaoAtual, {aoSair: logout,
+                             areas: Array.isArray(eu.areas) ? eu.areas : null,
                              master: !!eu.master});
   preencherPerfil(eu.nome, eu.foto, eu.avatar);
   document.getElementById('mesInput').value = todayStr().slice(0,7);
