@@ -738,7 +738,7 @@
       <div class="kpi-nota" id="kpiNota"></div>
 
       <div class="card" id="cardMetas" style="margin-bottom:14px;">
-        <p class="card-titulo">Metas do mês</p>
+        <p class="card-titulo" id="cardMetasTitulo">Metas do mês</p>
         <div id="metasPainel"></div>
       </div>
 
@@ -5357,14 +5357,50 @@ function renderMetasPainel(d){
   const el = document.getElementById('metasPainel');
   const ritmo = d.ritmo;
 
-  // So faz sentido num mes fechado num periodo unico e com meta definida.
+  const titulo = document.getElementById('cardMetasTitulo');
   const comMeta = (d.vendedores || []).filter(v => v.meta_mensal > 0);
-  if(!ritmo || (!d.meta_grupo && comMeta.length === 0)){
-    card.style.display = d.mes_unico ? '' : 'none';
-    if(d.mes_unico){
-      el.innerHTML = '<div class="vazio">Nenhuma meta definida para o mês. '
-        + 'Defina em <a href="#configuracoes/metas">Configurações · Metas</a>.</div>';
-    }
+
+  /* Periodo com mais de um mes: meta e ritmo nao se aplicam. "60% da meta no
+     dia 10" nao quer dizer nada de janeiro a setembro, e somar doze metas
+     mensais pra inventar uma meta anual daria um alvo que ninguem combinou.
+
+     O card entao troca de assunto em vez de sumir: mostra quanto cada vendedor
+     fez no periodo. Antes ele se escondia e levava junto a unica visao de
+     resultado individual — que no ano continua fazendo todo sentido. */
+  if(!ritmo){
+    const lista = (d.vendedores || []).filter(v => v.total_vendido > 0)
+      .sort((x, y) => y.total_vendido - x.total_vendido);
+    card.style.display = lista.length ? '' : 'none';
+    if(!lista.length) return;
+    titulo.textContent = 'Vendas por vendedor no período';
+    const topo = lista[0].total_vendido || 1;
+    const soma = lista.reduce((s, v) => s + v.total_vendido, 0);
+    el.innerHTML = `<div class="metas-barras">${lista.map(v => {
+      const fatia = soma ? (v.total_vendido / soma * 100) : 0;
+      return `<div class="mv compacta" title="${v.qtd_vendas} vendas · ticket ${
+        fmtMoeda(v.qtd_vendas ? v.total_vendido / v.qtd_vendas : 0)}">
+        <span class="mv-nome">${v.nome}</span>
+        <div class="mv-trilha">
+          <div class="mv-fill" style="width:${(v.total_vendido / topo * 100).toFixed(1)}%"></div>
+        </div>
+        <span class="mv-pct">${fatia.toFixed(1).replace('.', ',')}%</span>
+        <span class="mv-val valor-money">${fmtMoeda(v.total_vendido)} <i>/ ${
+          v.qtd_vendas} vendas</i></span>
+      </div>`;
+    }).join('')}
+      <div class="metas-legenda">Barra comparada ao primeiro colocado · a
+        porcentagem é a fatia do total do time no período. Meta e ritmo não
+        aparecem aqui porque são do mês, não do período escolhido.</div>
+    </div>`;
+    return;
+  }
+
+  titulo.textContent = 'Metas do mês';
+  // So faz sentido num mes fechado num periodo unico e com meta definida.
+  if(!d.meta_grupo && comMeta.length === 0){
+    card.style.display = '';
+    el.innerHTML = '<div class="vazio">Nenhuma meta definida para o mês. '
+      + 'Defina em <a href="#configuracoes/metas">Configurações · Metas</a>.</div>';
     return;
   }
   card.style.display = '';
