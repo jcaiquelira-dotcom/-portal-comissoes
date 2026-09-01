@@ -742,6 +742,7 @@
            assuntos diferentes: meta e pra onde o mes vai, conta e a saude de
            cada canal. -->
       <div id="mlConta"></div>
+      <div id="mlResultado"></div>
       <div id="siteConta"></div>
       <div id="shopeeConta"></div>
 
@@ -1024,11 +1025,6 @@
         <div class="preset-row" id="presetMkt" style="width:100%;"></div>
       </div>
       <div id="mktCorpo"></div>
-      <!-- O Perfil da Empresa vem por ultimo de proposito: e canal organico,
-           nao gasta midia e nao entra na conta de custo por lead. O topo da
-           tela pertence ao que se decide todo dia — leads, investimento,
-           conversao — e ele fica de leitura complementar, embaixo. -->
-      <div id="perfilGoogle"></div>
     </section>
 
     <!-- ---------- CARROS PRA CHEGAR ---------- -->
@@ -1266,11 +1262,23 @@
 function fmtMoeda(v){
   return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
 }
+/* Data de Brasilia, sempre.
+
+   `toISOString()` converte pra UTC, e com UTC-3 isso empurra tudo que acontece
+   depois das 21h pro dia seguinte. Foi assim que "este mes" virou 01/08 a
+   01/09 — e a agencia de marketing, que e mensal, passou a ser cobrada duas
+   vezes por encostar em dois meses.
+
+   Fixo em Sao Paulo e nao no fuso da maquina porque a empresa fecha o mes no
+   horario de Brasilia; o computador de quem abre a tela nao deveria mudar
+   isso. Mesmo criterio do portal do vendedor. */
+function diaBR(d){
+  return new Intl.DateTimeFormat('en-CA', {timeZone: 'America/Sao_Paulo',
+    year: 'numeric', month: '2-digit', day: '2-digit'}).format(d || new Date());
+}
+
 function todayStr(){
-  const d = new Date();
-  const off = d.getTimezoneOffset();
-  const local = new Date(d.getTime() - off*60000);
-  return local.toISOString().slice(0,10);
+  return diaBR();
 }
 
 const ICONE_OLHO_ABERTO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
@@ -1317,8 +1325,9 @@ async function tentarSessao(){
 }
 
 function primeiroDiaMes(){
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+  // Derivado da data de Brasilia, nao do relogio da maquina: no dia 1o de
+  // madrugada os dois discordam, e ai o mes comecaria no mes errado.
+  return diaBR().slice(0, 8) + '01';
 }
 
 function mostrarLogin(){
@@ -1370,6 +1379,7 @@ function mostrarApp(){
   carregarMlConta();
   carregarShopeeConta();
   carregarSiteConta();
+  carregarMlResultado();
   carregarMesesFechados();
   carregarLogAcessos();
   carregarLogAcoes();
@@ -1970,6 +1980,7 @@ async function carregarResumo(){
   // o periodo deles nunca fica atras do periodo do topo.
   pintarSiteConta();
   pintarShopeeConta();
+  pintarMlResultado();
 
   const mkts = resumoAtual.marketplaces || [];
   const mktTotal = mkts.reduce((t, m) => t + m.total, 0);
@@ -2478,10 +2489,8 @@ function audPeriodoPadrao(){
   const de = document.getElementById('audDe');
   const ate = document.getElementById('audAte');
   if(de.value && ate.value) return;
-  const hoje = new Date();
-  const iso = (d) => d.toISOString().slice(0,10);
-  de.value = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
-  ate.value = iso(hoje);
+  de.value = primeiroDiaMes();
+  ate.value = todayStr();
 }
 
 function audMarcarModo(){
@@ -2751,7 +2760,10 @@ const MB_GRUPOS = [
 async function mbCarregarDia(data){
   const campo = document.getElementById('mbData');
   if(data) campo.value = data;
-  if(!campo.value) campo.value = new Date().toISOString().slice(0, 10);
+  // Data do lancamento. Com toISOString um lancamento feito depois das 21h
+  // nascia com a data de amanha — e um numero no dia errado nao chama atencao
+  // de ninguem.
+  if(!campo.value) campo.value = todayStr();
   mbDiaAtual = campo.value;
 
   const res = await fetch('/api/admin/metas-bonus/dia?data=' + mbDiaAtual);
@@ -3620,11 +3632,177 @@ document.addEventListener('change', ev => {
 let mktDados = null;
 
 function mktPeriodoPadrao(){
-  const hoje = new Date();
-  const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-  const iso = (d) => d.toISOString().slice(0, 10);
-  return {de: iso(primeiro), ate: iso(hoje)};
+  return {de: primeiroDiaMes(), ate: todayStr()};
 }
+
+/* ---------- Resultado do Mercado Livre ----------
+   Faturamento menos o que o ML cobra: tarifa de venda, tarifa de pagamento,
+   parcelamento, frete e Ads. Sem custo de peca e sem imposto — decisao do
+   gestor em 31/08/2026: ele quer ver o que sobra do que ele controla.
+
+   Por data da VENDA, cobrancas inclusive. O ML cobra a tarifa de uma venda do
+   dia 29 de junho dentro do periodo de julho; somar pela data da cobranca
+   colocaria no mes de julho um custo que e do mes de junho. */
+let mlFatDados = null;
+
+async function carregarMlResultado(){
+  if(!document.getElementById('mlResultado')) return;
+  const r = await fetch('/api/admin/ml-faturamento');
+  if(!r.ok) return;
+  mlFatDados = await r.json();
+  pintarMlResultado();
+}
+
+function pintarMlResultado(){
+  const el = document.getElementById('mlResultado');
+  if(!el || !mlFatDados || mlFatDados.sem_dados){ if(el) el.innerHTML = ''; return; }
+  if(document.getElementById('vendedorFiltro').value){ el.innerHTML = ''; return; }
+
+  const de = document.getElementById('deInput').value;
+  const ate = document.getElementById('ateInput').value;
+  const periodos = mlFatDados.periodos || {};
+
+  const soma = {receita: 0, vendas: 0, tarifa_venda: 0, tarifa_pagamento: 0,
+                parcelamento: 0, frete: 0, ads: 0, outros: 0};
+  const itens = {}, estados = {};
+  let diasNoPeriodo = 0, incompleto = [], mesesUsados = [];
+
+  Object.entries(periodos).forEach(([mes, p]) => {
+    const dias = Object.entries(p.por_dia || {}).filter(([d]) => d >= de && d <= ate);
+    if(!dias.length) return;
+    mesesUsados.push(mes);
+    if(!p.completo) incompleto.push(mes);
+    dias.forEach(([, g]) => {
+      diasNoPeriodo++;
+      Object.entries(g).forEach(([k, v]) => { if(k in soma) soma[k] += v; });
+    });
+    // Peca e estado so entram quando o periodo cobre o mes inteiro: o dado
+    // guardado e do mes, nao do dia, e recortar por data daria um ranking que
+    // parece do filtro mas e do mes.
+    const mesInteiro = de <= mes + '-01' && ate >= (p.periodo || {}).date_to;
+    if(mesInteiro){
+      Object.entries(p.top_itens || {}).forEach(([id, it]) => {
+        const reg = itens[id] || (itens[id] = {...it, qtd: 0, receita: 0, custo_ml: 0});
+        reg.qtd += it.qtd; reg.receita += it.receita; reg.custo_ml += it.custo_ml;
+      });
+      Object.entries(p.por_estado || {}).forEach(([uf, e]) => {
+        const reg = estados[uf] || (estados[uf] = {qtd: 0, receita: 0});
+        reg.qtd += e.qtd; reg.receita += e.receita;
+      });
+    }
+  });
+
+  if(!mesesUsados.length){
+    el.innerHTML = `<div class="card" style="margin-bottom:14px;">
+      <div class="aud-cabecalho"><p class="card-titulo" style="margin:0;">Resultado do Mercado Livre</p></div>
+      <div class="dp-aviso" style="margin-top:0;">Ainda não coletei o faturamento
+        deste período. O ML libera essa consulta devagar, então ela roda uma vez
+        por dia e avança por mês.</div></div>`;
+    return;
+  }
+
+  const cobrancas = soma.tarifa_venda + soma.tarifa_pagamento + soma.parcelamento
+                  + soma.frete + soma.ads + soma.outros;
+  const sobra = soma.receita - cobrancas;
+  const pct = soma.receita ? (sobra / soma.receita * 100) : 0;
+  const par = mlFatDados.parametros || {};
+  const depois = sobra - soma.receita * ((par.custo_pct || 0) + (par.imposto_pct || 0)) / 100;
+
+  const tile = (rot, valor, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${valor}</div>
+    ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+  const p1 = v => (soma.receita ? (v / soma.receita * 100) : 0).toFixed(1).replace('.', ',') + '%';
+
+  const linha = (rot, v) => `<div class="dp-linha">
+    <span class="nome" style="width:auto;flex:1;">${rot}</span>
+    <span class="v valor-money">${fmtMoeda(v)}</span>
+    <span class="dp-var neutro" style="width:56px;text-align:right;">${p1(v)}</span></div>`;
+
+  const abc = Object.values(itens).sort((x, y) => y.receita - x.receita).slice(0, 15);
+  const ufs = Object.entries(estados).sort((x, y) => y[1].receita - x[1].receita).slice(0, 12);
+  const maxUf = Math.max(...ufs.map(x => x[1].receita), 1);
+
+  el.innerHTML = `<div class="card" style="margin-bottom:14px;">
+    <div class="aud-cabecalho">
+      <p class="card-titulo" style="margin:0;">Resultado do Mercado Livre</p>
+      <span class="ml-selo${sobra > 0 ? ' ok' : ''}">${p1(sobra)} sobra</span>
+      <span class="aud-conta">${soma.vendas} vendas · ${mesesUsados.sort().join(', ')}</span>
+      <button class="btn btn-neutro btn-pequeno" id="mlFatAtualizar"
+        title="Busca o faturamento no ML. O limite deles é apertado — avança por mês.">Atualizar</button>
+      <span class="status-msg" id="mlFatStatus"></span>
+    </div>
+    <div class="dp-kpis conta-linha" style="margin-bottom:0;">
+      ${tile('Faturamento', fmtMoeda(soma.receita), `${soma.vendas} vendas cobradas`)}
+      ${tile('O ML cobrou', fmtMoeda(cobrancas), p1(cobrancas) + ' do faturamento', 'var(--bad)')}
+      ${tile('O que sobra', fmtMoeda(sobra), p1(sobra) + ' do faturamento',
+             sobra > 0 ? 'var(--good)' : 'var(--bad)')}
+      ${tile('Tarifas', fmtMoeda(soma.tarifa_venda + soma.tarifa_pagamento + soma.parcelamento),
+             'venda + pagamento + parcelas')}
+      ${tile('Frete', fmtMoeda(soma.frete), 'envio e devolução')}
+    </div>
+
+    <details class="dp-recolhivel"><summary>Onde foi o dinheiro, linha por linha</summary>
+      <div class="dp-lista" style="margin-top:8px;">
+        ${linha('Custo por vender no ML', soma.tarifa_venda)}
+        ${linha('Custo por cobrar (Mercado Pago)', soma.tarifa_pagamento)}
+        ${linha('Taxa de parcelamento', soma.parcelamento)}
+        ${linha('Frete e devolução', soma.frete)}
+        ${linha('Product Ads', soma.ads)}
+        ${soma.outros ? linha('Outras cobranças', soma.outros) : ''}
+      </div>
+      <div class="dp-aviso" style="margin-top:8px;">
+        Tudo pela data da <b>venda</b>, cobranças inclusive — a tarifa de uma venda
+        do dia 29 conta no dia 29, mesmo que o ML só cobre no mês seguinte.
+        Estornos entram negativos, então cobrança devolvida não infla a conta.
+        <br><br>Descontando ainda os ${String(par.custo_pct || 0).replace('.', ',')}%
+        de custo da peça e ${String(par.imposto_pct || 0).replace('.', ',')}% de
+        imposto que você definiu, sobrariam <b>${fmtMoeda(depois)}</b>. Esse número
+        é estimativa: os dois percentuais são regra de bolso, não medição.
+        ${incompleto.length ? `<br><br><b>Coleta em andamento</b> em ${incompleto.join(', ')} —
+          o ML libera essa consulta devagar e o número ainda vai subir.` : ''}
+      </div>
+    </details>
+
+    ${abc.length ? `<details class="dp-recolhivel"><summary>Curva ABC · as 15 peças que mais faturaram</summary>
+      <div class="tabela-rolante" style="margin-top:8px;"><table>
+        <thead><tr><th>Peça</th><th style="text-align:right;">Un.</th>
+          <th style="text-align:right;">Faturou</th><th style="text-align:right;">ML cobrou</th>
+          <th style="text-align:right;">Sobra</th></tr></thead>
+        <tbody>${abc.map(it => `<tr>
+          <td>${it.titulo || '—'}<br><span class="dp-var neutro">${it.categoria || ''}</span></td>
+          <td style="text-align:right;">${it.qtd}</td>
+          <td style="text-align:right;" class="valor-money">${fmtMoeda(it.receita)}</td>
+          <td style="text-align:right;" class="valor-money">${fmtMoeda(it.custo_ml)}</td>
+          <td style="text-align:right;" class="valor-money">${fmtMoeda(it.receita - it.custo_ml)}</td>
+        </tr>`).join('')}</tbody></table></div>
+      <div class="dp-aviso" style="margin-top:8px;">Só aparece quando o filtro cobre
+        o mês inteiro: o ranking guardado é do mês, e recortar por dia daria uma
+        lista que parece do filtro mas não é.</div>
+    </details>` : ''}
+
+    ${ufs.length ? `<details class="dp-recolhivel"><summary>De onde vêm as vendas</summary>
+      <div class="dp-lista" style="margin-top:8px;">
+        ${ufs.map(([uf, e]) => `<div class="dp-linha">
+          <span class="nome" style="width:130px;">${uf}</span>
+          <span class="v valor-money">${fmtMoeda(e.receita)}</span>
+          <span class="t"><span class="f" style="width:${(e.receita / maxUf * 100).toFixed(1)}%"></span></span>
+        </div>`).join('')}
+      </div>
+    </details>` : ''}
+  </div>`;
+}
+
+document.addEventListener('click', async ev => {
+  if(ev.target.id !== 'mlFatAtualizar') return;
+  const btn = ev.target, st = document.getElementById('mlFatStatus');
+  btn.disabled = true; btn.textContent = 'Buscando…'; st.className = 'status-msg';
+  const r = await fetch('/api/admin/sincronizar-faturamento', {method: 'POST'});
+  const d = await r.json().catch(() => ({}));
+  btn.disabled = false; btn.textContent = 'Atualizar';
+  st.textContent = r.ok ? d.resumo : (d.erro || 'Falhou');
+  st.classList.add('show', ...(r.ok ? [] : ['err']));
+  if(r.ok) carregarMlResultado();
+});
 
 /* ---------- Permissões de acesso ----------
    Uma grade: pessoas nas linhas, áreas nas colunas. Marcar salva na hora.
@@ -4213,7 +4391,7 @@ function renderMarketing(d){
   const quandoFonte = (chave) => {
     const iso = (m.atualizado_em || {})[chave];
     if(!iso) return '';
-    const dia = iso.slice(0, 10), hoje = new Date().toISOString().slice(0, 10);
+    const dia = iso.slice(0, 10), hoje = todayStr();
     if(dia === hoje) return '';
     const [a2, m2, d2] = dia.split('-');
     return `<span class="fonte-velha" title="Esta fonte não está conectada no Windsor agora — o número é do último dia em que ela foi lida.">⚠ dado de ${d2}/${m2}</span>`;
@@ -4376,7 +4554,8 @@ function renderMarketing(d){
         métrica que não pode ser somada entre as duas, porque quem vê nos dois seria contado
         duas vezes.</div>
     </div>` : ''}
-    <div class="tabela-rolante"><table>
+    <details class="dp-recolhivel"><summary>Anúncio por anúncio (${mt.anuncios.length})</summary>
+    <div class="tabela-rolante" style="margin-top:8px;"><table>
       <thead><tr><th>Anúncio</th><th>Investido</th><th>Conversas</th><th>Custo/conversa</th><th>Impressões</th></tr></thead>
       <tbody>${mt.anuncios.map(a => `<tr>
         <td>${a.anuncio}</td>
@@ -4386,6 +4565,7 @@ function renderMarketing(d){
         <td>${a.impressions.toLocaleString('pt-BR')}</td>
       </tr>`).join('')}</tbody>
     </table></div>
+    </details>
     <div class="dp-aviso">O relatório do Meta vem fechado de <b>${mt.de.slice(8)}/${mt.de.slice(5,7)}</b>
       a <b>${mt.ate.slice(8)}/${mt.ate.slice(5,7)}</b>, <b>sem quebra por dia</b>. Quando o período
       escolhido pega só um pedaço dessa janela, o gasto entra rateado por dia — é aproximação, porque
@@ -4471,6 +4651,9 @@ function renderMarketing(d){
       lead, conversão ou receita provável nesse recorte.</div>
   </div>` : '';
 
+  // Redesenhar o corpo apaga o container do Perfil, que agora mora dentro dele.
+  // Por isso a chamada de repintar vem logo depois — sem ela o card sumiria a
+  // cada troca de filtro.
   document.getElementById('mktCorpo').innerHTML = `
     ${avisoCobertura}
     <div class="dp-kpis">${kpis}</div>
@@ -4480,6 +4663,11 @@ function renderMarketing(d){
          linha com a tabela por vendedor — ele mostra ritmo, nao decisao, e
          meia largura basta pra ver a forma da curva. -->
     ${cardCanais}
+    <!-- "Quem acha a loja" logo abaixo de "de onde vieram os leads": as duas
+         respondem a mesma pergunta por dois caminhos, uma a demanda que se
+         compra e outra a que chega sozinha. Estavam separadas pela tela
+         inteira, e comparar exigia rolar. -->
+    <div id="perfilGoogle"></div>
     <div class="dp-grid duas">
       <div class="card">
         <p class="card-titulo">Leads dia a dia</p>
@@ -4492,11 +4680,16 @@ function renderMarketing(d){
       <p class="card-titulo">Como ler estes números</p>
       ${avisos.map(a => `<div class="dp-destaque"><span class="rot" style="margin:0">${a}</span></div>`).join('')}
     </div>`;
+
+  carregarPerfilGoogle();
 }
 
 document.addEventListener('change', ev => {
   if(['mktDe','mktAte','mktCanal','mktVendedor'].includes(ev.target.id)) carregarMarketing();
-  if(['mktDe','mktAte'].includes(ev.target.id)) carregarPerfilGoogle();
+  // O Perfil nao e mais chamado daqui: ele mora dentro do corpo do marketing,
+  // que carregarMarketing() reescreve. Chamar antes disso pintava um card que
+  // o render seguinte apagava — uma corrida que dava card vazio de vez em
+  // quando.
 });
 
 /* ---------- Desempenho por vendedor ----------
@@ -4798,7 +4991,7 @@ async function carregarAtendimento(){
           data-ultima="${x.ultima_em || ''}">Resolvido</button>
       </td>
       <td>${(() => { const [d, h] = x.desde.split('T');
-        const hoje = new Date().toISOString().slice(0, 10);
+        const hoje = todayStr();
         return d === hoje ? h.slice(0, 5)
           : `${d.slice(8, 10)}/${d.slice(5, 7)} ${h.slice(0, 5)}`; })()}</td>
     </tr>`).join('');
@@ -4969,9 +5162,12 @@ function pintarShopeeConta(){
     porMes[m].total = Math.round((porMes[m].total + x.total) * 100) / 100;
     porMes[m].qtd += x.qtd;
   });
+  // Ultimo dia do mes por aritmetica de UTC: `new Date(ano, n, 0)` e meia-noite
+  // LOCAL, e converter isso pra ISO devolve o dia anterior em qualquer fuso a
+  // leste de Greenwich.
   const ultimoDiaDe = m => {
     const ano = Number(m.slice(0, 4)), n = Number(m.slice(5, 7));
-    return new Date(ano, n, 0).toISOString().slice(0, 10);
+    return `${m}-${String(new Date(Date.UTC(ano, n, 0)).getUTCDate()).padStart(2, '0')}`;
   };
   Object.entries(d.vendas.serie_mes || {}).forEach(([m, x]) => {
     if(comDia.has(m)) return;
