@@ -1003,6 +1003,22 @@ def areas_do_usuario() -> list:
     return areas_efetivas(carregar_vendedores().get(vid) or {}, vid)
 
 
+def vende(vid: str, info: dict) -> bool:
+    """Se esta pessoa lanca venda no portal.
+
+    A regra e a area `minhas_vendas`, nao um campo novo: quem nao tem a tela de
+    lancar venda nao lanca venda. Assim, tirar a permissao no menu de Permissoes
+    ja tira a pessoa das listas de venda — sem um segundo lugar pra lembrar de
+    marcar, que e onde esse tipo de coisa fica desencontrado.
+
+    Quando a pessoa nao tem `areas` gravado, o padrao do setor decide, e o
+    fallback e o pacote de vendedor. Ou seja: na duvida, ela CONTINUA aparecendo.
+    Errar deixando um vendedor de fora do ranking e pior do que errar deixando
+    alguem a mais.
+    """
+    return "minhas_vendas" in areas_efetivas(info, vid)
+
+
 def exigir_area(area: str) -> bool:
     """Substitui exigir_admin() nos endpoints que passam a ser compartilhados.
 
@@ -1687,6 +1703,12 @@ def api_painel_ranking():
         # sempre, cartao vazio de conta de teste nunca.
         if info.get("oculto") and not (hoje_v or semana_v or mes_v):
             continue
+        # Quem nao vende nao disputa ranking de venda. O Pedro tem usuario do
+        # portal (anuncios, meta bonus) e aparecia na TV com R$ 0,00 ao lado de
+        # quem passou o mes vendendo — um cartao zerado ali le como vendedor
+        # ruim, nao como "essa pessoa faz outra coisa".
+        if not vende(vid, info) and not (hoje_v or semana_v or mes_v):
+            continue
         if desligado(info) and not (hoje_v or semana_v or mes_v):
             continue
         grupo_hoje += hoje_v
@@ -1972,9 +1994,12 @@ def api_admin_resumo():
         if (desligado(info) and not por_vendedor.get(vid)
                 and vid != filtro_vendedor):
             continue
-        # Quem e da expedicao nao vende: fora das listas de venda e comissao,
-        # a nao ser que tenha lancamento (dinheiro nunca some de tela).
-        if info.get("perfil") == "expedicao" and not por_vendedor.get(vid):
+        # Quem nao vende fica fora das listas de venda e comissao, a nao ser
+        # que tenha lancamento (dinheiro nunca some de tela). Antes isto olhava
+        # so o perfil "expedicao"; agora vale a permissao, entao o Pedro — que
+        # e do setor de anuncios — sai pelo mesmo motivo, sem precisar de uma
+        # regra propria.
+        if not vende(vid, info) and not por_vendedor.get(vid):
             continue
         lista_vendas = [v for v in por_vendedor.get(vid, []) if v.get("tipo", "venda") == "venda"]
         lista_vendas.sort(key=lambda v: v["data"], reverse=True)
