@@ -5153,6 +5153,10 @@ const SECOES = {
   rh:         {titulo: 'Gestão de pessoas', el: 'secRh'},
   metabonus:  {titulo: 'Meta Bônus',        el: 'secMetaBonus'},
   auditoria:  {titulo: 'Comissões · conferência', el: 'secAuditoria'},
+  // Mesma tela da conferencia, outra porta: entra direto no modo Total, que e
+  // a planilha inteira do mes venda por venda. Nao e uma segunda fonte de
+  // dados — e a mesma, com o nome que o gestor procura quando quer "vendas".
+  vendas:     {titulo: 'Vendas · todas do período', el: 'secAuditoria'},
   configuracoes: {titulo: 'Configurações',  el: null},
 };
 
@@ -5167,8 +5171,12 @@ const TOPICOS_CONFIG = {
 const PADRAO_CONFIG = 'metas';
 
 // Todas as <section> que a navegação controla, pra esconder de uma vez.
-const TODAS_SECOES = Object.values(SECOES).map(c => c.el).filter(Boolean)
-  .concat(Object.values(TOPICOS_CONFIG).map(c => c.el));
+// Sem repetido: duas entradas de menu podem apontar pra mesma tela (Vendas e
+// Comissoes sao a mesma), e esconder/mostrar a mesma secao duas vezes por
+// clique e desperdicio que um dia vira bug sutil.
+const TODAS_SECOES = [...new Set(
+  Object.values(SECOES).map(c => c.el).filter(Boolean)
+    .concat(Object.values(TOPICOS_CONFIG).map(c => c.el)))];
 
 /* O endereço vira #configuracoes/registros, pra dar pra salvar o link de um
    tópico e pra o F5 voltar onde ele estava. */
@@ -5215,6 +5223,11 @@ function irParaSecao(chave, sub){
   });
   // Entrar em Desempenho sempre comeca pela escolha do vendedor.
   if(chave === 'desempenho') abrirEscolhaDesempenho();
+  if(chave === 'vendas'){
+    // Entrar por "Vendas" significa querer ver tudo, nao conferir uma amostra.
+    if(audModo !== 'total') audAbrirModo('total');
+    else if(!audCarregado){ audPeriodoPadrao(); carregarAuditoria(); }
+  }
   if(chave === 'carros' && !carrosCarregado) carregarCarros();
   if(chave === 'atendimento') carregarAtendimento();
   clearInterval(atdTimerGestor);
