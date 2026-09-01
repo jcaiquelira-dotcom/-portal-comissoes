@@ -3131,6 +3131,85 @@ def api_admin_atendimento_alerta():
     return jsonify(d)
 
 
+# Custo da peca e imposto NAO existem em API nenhuma — sao decisao do gestor.
+# Ficam aqui com o valor que ele definiu em 31/08/2026, e valem como percentual
+# do faturamento porque num desmanche nao ha custo unitario de compra: o que se
+# compra e o carro inteiro.
+PARAMETROS_ML_PADRAO = {"custo_pct": 30.0, "imposto_pct": 11.0}
+
+
+def parametros_ml() -> dict:
+    salvo = ler_json(resolver_pasta_dados() / "parametros_ml.json", None)
+    base = dict(PARAMETROS_ML_PADRAO)
+    if isinstance(salvo, dict):
+        for k in base:
+            try:
+                base[k] = round(float(salvo[k]), 2)
+            except (KeyError, TypeError, ValueError):
+                pass
+    return base
+
+
+@app.route("/api/admin/ml-faturamento")
+def api_admin_ml_faturamento():
+    """O que o ML cobra, por periodo, e a margem que sobra.
+
+    Chama de MARGEM e nao de lucro de proposito: os 30% de custo sao uma regra
+    de bolso, nao o custo real daquela peca. Chamar de lucro faria o numero
+    parecer apurado quando ele e estimado.
+    """
+    if not exigir_area("painel"):
+        return jsonify({"erro": "Não autenticado."}), 401
+    d = ler_json(resolver_pasta_dados() / "ml_faturamento.json", None)
+    if not d:
+        return jsonify({"sem_dados": True, "parametros": parametros_ml()})
+    d["parametros"] = parametros_ml()
+    return jsonify(d)
+
+
+@app.route("/api/admin/ml-faturamento/parametros", methods=["POST"])
+def api_admin_ml_parametros():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    novo = parametros_ml()
+    for k in PARAMETROS_ML_PADRAO:
+        if k in corpo:
+            try:
+                v_ = round(float(corpo[k]), 2)
+            except (TypeError, ValueError):
+                return jsonify({"erro": f"Valor inválido em {k}."}), 400
+            if not 0 <= v_ <= 100:
+                return jsonify({"erro": "Percentual fora de 0 a 100."}), 400
+            novo[k] = v_
+    escrever_json(resolver_pasta_dados() / "parametros_ml.json", novo)
+    return jsonify({"ok": True, **novo})
+
+
+@app.route("/api/admin/sincronizar-faturamento", methods=["POST"])
+def api_admin_sincronizar_faturamento():
+    """Dispara a coleta na hora. Ela e retomavel: o limitador do ML e apertado,
+    entao cada disparo avanca o que der e guarda onde parou."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    try:
+        import coletor_faturamento_ml as _cf
+
+        def ler_cred():
+            return ler_json(resolver_pasta_dados() / "segredo_ml.json", None)
+
+        def ler_atual():
+            return ler_json(resolver_pasta_dados() / "ml_faturamento.json", None)
+
+        def gravar(p):
+            escrever_json(resolver_pasta_dados() / "ml_faturamento.json", p)
+
+        return jsonify({"ok": True,
+                        "resumo": _cf.sincronizar(ler_cred, ler_atual, gravar)})
+    except Exception as e:
+        return jsonify({"erro": f"{type(e).__name__}: {e}"}), 502
+
+
 @app.route("/api/admin/shopee-conta")
 def api_admin_shopee_conta():
     """Serie mensal da Shopee (importar_shopee_stats). Endpoint separado do
@@ -3955,11 +4034,22 @@ def api_marketing_gestor():
     # Aqui o periodo conta os meses que ele toca, cada um pelo valor cheio.
     # Valor unico declarado aqui: mudou o contrato, muda esta linha.
     AGENCIA_MENSAL = 1900.0
-    d_ini, d_fim = date.fromisoformat(de), date.fromisoformat(ate)
-    meses_agencia = sorted({d_ini.strftime("%Y-%m"), d_fim.strftime("%Y-%m")}
-                           | {(d_ini.replace(day=1) + timedelta(days=32 * k)).strftime("%Y-%m")
-                              for k in range(1, 60)
-                              if (d_ini.replace(day=1) + timedelta(days=32 * k)) <= d_fim})
+
+    def meses_tocados(d1: str, d2: str) -> list:
+        """Todo mes que o periodo encosta, do primeiro ao ultimo.
+
+        Anda de mes em mes pelo calendario. A versao anterior somava 32 dias de
+        cada vez, o que ia acumulando folga: passado mais ou menos um ano e meio
+        a conta pulava um mes inteiro.
+        """
+        ini, fim = date.fromisoformat(d1), date.fromisoformat(d2)
+        fora, cursor = [], ini.replace(day=1)
+        while cursor <= fim and len(fora) < 240:
+            fora.append(cursor.strftime("%Y-%m"))
+            cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+        return fora or [ini.strftime("%Y-%m")]
+
+    meses_agencia = meses_tocados(de, ate)
     agencia = round(AGENCIA_MENSAL * len(meses_agencia), 2)
     investimento = round(investimento + agencia, 2)
 
@@ -4081,8 +4171,11 @@ def api_marketing_gestor():
         ant_meta = round(sum(
             v_dia["spend"] for d_, v_dia in serie_meta.items()
             if anterior["de"] <= d_ <= anterior["ate"]), 2) if serie_meta else 0.0
-        ant_meses = {anterior["de"][:7], anterior["ate"][:7]}
-        ant_agencia = round(AGENCIA_MENSAL * len(ant_meses), 2)
+        # Mesma regra do periodo atual. Antes aqui era so {mes do inicio, mes do
+        # fim} — no filtro "este ano" isso dava 2 meses contra os 8 do periodo
+        # atual, e o comparativo mostrava uma alta de midia que nao existiu.
+        ant_agencia = round(
+            AGENCIA_MENSAL * len(meses_tocados(anterior["de"], anterior["ate"])), 2)
         ant_total = round(ant_google + ant_meta + ant_agencia, 2)
         anterior["midia"] = {"google": ant_google, "meta": ant_meta,
                              "agencia": ant_agencia, "investimento": ant_total}
@@ -5509,6 +5602,24 @@ def api_admin_sincronizar_ml():
         return jsonify({"ok": True, "resumo": resumo})
     except Exception as e:
         return jsonify({"erro": f"{type(e).__name__}: {e}"}), 502
+
+
+# ---------- faturamento do ML (thread de fundo, 1x por dia) ----------
+# Uma vez por dia porque o limitador do ML e apertado e o dado e estatico
+# durante o dia. A coleta e retomavel: se o limite bater no meio, ela guarda
+# onde parou e continua no dia seguinte em vez de comecar do zero.
+try:
+    import coletor_faturamento_ml as _cfat
+
+    def _cfat_atual():
+        return ler_json(resolver_pasta_dados() / "ml_faturamento.json", None)
+
+    def _cfat_gravar(p):
+        escrever_json(resolver_pasta_dados() / "ml_faturamento.json", p)
+
+    _cfat.iniciar(_sml_cred, _cfat_atual, _cfat_gravar)
+except Exception as _e:
+    print(f"[faturamento-ml] não subiu: {_e}")
 
 
 # ---------- monitor de atendimento (thread de fundo) ----------
