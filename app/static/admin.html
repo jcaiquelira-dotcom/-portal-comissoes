@@ -1299,35 +1299,6 @@ async function tentarSessao(){
   if(!document.getElementById('appShell') || document.getElementById('appShell').classList.contains('oculto')) mostrarLogin();
 }
 
-/* Esconde do menu o que a pessoa nao pode abrir. O servidor ja recusa esses
-   endpoints — isto e so pra tela nao oferecer porta que nao abre. Seguranca
-   fica no servidor; aqui e cortesia. */
-/* As caixas vem do servidor (`todas_areas`), nao de uma lista repetida aqui.
-   Duplicar significaria que criar uma area nova exigiria lembrar de dois
-   lugares — e um dia alguem esqueceria do segundo. */
-let AREAS_DISPONIVEIS = {};
-function montarCaixasDeArea(marcadas){
-  const box = document.getElementById('vAreasBox');
-  if(!box) return;
-  const sel = new Set(marcadas || []);
-  box.innerHTML = Object.entries(AREAS_DISPONIVEIS).map(([k, rotulo]) =>
-    `<label><input type="checkbox" class="area-chk" value="${k}"${
-      sel.has(k) ? ' checked' : ''}> ${rotulo}</label>`).join('');
-}
-
-function filtrarMenuPorArea(){
-  if(sessaoAtual.gestor) return;
-  // Todos os itens, nao so os `#secao`: os links pra outras paginas (ranking,
-  // expedicao) tambem precisam sumir de quem nao usa. A chave vem do data-chave
-  // que a barra escreve; o href serve de reserva pros itens de secao.
-  document.querySelectorAll('.nav-item').forEach(el => {
-    const href = el.getAttribute('href') || '';
-    const chave = el.dataset.nav || (href.startsWith('#') ? href.slice(1) : '');
-    if(!chave) return;
-    if(!sessaoAtual.areas.includes(chave)) el.style.display = 'none';
-  });
-}
-
 function primeiroDiaMes(){
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
@@ -1338,7 +1309,19 @@ function mostrarLogin(){
   document.getElementById('appShell').classList.add('oculto');
 }
 
+/* O caminho de volta: quem so tem area do proprio trabalho nao tem o que ver
+   aqui. Sem isso, alguem que entrasse por /admin.html cairia num menu com uma
+   opcao so e acharia que o portal esta quebrado. */
+function ehSoDoProprioTrabalho(){
+  if(sessaoAtual.gestor) return false;
+  const proprias = ['meu_painel','minhas_vendas','meu_atendimento',
+                    'minha_performance','simulador','meu_followup','expedicao'];
+  return sessaoAtual.areas.length > 0
+      && sessaoAtual.areas.every(a => proprias.includes(a));
+}
+
 function mostrarApp(){
+  if(ehSoDoProprioTrabalho()){ location.href = '/'; return; }
   document.getElementById('telaLogin').classList.add('oculto');
   document.getElementById('appShell').classList.remove('oculto');
   /* Quem nao e gestor comeca na primeira area que tem — nao no Painel, que ele
@@ -1347,8 +1330,9 @@ function mostrarApp(){
   if(!sessaoAtual.gestor && !podeVer(secaoAtual)){
     secaoAtual = sessaoAtual.areas[0] || 'painel';
   }
-  montarSidebar(secaoAtual, {aoSair: sairDoGestor, portal: 'gestor'});
-  filtrarMenuPorArea();
+  montarSidebar(secaoAtual, {aoSair: sairDoGestor, portal: 'gestor',
+    areas: sessaoAtual.gestor ? null : sessaoAtual.areas,
+    master: sessaoAtual.gestor});
   preencherPerfil(sessaoAtual.gestor ? 'Gestor' : (sessaoAtual.nome || 'Equipe'), null);
   if(sessaoAtual.gestor) montarKpisGestor();
   irParaSecao(secaoAtual, topicoAtual);

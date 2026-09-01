@@ -567,6 +567,7 @@ async function tentarSessao(){
     const res = await fetch('/api/me');
     if(res.ok){
       eu = await res.json();
+      if(levarParaGestao()) return;
       mostrarApp();
     }
   }catch(e){ /* segue deslogado */ }
@@ -604,11 +605,35 @@ function aplicarSomenteLeitura(){
   });
 }
 
+/* Porta unica: todo mundo entra por aqui, e o sistema decide onde a pessoa
+   cai. Quem nao tem nenhuma area do proprio trabalho — o Pedro, por exemplo —
+   nao tem o que ver nesta tela; mandar pra ela seria abrir um lugar vazio e
+   deixar a pessoa procurando o menu. */
+function levarParaGestao(){
+  const areas = (eu && eu.areas) || [];
+  const proprias = ['meu_painel','minhas_vendas','meu_atendimento',
+                    'minha_performance','simulador','meu_followup','expedicao'];
+  const temPropria = areas.some(a => proprias.includes(a));
+  const temGestao = areas.some(a => !proprias.includes(a));
+  // Master tem TODAS as areas, entao "tem area propria" seria sempre verdade e
+  // ele ficaria preso na tela de vendedor. Quem administra abre na gestao — e
+  // o menu daqui continua listando o proprio trabalho, se ele quiser voltar.
+  if(eu.master || (!temPropria && temGestao)){
+    location.href = '/admin.html';
+    return true;
+  }
+  return false;
+}
+
 function mostrarApp(){
   document.getElementById('telaLogin').classList.add('oculto');
   document.getElementById('appShell').classList.remove('oculto');
   aplicarSomenteLeitura();
-  montarSidebar(secaoAtual, {aoSair: logout});
+  /* A barra do portal do vendedor tambem se monta pelas areas — e o mesmo
+     menu da outra tela. Quem so vende ve so o proprio trabalho; quem tambem
+     gere ve os dois blocos, sem trocar de lugar. */
+  montarSidebar(secaoAtual, {aoSair: logout, areas: eu.areas || null,
+                             master: !!eu.master});
   preencherPerfil(eu.nome, eu.foto, eu.avatar);
   document.getElementById('mesInput').value = todayStr().slice(0,7);
   document.getElementById('dataInput').value = todayStr();
@@ -689,6 +714,7 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
       return;
     }
     eu = await (await fetch('/api/me')).json();
+    if(levarParaGestao()) return;
     mostrarApp();
   }catch(e){
     errEl.textContent = 'Erro de conexão.';

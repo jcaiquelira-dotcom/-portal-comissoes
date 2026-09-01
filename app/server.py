@@ -785,6 +785,9 @@ def api_me():
         # lancamento inteiro pra descobrir no botao que nao pode.
         "somente_leitura": desligado(v),
         "desligado_em": v.get("desligado_em") or "",
+        # O menu desta tela e o mesmo da outra: precisa das areas pra se montar.
+        "areas": areas_do_usuario(),
+        "master": usuario_master(),
     })
 
 
@@ -875,7 +878,52 @@ AREAS = {
     # menu nao deve oferecer porta que a pessoa nao usa.
     "ranking": "Ranking de vendas (TV)",
     "expedicao": "Painel de expedicao",
+    # --- o que era o "portal do vendedor" ---
+    # Viraram areas como as outras. Antes eram implicitas por morar num site
+    # separado: quem tinha login via tudo isso, sem ninguem decidir. Num portal
+    # so, "implicito" deixa de existir — ou esta marcado, ou nao aparece.
+    "meu_painel": "Meu painel",
+    "minhas_vendas": "Minhas vendas",
+    "meu_atendimento": "Esperando voce",
+    "minha_performance": "Minha performance",
+    "simulador": "Simulacao de desconto",
+    "meu_followup": "Meu follow-up",
 }
+
+# O que qualquer pessoa da equipe ve sobre o proprio trabalho. Nao e privilegio
+# — e a razao de ela ter login. Vira o padrao de quem entra, e o gestor pode
+# tirar caso a caso (a expedicao, por exemplo, nao vende).
+AREAS_PROPRIAS = ["meu_painel", "minhas_vendas", "meu_atendimento",
+                  "minha_performance", "simulador", "meu_followup"]
+
+# Onde cada area vive. Enquanto as duas telas nao viram um arquivo so, o menu
+# precisa saber pra onde mandar — e e isso que faz o portal parecer um lugar so
+# mesmo morando em dois arquivos.
+PAGINA_DA_AREA = {a: "/" for a in AREAS_PROPRIAS}
+PAGINA_DA_AREA["expedicao"] = "/"
+PAGINA_DA_AREA["ranking"] = "/painel.html"
+
+
+def areas_efetivas(v: dict) -> list:
+    """As areas que valem pra um usuario, ja com os padroes aplicados.
+
+    Existe pra que a tela e o servidor concordem. Se a lista de usuarios
+    devolvesse o campo cru, a grade de Permissoes mostraria "nenhuma area" pra
+    quem na verdade ve o proprio trabalho — e o primeiro clique apagaria o que
+    a pessoa tinha, porque a tela reenvia o que leu.
+    """
+    areas = [a for a in (v.get("areas") or []) if a in AREAS]
+    # Ausencia do campo significa "o padrao", nao "nada". Sem isso, os usuarios
+    # que ja existiam perderiam o portal no instante em que isto subisse.
+    if "areas" not in v:
+        areas = list(AREAS_PROPRIAS)
+    if v.get("perfil") == "expedicao":
+        # Nao vende: as areas de venda sao ruido de menu, nao permissao a mais.
+        areas = [a for a in areas if a not in ("minhas_vendas", "simulador",
+                                               "meu_followup")]
+        if "expedicao" not in areas:
+            areas.append("expedicao")
+    return areas
 
 
 def areas_do_usuario() -> list:
@@ -890,13 +938,7 @@ def areas_do_usuario() -> list:
     vid = session.get("vendedor_id")
     if not vid:
         return []
-    v = carregar_vendedores().get(vid) or {}
-    areas = [a for a in (v.get("areas") or []) if a in AREAS]
-    # Quem E da expedicao nao precisa que ninguem marque a caixa: o painel de
-    # expedicao e o trabalho dele.
-    if v.get("perfil") == "expedicao" and "expedicao" not in areas:
-        areas.append("expedicao")
-    return areas
+    return areas_efetivas(carregar_vendedores().get(vid) or {})
 
 
 def exigir_area(area: str) -> bool:
@@ -1809,6 +1851,8 @@ def api_admin_me():
             nome = (carregar_vendedores().get(vid_m) or {}).get("nome", "")
     return jsonify({
         "logado": bool(exigir_admin() or areas),
+        "pagina_da_area": PAGINA_DA_AREA,
+        "areas_proprias": AREAS_PROPRIAS,
         "gestor": exigir_admin(),
         # `master_nominal` e a pessoa com nome; `chave_reserva` e a senha sem
         # dono. A tela avisa quando alguem esta usando a reserva — ela existe
@@ -4330,7 +4374,10 @@ def api_admin_listar_vendedores():
             "avatar": v.get("avatar", ""),
             "oculto": bool(v.get("oculto")),
             "desligado_em": v.get("desligado_em") or "",
-            "areas": v.get("areas") or [],
+            # Efetivas, nao o campo cru: a grade precisa mostrar o que de fato
+            # vale, senao o primeiro clique apagaria o padrao de quem nunca foi
+            # editado — a tela reenvia o que leu.
+            "areas": areas_efetivas(v),
             "master": bool(v.get("master")),
             "perfil": v.get("perfil") or "vendedor",
             "liberacao_retroativa": retroativo_ativo(v),

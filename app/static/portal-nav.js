@@ -92,49 +92,41 @@ function avatarHtml(pessoa, classe){
   return '<span class="' + cls + '">' + nome.trim().slice(0, 2).toUpperCase() + '</span>';
 }
 
-const PORTAIS = {
-  vendedor: {
-    titulo: 'Portal do<br><span>Vendedor</span>',
-    itens: [
-      {chave: 'painel',    texto: 'Painel',                href: '/#painel', icone: 'painel'},
-      {chave: 'atendimento', texto: 'Esperando você',      href: '/#atendimento', icone: 'retomada'},
-      {chave: 'expedicao',   texto: 'Expedição',           href: '/#expedicao', icone: 'expedicao'},
-      {chave: 'vendas',    texto: 'Minhas vendas',         href: '/#vendas', icone: 'vendas'},
-      {chave: 'simulador', texto: 'Simulação',             href: '/simulador', icone: 'cifrao'},
-      {chave: 'retomada',  texto: 'Follow-up',              href: '/follow-up', icone: 'retomada'},
-      {chave: 'performance', texto: 'Performance',          href: '/#performance', icone: 'desempenho'},
-    ],
-    // Vendedor nao ve ranking nem expedicao: o painel dele ja mostra a
-    // posicao no time, e expedicao e tela de outro setor.
-    externos: [],
-    trocar: {texto: 'Ir para a área do gestor', href: '/admin.html'},
-  },
-  gestor: {
-    titulo: 'Área do<br><span>Gestor</span>',
-    itens: [
-      {chave: 'painel',      texto: 'Painel',            href: '#painel',      icone: 'painel'},
-      {chave: 'marketing',   texto: 'Marketing',         href: '#marketing',   icone: 'marketing'},
-      {chave: 'analytics',   texto: 'Analytics',         href: '#analytics',   icone: 'desempenho'},
-      {chave: 'auditoria',   texto: 'Comissões',         href: '#auditoria',   icone: 'lupa'},
-      {chave: 'metabonus',   texto: 'Meta Bônus',        href: '#metabonus',   icone: 'bonus'},
-      {chave: 'desempenho',  texto: 'Desempenho',        href: '#desempenho',  icone: 'desempenho'},
-      {chave: 'carros',      texto: 'Carros pra chegar', href: '#carros',      icone: 'carro'},
-      {chave: 'rh',          texto: 'Gestão de pessoas', href: '#rh',          icone: 'equipe'},
-      {chave: 'atendimento', texto: 'Atendimento agora', href: '#atendimento', icone: 'retomada'},
-      {chave: 'retomada',    texto: 'Follow-up do time', href: '#retomada',    icone: 'retomada'},
-      {chave: 'fechamento',  texto: 'Fechamento de mês', href: '#fechamento',  icone: 'fechamento'},
-      {chave: 'permissoes',  texto: 'Permissões',        href: '#permissoes',  icone: 'equipe'},
-      {chave: 'configuracoes', texto: 'Configurações',   href: '#configuracoes', icone: 'config'},
-    ],
-    externos: ['ranking', 'expedicao'],
-    trocar: {texto: 'Ir para o portal do vendedor', href: '/'},
-  },
-};
-
-const ITENS_EXTERNOS = [
-  {chave: 'ranking',   texto: 'Ranking de vendas',   href: '/painel.html', icone: 'ranking'},
-  {chave: 'expedicao', texto: 'Painel de expedição', href: null,           icone: 'expedicao'},
+/* Catalogo unico de itens. A chave e a mesma do servidor (AREAS), entao
+   liberar uma area e ver o item aparecer nao dependem de traducao nenhuma.
+   `pagina` diz onde a area mora enquanto as telas forem dois arquivos. */
+const ITENS = [
+  // --- o proprio trabalho ---
+  {chave: 'meu_painel',        texto: 'Meu painel',         pagina: '/', hash: '#painel',      icone: 'painel'},
+  {chave: 'meu_atendimento',   texto: 'Esperando você',     pagina: '/', hash: '#atendimento', icone: 'retomada'},
+  {chave: 'minhas_vendas',     texto: 'Minhas vendas',      pagina: '/', hash: '#vendas',      icone: 'vendas'},
+  {chave: 'simulador',         texto: 'Simulação',          pagina: '/simulador',              icone: 'cifrao'},
+  {chave: 'meu_followup',      texto: 'Meu follow-up',      pagina: '/follow-up',              icone: 'retomada'},
+  {chave: 'minha_performance', texto: 'Minha performance',  pagina: '/', hash: '#performance', icone: 'desempenho'},
+  {chave: 'expedicao',         texto: 'Expedição',          pagina: '/', hash: '#expedicao',   icone: 'expedicao'},
+  // --- gestao ---
+  {chave: 'painel',        texto: 'Painel geral',       pagina: '/admin.html', hash: '#painel',        icone: 'painel'},
+  {chave: 'marketing',     texto: 'Marketing',          pagina: '/admin.html', hash: '#marketing',     icone: 'marketing'},
+  {chave: 'analytics',     texto: 'Analytics',          pagina: '/admin.html', hash: '#analytics',     icone: 'desempenho'},
+  {chave: 'auditoria',     texto: 'Comissões',          pagina: '/admin.html', hash: '#auditoria',     icone: 'lupa'},
+  {chave: 'metabonus',     texto: 'Meta Bônus',         pagina: '/admin.html', hash: '#metabonus',     icone: 'bonus'},
+  {chave: 'desempenho',    texto: 'Desempenho do time', pagina: '/admin.html', hash: '#desempenho',    icone: 'desempenho'},
+  {chave: 'carros',        texto: 'Carros pra chegar',  pagina: '/admin.html', hash: '#carros',        icone: 'carro'},
+  {chave: 'rh',            texto: 'Gestão de pessoas',  pagina: '/admin.html', hash: '#rh',            icone: 'equipe'},
+  {chave: 'atendimento',   texto: 'Atendimento agora',  pagina: '/admin.html', hash: '#atendimento',   icone: 'retomada'},
+  {chave: 'retomada',      texto: 'Follow-up do time',  pagina: '/admin.html', hash: '#retomada',      icone: 'retomada'},
+  {chave: 'fechamento',    texto: 'Fechamento de mês',  pagina: '/admin.html', hash: '#fechamento',    icone: 'fechamento'},
+  {chave: 'ranking',       texto: 'Ranking de vendas',  pagina: '/painel.html',                        icone: 'ranking'},
+  {chave: 'permissoes',    texto: 'Permissões',         pagina: '/admin.html', hash: '#permissoes',    icone: 'equipe', soMaster: true},
+  {chave: 'configuracoes', texto: 'Configurações',      pagina: '/admin.html', hash: '#configuracoes', icone: 'config', soMaster: true},
 ];
+
+/* Compatibilidade: as duas telas ainda chamam montarSidebar com `portal`.
+   Enquanto isso, o titulo vem daqui — mas o conteudo ja vem das areas. */
+const PORTAIS = {
+  vendedor: {titulo: 'Portal<br><span>Nevada</span>'},
+  gestor:   {titulo: 'Portal<br><span>Nevada</span>'},
+};
 
 function urlExpedicao(){
   return location.hostname.endsWith('.onrender.com')
@@ -225,13 +217,24 @@ function montarSidebar(ativo, opcoes){
   const alvo = document.getElementById('sidebar');
   if(!alvo) return;
 
-  const externos = ITENS_EXTERNOS.filter(it => (cfg.externos || []).includes(it.chave));
-
+  /* O menu nasce das AREAS da pessoa, nao de uma lista fixa por portal.
+     `opcoes.areas` vem de /api/admin/me ou /api/me; sem ela (tela ainda nao
+     sabe quem e), mostra tudo — o servidor recusa o que nao for permitido, e
+     esconder aqui e cortesia, nao seguranca. */
+  const permitidas = opcoes.areas || null;
+  const ehMaster = !!opcoes.master;
+  const itens = ITENS.filter(it => {
+    if(it.soMaster && !ehMaster) return false;
+    return !permitidas || permitidas.includes(it.chave);
+  });
+  // A pagina atual nao precisa recarregar: dentro dela o link e so o hash.
+  const aqui = location.pathname.replace(/index\.html$/, '/') || '/';
   const linkItem = (it) => {
-    const href = it.href || urlExpedicao();
-    const externo = it.chave === 'expedicao' || it.chave === 'ranking';
+    const mesmaPagina = it.pagina === aqui || (it.pagina === '/' && aqui === '/');
+    const href = it.chave === 'expedicao' && !it.hash
+      ? urlExpedicao()
+      : (mesmaPagina && it.hash ? it.hash : it.pagina + (it.hash || ''));
     return '<a class="nav-item' + (it.chave === ativo ? ' ativo' : '') + '" href="' + href + '"'
-      + (externo ? ' target="_blank" rel="noopener"' : '')
       + ' data-nav="' + it.chave + '">' + ICONES[it.icone] + '<span>' + it.texto + '</span>'
       + '<span class="nav-badge oculto" data-badge="' + it.chave + '"></span></a>';
   };
@@ -243,14 +246,9 @@ function montarSidebar(ativo, opcoes){
     + '<button class="sidebar-recolher" id="recolherBtn" title="Guardar menu">' + ICONES.recolher + '</button>'
     + '</div>'
     + '<nav class="nav-lista">'
-    + cfg.itens.map(linkItem).join('')
-    + (externos.length
-        ? '<div class="nav-sep">Outros painéis</div>' + externos.map(linkItem).join('')
-        : '')
+    + itens.map(linkItem).join('')
     + '</nav>'
     + '<div class="sidebar-rodape">'
-    + '<a class="trocar-portal" href="' + cfg.trocar.href + '">' + ICONES.trocar
-    + '<span>' + cfg.trocar.texto + '</span></a>'
     + '<button class="tema-btn" id="temaBtn"></button>'
     + '<div class="perfil">'
     + '<div class="perfil-foto" id="perfilFoto">--</div>'
