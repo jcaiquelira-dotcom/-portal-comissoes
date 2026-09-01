@@ -67,6 +67,14 @@ ENCERRAMENTOS = {
     "grato", "grata", "gratidao", "obrigadao", "tudo sim", "sim tudo", "ah sim",
     "disponha", "imagina", "tranquilo", "tranquila", "suave", "fechado",
     "combinado", "aham", "uhum", "opa", "certinho", "maravilha",
+    # Segunda leva, 01/09/2026: o gestor apontou que a fila continuava cobrando
+    # resposta de quem so tinha se despedido — "a gente fala que nao temos, o
+    # cliente manda ok obrigado, e fica la como sem resposta".
+    "obgd", "blza", "brigadao", "demoro", "ta", "tah", "infelizmente",
+    "tenha um bom dia", "tenha uma boa tarde", "tenha uma boa noite",
+    "obrigado pela atencao", "obrigada pela atencao", "pela atencao",
+    "agradeco", "agradecemos", "ate mais", "ate logo", "falou", "abraco",
+    "bom saber", "que pena", "poxa", "entendido", "anotado", "ciente",
 }
 SO_EMOJI = re.compile(r"^[\W_]+$", re.UNICODE)
 _PONTAS = re.compile(r"^[\W_]+|[\W_]+$", re.UNICODE)
@@ -154,7 +162,10 @@ def _encerramentos():
 # saem do proprio mapa ATENDENTES, pra nao virar lista paralela pra manter.
 REFORCO = {"muito", "mesmo", "entao", "ai", "ja", "e", "eh", "ah", "ok",
            "vc", "voce", "vcs", "ta", "tah", "bom", "boa", "sim", "por", "isso",
-           "tudo", "nada", "de", "pra", "pela", "pelo", "a", "o", "tb", "tbm"}
+           "tudo", "nada", "de", "pra", "pela", "pelo", "a", "o", "tb", "tbm",
+           "bem", "atencao", "dia", "tarde", "noite", "com", "seu", "sua",
+           "tao", "entao", "so", "mais", "demais", "viu", "hein", "ne",
+           "ate", "que", "pena", "logo", "vez", "outra", "qualquer", "coisa"}
 
 
 def so_agradeceu(texto: str) -> bool:
