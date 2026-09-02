@@ -3759,7 +3759,37 @@ def financeiro_consolidado() -> dict:
         meses[chave] = registro
 
     pacote["meses"] = meses
+    pacote["midia_real"] = midia_por_mes()
     return pacote
+
+
+def midia_por_mes() -> dict:
+    """Quanto o Meta e o Google cobraram de anuncio, por mes.
+
+    Vai junto com o financeiro pra tela poder confrontar com o que foi lancado
+    em "Midia paga". Nao e curiosidade: entre janeiro e agosto de 2026 sairam
+    R$ 71.427 de anuncio e so R$ 22.436 apareceram no fluxo — o DRE enxerga um
+    terco do que a empresa gastou pra vender. Enquanto isso nao fechar, nao ha
+    como saber quanto custa trazer um cliente.
+    """
+    d = ler_json(resolver_pasta_dados() / "marketing_gasto.json", None) or {}
+    fora = {}
+    for dia, v in ((d.get("meta") or {}).get("serie_dia") or {}).items():
+        mes = str(dia)[:7]
+        valor = v.get("spend") if isinstance(v, dict) else v
+        fora.setdefault(mes, {"meta": 0.0, "google": 0.0})["meta"] += float(valor or 0)
+    for linha in (d.get("linhas") or []):
+        mes = str(linha.get("data") or "")[:7]
+        if len(mes) != 7:
+            continue
+        alvo = "google" if linha.get("fonte") == "google_ads" else "meta"
+        fora.setdefault(mes, {"meta": 0.0, "google": 0.0})[alvo] += float(
+            linha.get("spend") or 0)
+    for mes, v in fora.items():
+        v["meta"] = round(v["meta"], 2)
+        v["google"] = round(v["google"], 2)
+        v["total"] = round(v["meta"] + v["google"], 2)
+    return fora
 
 
 @app.route("/api/admin/plano-contas")

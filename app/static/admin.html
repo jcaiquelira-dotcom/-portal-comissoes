@@ -214,6 +214,59 @@
     .lc-form .lc-conta-campo{grid-column:1 / -1;}
   }
 
+  /* ---- painel de DRE (dre.js) ---- */
+  .dre-sub{margin:-4px 0 12px;font-size:12.5px;color:var(--muted);}
+  .dre-alertas{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .dre-alerta{display:flex;flex-direction:column;gap:2px;padding:8px 12px;
+    border-radius:8px;border:1px solid var(--line);background:var(--surface);
+    border-left-width:4px;min-width:210px;flex:1;}
+  .dre-alerta b{font-size:12.5px;}
+  .dre-alerta span{font-size:11.5px;color:var(--muted);line-height:1.35;}
+  .dre-alerta.ruim{border-left-color:var(--bad);}
+  .dre-alerta.aviso{border-left-color:var(--warn);}
+
+  /* barras divergentes: sobe pra direita, cai pra esquerda, zero no meio */
+  .dre-mov{display:flex;flex-direction:column;gap:5px;}
+  .dre-mov-linha{display:grid;grid-template-columns:1fr 150px 108px;gap:10px;
+    align-items:center;font-size:12.5px;}
+  .dre-mov-linha .nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .dre-mov-linha .nome em{font-style:normal;font-size:10px;color:var(--muted);
+    border:1px solid var(--line);border-radius:8px;padding:0 5px;margin-left:4px;}
+  .dre-mov-linha .barra{position:relative;height:12px;background:var(--surface-2);
+    border-radius:3px;}
+  .dre-mov-linha .meio{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;
+    background:var(--line);}
+  .dre-mov-linha .f{position:absolute;top:0;bottom:0;border-radius:3px;}
+  .dre-mov-linha .f.sobe{background:var(--bad);}
+  .dre-mov-linha .f.desce{background:var(--good);}
+  .dre-mov-linha .v{text-align:right;font-family:'IBM Plex Mono',monospace;
+    font-size:12px;font-variant-numeric:tabular-nums;}
+  .dre-mov-linha .v.sobe{color:var(--bad);}
+  .dre-mov-linha .v.desce{color:var(--good);}
+
+  .dre-faixa{display:flex;height:26px;border-radius:8px;overflow:hidden;
+    margin-bottom:14px;}
+  .dre-faixa-parte{display:block;height:100%;}
+  .dre-legenda-item{display:grid;grid-template-columns:12px 1fr auto auto;
+    gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);
+    font-size:12.5px;}
+  .dre-legenda-item .ponto{width:10px;height:10px;border-radius:3px;}
+  .dre-legenda-item .val{font-family:'IBM Plex Mono',monospace;font-size:12px;}
+  .dre-legenda-item .val em{font-style:normal;color:var(--muted);font-size:10.5px;}
+  .dre-legenda-item .pct{font-family:'IBM Plex Mono',monospace;color:var(--muted);
+    font-size:11.5px;min-width:44px;text-align:right;}
+  .dre-legenda-item .quais{grid-column:2 / -1;font-size:11px;color:var(--muted);
+    line-height:1.4;}
+  .dre-legenda-item .quais em{font-style:normal;opacity:.7;}
+
+  .dre-legenda-linha{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;
+    color:var(--muted);margin-top:6px;}
+  .dre-legenda-linha i{display:inline-block;width:10px;height:10px;border-radius:3px;
+    margin-right:5px;vertical-align:-1px;}
+
+  .dre-pareto-dentro .nome{font-weight:600;}
+  .dre-pareto-dentro .v em{font-style:normal;color:var(--muted);font-size:11px;}
+
   .dre-tab{width:100%;border-collapse:collapse;font-size:13.5px;}
   .dre-tab td{padding:7px 10px;border-bottom:1px solid var(--line);}
   .dre-tab td:last-child{text-align:right;font-family:'IBM Plex Mono',monospace;
@@ -1358,6 +1411,7 @@
 
 <script src="/portal-nav.js"></script>
 <script src="/desempenho.js"></script>
+<script src="/dre.js"></script>
 <script>
 function fmtMoeda(v){
   return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
@@ -4277,142 +4331,14 @@ document.addEventListener('click', ev => {
 });
 
 /* ---------- tela 2: DRE ---------- */
-const DRE_ORDEM = [
-  ['deducoes',     '(−) Deduções', -1],
-  ['cmv',          '(−) Custo da mercadoria', -1],
-  ['despesas',     '(−) Despesas operacionais', -1],
-  ['investimento', '(−) Investimentos', -1],
-  ['socios',       '(−) Distribuição aos sócios', -1],
-  ['nao_classificado', '(−) Não classificado', -1],
-];
-
 async function carregarDre(){
   const el = document.getElementById('dreCorpo');
   if(!el) return;
   const d = await carregarFinanceiro();
   if(!d || d.sem_dados) return finVazio(el, 'DRE');
-
-  const comDre = Object.keys(d.meses).filter(k => d.meses[k].dre).sort();
-  if(!comDre.length) return finVazio(el, 'DRE');
-  const mesSel = el.dataset.mes && comDre.includes(el.dataset.mes)
-    ? el.dataset.mes : comDre[comDre.length - 1];
-  const m = d.meses[mesSel];
-  const g = m.dre || {};
-  const soma = grupo => Object.values(g[grupo] || {}).reduce((s,i) => s + i.valor, 0);
-  const receita = m.entradas;
-  const pct = v => receita ? `<span class="pct">${(v / receita * 100).toFixed(1).replace('.', ',')}%</span>` : '';
-
-  /* Ordem de um DRE de verdade: o que sai do preço antes de sobrar margem vem
-     primeiro. Investimento e sócios ficam DEPOIS do resultado operacional, e
-     e essa separacao que muda a leitura do mes. */
-  const lucroBruto = receita - soma('deducoes') - soma('cmv');
-  const operacional = lucroBruto - soma('despesas');
-  /* `nao_resultado` (caucao, dinheiro que entra e sai) TEM que entrar aqui:
-     ele esta dentro das saidas do mes, entao sem ele a sobra do DRE fica
-     acima do saldo do fluxo — em agosto/2026 dava R$ 318.797 contra os
-     R$ 313.797 do fluxo, numa linha que diz "confere com o saldo". */
-  const sobra = operacional - soma('investimento') - soma('socios')
-              - soma('nao_resultado') - soma('nao_classificado');
-
-  /* As contas de um grupo do DRE, juntadas pela familia do plano. Familia
-     unica (ou ausente, nos meses antigos que so tem a quebra grossa) cai numa
-     lista simples — subtitulo pra um item so e ruido. */
-  const linhasDe = grupo => {
-    const contas = Object.entries(g[grupo] || {});
-    if(!contas.length) return '';
-    const porFamilia = new Map();
-    for(const [rot, i] of contas){
-      const f = i.familia || '';
-      if(!porFamilia.has(f)) porFamilia.set(f, []);
-      porFamilia.get(f).push([rot, i]);
-    }
-    const item = ([rot, i], classe) => `<tr class="item${classe || ''}">
-      <td>${rot}</td><td>${fmtMoeda(i.valor)}${pct(i.valor)}</td></tr>`;
-    if(porFamilia.size <= 1)
-      return contas.sort((x,y) => y[1].valor - x[1].valor).map(c => item(c)).join('');
-
-    const familias = [...porFamilia.entries()].map(([f, lista]) => ({
-      nome: f, lista: lista.sort((x,y) => y[1].valor - x[1].valor),
-      total: lista.reduce((s,[,i]) => s + i.valor, 0)}));
-    familias.sort((x,y) => y.total - x.total);
-    return familias.map(f => `<tr class="familia"><td>${f.nome}</td>
-        <td>${fmtMoeda(f.total)}${pct(f.total)}</td></tr>`
-      + f.lista.map(c => item(c)).join('')).join('');
-  };
-
-  const bloco = (chave, rotulo) => {
-    const t = soma(chave);
-    if(!t) return '';
-    return `<tr class="grupo"><td>${rotulo}</td><td>${fmtMoeda(t)}${pct(t)}</td></tr>`
-         + linhasDe(chave);
-  };
-
-  const resultado = (rot, v, dica) => `<tr class="resultado ${v >= 0 ? 'bom' : 'ruim'}">
-    <td>${rot}${dica ? `<br><span class="pct" style="margin:0">${dica}</span>` : ''}</td>
-    <td>${fmtMoeda(v)}${pct(v)}</td></tr>`;
-
-  el.innerHTML = `
-    <div class="card" style="margin-bottom:14px;">
-      <div class="aud-cabecalho">
-        <p class="card-titulo" style="margin:0;">DRE</p>
-        <span class="aud-conta">${comDre.length} meses disponíveis</span>
-      </div>
-      <div class="preset-row">${comDre.map(k => `<button class="preset-btn${
-        k === mesSel ? ' active' : ''}" data-dre-mes="${k}">${rotuloMes(k)}</button>`).join('')}</div>
-    </div>
-
-    <div class="dp-grid duas">
-      <div class="card">
-        <p class="card-titulo">Resultado de ${rotuloMes(mesSel)}</p>
-        <div class="tabela-rolante"><table class="dre-tab">
-          <tr class="grupo"><td>RECEITA</td><td>${fmtMoeda(receita)}</td></tr>
-          ${bloco('deducoes', '(−) Deduções')}
-          ${bloco('cmv', '(−) Custo da mercadoria')}
-          ${resultado('= LUCRO BRUTO', lucroBruto)}
-          ${bloco('despesas', '(−) Despesas operacionais')}
-          ${resultado('= RESULTADO OPERACIONAL', operacional,
-                      'o que a operação gerou, antes de investir ou distribuir')}
-          ${bloco('investimento', '(−) Investimentos')}
-          ${bloco('socios', '(−) Distribuição aos sócios')}
-          ${bloco('nao_resultado', '(−) Passou pelo caixa, não é resultado')}
-          ${bloco('nao_classificado', '(−) A classificar')}
-          ${resultado('= SOBRA DE CAIXA', sobra, 'confere com o saldo do fluxo de caixa')}
-        </table></div>
-      </div>
-
-      <div class="card">
-        <p class="card-titulo">Por que isso muda a leitura</p>
-        <div class="dp-lista">
-          <div class="dp-destaque"><span class="rot">Margem operacional</span>
-            <span class="val">${receita ? (operacional / receita * 100).toFixed(1).replace('.',',') : '0'}%</span></div>
-          <div class="dp-destaque"><span class="rot">Custo da mercadoria</span>
-            <span class="val">${receita ? (soma('cmv') / receita * 100).toFixed(1).replace('.',',') : '0'}%</span></div>
-          <div class="dp-destaque"><span class="rot">Não é despesa, mas sai do caixa</span>
-            <span class="val">${fmtMoeda(soma('investimento') + soma('socios'))}</span></div>
-          ${m.a_classificar ? `<div class="dp-destaque"><span class="rot">Ainda sem categoria</span>
-            <span class="val" style="color:var(--bad)">${fmtMoeda(m.a_classificar)}
-              <span class="pct" style="margin-left:4px">${
-                (m.a_classificar / (m.classificado + m.a_classificar) * 100).toFixed(0)}% das saídas</span>
-            </span></div>` : ''}
-        </div>
-        <div class="dp-aviso">
-          <b>Investimento</b> (imóveis, obras, equipamentos) e <b>distribuição aos
-          sócios</b> saem do caixa mas não são custo do negócio: um vira patrimônio,
-          o outro é o próprio lucro sendo repartido. Na planilha os dois somam junto
-          com as despesas, e é por isso que o mês parece pior do que foi — em
-          ${rotuloMes(mesSel)} são <b>${fmtMoeda(soma('investimento') + soma('socios'))}</b>.
-          <br><br><b>Custo da mercadoria</b> é a compra da sucata mais o que ela custa
-          pra virar peça vendável: guincho e oficina. Sem eles a peça não existe pra
-          vender, então são custo de matéria-prima e não despesa operacional.
-          ${m.itens ? `<br><br><b>De onde vem esta quebra:</b> os ${m.itens} lançamentos
-          da planilha deste mês, um a um, classificados no plano de contas. O que
-          o lançamento não deixa saber — "Div.", "Cartão", nome de pessoa solto —
-          fica em <b>A classificar</b> com o rótulo original, em vez de virar
-          palpite dentro de uma categoria.` : ''}
-          ${m.dre_incompleto ? '<br><br><b>⚠ Este mês não fecha:</b> a soma das rubricas não bate com as saídas.' : ''}
-        </div>
-      </div>
-    </div>`;
+  // O desenho mora em dre.js. Aqui fica so o que e da tela: pegar o dado e
+  // dizer qual mes esta selecionado.
+  renderDre(d, el.dataset.mes || '', el);
 }
 
 document.addEventListener('click', ev => {

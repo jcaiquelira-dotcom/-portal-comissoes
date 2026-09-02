@@ -26,7 +26,8 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 TELAS = ["app/static/admin.html", "app/static/index.html",
-         "app/static/portal-nav.js", "app/static/desempenho.js"]
+         "app/static/portal-nav.js", "app/static/desempenho.js",
+         "app/static/dre.js"]
 
 
 def blocos_js(caminho: Path):
@@ -133,6 +134,55 @@ def checar_balanceamento(codigo: str):
     return True, ""
 
 
+# Quais arquivos de JS cada tela carrega. Serve pra pegar colisao de nome entre
+# eles — coisa que a checagem arquivo-a-arquivo nao ve.
+PAGINAS = {
+    "admin.html": ["app/static/portal-nav.js", "app/static/desempenho.js",
+                   "app/static/dre.js", "app/static/admin.html"],
+    "index.html": ["app/static/portal-nav.js", "app/static/desempenho.js",
+                   "app/static/index.html"],
+}
+
+# Declaracao no nivel de cima: sem indentacao nenhuma antes da palavra-chave.
+# E a unica que colide entre arquivos — `const X` dentro de funcao e local.
+DECLARACAO = re.compile(
+    r"^(?:const|let|class)\s+([A-Za-z_$][\w$]*)|^function\s+([A-Za-z_$][\w$]*)",
+    re.M)
+
+
+def declaracoes_de_topo(codigo: str) -> set:
+    return {m.group(1) or m.group(2) for m in DECLARACAO.finditer(codigo)}
+
+
+def checar_colisoes() -> int:
+    """Mesmo nome declarado no topo de dois arquivos da MESMA pagina.
+
+    Existe porque em 02/09/2026 eu criei `const DRE_ORDEM` em dre.js sem ver
+    que admin.html ja tinha um. Cada arquivo passava sozinho nesta checagem, e
+    juntos derrubavam a pagina inteira: "Identifier has already been declared"
+    mata o script inline no parse, entao NENHUMA funcao dele passa a existir.
+    O sintoma na tela e a area do gestor abrindo em branco, sem pista nenhuma.
+    """
+    achados = 0
+    for pagina, arquivos in PAGINAS.items():
+        vistos = {}
+        for rel in arquivos:
+            caminho = RAIZ / rel
+            if not caminho.exists():
+                continue
+            for _rot, codigo, _off in blocos_js(caminho):
+                for nome in declaracoes_de_topo(codigo):
+                    if nome in vistos and vistos[nome] != rel:
+                        achados += 1
+                        print(f"  ERRO {pagina}: '{nome}' declarado em "
+                              f"{vistos[nome]} e tambem em {rel}")
+                    else:
+                        vistos.setdefault(nome, rel)
+    if not achados:
+        print("  ok   nenhum nome colidindo entre os arquivos de cada pagina")
+    return achados
+
+
 def main():
     problemas = 0
     for rel in TELAS:
@@ -151,6 +201,7 @@ def main():
                 problemas += 1
                 print(f"  ERRO {rotulo} ({via}): {msg[:300]}")
                 print(f"       o bloco começa na linha {offset} do arquivo")
+    problemas += checar_colisoes()
     if problemas:
         print(f"\n{problemas} problema(s) — NÃO publique assim.")
         return 1
