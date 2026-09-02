@@ -184,11 +184,10 @@ DRE = {
 
 
 def montar_dre(partes: list) -> dict:
-    """Agrupa as parcelas do mes nas linhas do DRE.
+    """Agrupa as parcelas do mes nas linhas do DRE, pelo BLOCO da planilha.
 
-    Parcela sem rubrica reconhecida vai pra "nao classificado" e aparece na
-    tela. Somar o desconhecido dentro de "despesas" faria o numero parecer
-    completo quando nao e.
+    Fallback: usado so quando nao consigo abrir o mes item a item. Da a quebra
+    grossa — "Diversos", "Fixo" — que e o que existia antes de `montar_dre_contas`.
     """
     grupos = {}
     for p in partes:
@@ -198,6 +197,47 @@ def montar_dre(partes: list) -> dict:
         item["valor"] = round(item["valor"] + p["valor"], 2)
         item["celulas"].append(p["celula"])
     return grupos
+
+
+def montar_dre_contas(itens: list, contas_por_codigo: dict, cc) -> tuple:
+    """Agrupa os lancamentos do mes nas CONTAS do plano.
+
+    Devolve (grupos_do_dre, total_classificado, total_a_classificar).
+
+    `cc` e o modulo `classificar_contas`, passado em vez de importado aqui: o
+    script so poe scripts/ no sys.path depois que main() comeca, entao um
+    import no topo do modulo nao acharia o arquivo.
+
+    O que o classificador nao reconhece nao recebe palpite: vai pra
+    "nao_classificado" com o rotulo que estava escrito na planilha. Empurrar o
+    desconhecido pra dentro de "despesas" faria o mes parecer completo quando
+    nao e — e o erro seria invisivel, porque a soma fecha igual.
+    """
+    grupos = {}
+    classificado = a_classificar = 0.0
+    for i in itens:
+        codigo = cc.classificar(i["rotulo"], i.get("bloco", ""))
+        conta = contas_por_codigo.get(codigo) if codigo else None
+        if conta:
+            grupo = conta["dre"]
+            rotulo = conta["nome"]
+            # O grupo do plano viaja junto pra tela poder subagrupar as
+            # despesas. Sem ele, "Despesas operacionais" seria uma lista plana
+            # de 24 contas — mais detalhe que antes, e igualmente ilegivel.
+            familia = conta["grupo"]
+            classificado += i["valor"]
+        else:
+            grupo = "nao_classificado"
+            rotulo = cc.rotulo_do_buraco(i["rotulo"], i.get("bloco", ""))
+            familia = "A classificar"
+            a_classificar += i["valor"]
+        d = grupos.setdefault(grupo, {})
+        item = d.setdefault(rotulo, {"valor": 0.0, "celulas": [],
+                                     "familia": familia})
+        item["valor"] = round(item["valor"] + i["valor"], 2)
+        if i.get("celula"):
+            item["celulas"].append(i["celula"])
+    return grupos, round(classificado, 2), round(a_classificar, 2)
 
 
 def main() -> int:
@@ -290,6 +330,7 @@ def main() -> int:
         try:
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             import rubricas_fluxo
+            import classificar_contas
             _f, partes = rubricas_fluxo.quebra_do_mes(caminho, aba)
             if partes:
                 soma = round(sum(p["valor"] for p in partes), 2)
@@ -305,7 +346,23 @@ def main() -> int:
                                    "rubrica": "Sucatas"})
                     soma = round(soma + veic, 2)
                 registro["rubricas"] = partes
-                registro["dre"] = montar_dre(partes)
+                # Quebra fina, por conta do plano. Se por algum motivo o mes
+                # nao abrir em itens, cai na quebra grossa por bloco — melhor
+                # o DRE antigo do que DRE nenhum.
+                itens = rubricas_fluxo.itens_do_mes(wb[aba], partes)
+                soma_itens = round(sum(i["valor"] for i in itens), 2)
+                if abs(soma_itens - soma) < 1 and itens:
+                    dre, classif, aclass = montar_dre_contas(
+                        itens, server.CONTAS_POR_CODIGO, classificar_contas)
+                    registro["dre"] = dre
+                    registro["classificado"] = classif
+                    registro["a_classificar"] = aclass
+                    registro["itens"] = len(itens)
+                else:
+                    avisos.append(f"{chave}: nao abriu em itens "
+                                  f"({soma_itens:,.2f} x {soma:,.2f}) — "
+                                  f"DRE ficou na quebra grossa por bloco")
+                    registro["dre"] = montar_dre(partes)
                 # A quebra TEM que fechar nas SAIDAS do mes. Se nao fechar, o
                 # DRE estaria mostrando um mes que nao existe.
                 if abs(soma - saidas) > 1:

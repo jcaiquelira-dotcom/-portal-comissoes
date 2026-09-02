@@ -146,6 +146,68 @@ def detalhar_bloco(ws, aba, cel_subtotal, rubrica):
     return itens
 
 
+def itens_do_bloco(ws, cel_subtotal, alvo):
+    """Os lancamentos que compoem um subtotal, ou None se nao fecharem.
+
+    Mesma tecnica de `detalhar_bloco`: sobe pela coluna ate os itens
+    reconstruirem o subtotal e para ali. Parar pela soma, e nao por contagem de
+    linhas, e o que impede de invadir o bloco de cima — em agosto passava do
+    inicio e engolia os R$ 232.451 de sucata, que sao de outro bloco.
+
+    Nao fechou, devolve None. Bloco que nao fecha nao e o que eu penso que e, e
+    e melhor perder o detalhe do que detalhar errado.
+    """
+    col = openpyxl.utils.column_index_from_string(
+        ''.join(c for c in cel_subtotal if c.isalpha()))
+    lin = int(''.join(c for c in cel_subtotal if c.isdigit()))
+    itens, soma = [], 0.0
+    for r in range(lin - 1, max(0, lin - 45), -1):
+        if abs(soma - alvo) < 1 and itens:
+            break
+        v = ws.cell(row=r, column=col).value
+        rot = ws.cell(row=r, column=col - 1).value
+        if not isinstance(v, (int, float)) or not v:
+            continue
+        itens.append({"rotulo": str(rot or "").strip(), "valor": float(v),
+                      "celula": ws.cell(row=r, column=col).coordinate})
+        soma += v
+    if abs(soma - alvo) > 1:
+        return None
+    return itens
+
+
+def itens_do_mes(ws, partes):
+    """Todo lancamento do mes, um a um, com o bloco de onde saiu.
+
+    O bloco viaja junto porque o rotulo sozinho nao basta pra classificar:
+    "itau" no bloco de Parcelas e uma parcela de financiamento, e "itau" no
+    bloco Fixo e tarifa de conta. Sem o contexto, os dois viram a mesma coisa.
+
+    Subtotal que nao abre entra como uma linha so, marcada — sao Comissoes e
+    Devolucoes, que ja sao categoria pura e nao precisam abrir.
+    """
+    saida = []
+    for p in partes:
+        bloco = p["rubrica"]
+        if "detalhe" in p:            # ja veio item, de um bloco misturado
+            saida.append({"rotulo": p["detalhe"], "valor": p["valor"],
+                          "bloco": bloco, "celula": p.get("celula", "")})
+            continue
+        cel = p.get("celula")
+        if not cel or cel == "(Veiculos)":
+            saida.append({"rotulo": "(Veiculos)", "valor": p["valor"],
+                          "bloco": bloco, "celula": cel or ""})
+            continue
+        itens = itens_do_bloco(ws, cel, p["valor"])
+        if itens is None:
+            saida.append({"rotulo": "(bloco inteiro)", "valor": p["valor"],
+                          "bloco": bloco, "celula": cel})
+            continue
+        for i in itens:
+            saida.append({**i, "bloco": bloco})
+    return saida
+
+
 def quebra_do_mes(caminho, aba):
     wv = openpyxl.load_workbook(caminho, data_only=True)
     wf = openpyxl.load_workbook(caminho, data_only=False)

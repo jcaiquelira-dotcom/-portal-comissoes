@@ -219,7 +219,12 @@
   .dre-tab td:last-child{text-align:right;font-family:'IBM Plex Mono',monospace;
     white-space:nowrap;}
   .dre-tab tr.grupo td{font-weight:700;background:var(--surface-2);}
-  .dre-tab tr.item td:first-child{padding-left:28px;color:var(--muted);}
+  .dre-tab tr.item td:first-child{padding-left:36px;color:var(--muted);}
+  .dre-tab tr.familia td{padding-left:20px;font-weight:600;font-size:12.5px;
+    color:var(--text);background:color-mix(in srgb,var(--surface-2) 45%,transparent);}
+  .dre-tab tr.familia td:last-child{font-weight:600;}
+  .dre-tab tr.buraco td{color:var(--bad);}
+  .dre-vazio{font-size:12px;color:var(--muted);padding:2px 0 0 36px;}
   .dre-tab tr.resultado td{font-weight:700;font-size:15px;
     border-top:2px solid var(--line);border-bottom:2px solid var(--line);}
   .dre-tab tr.resultado.bom td:last-child{color:var(--good);}
@@ -4302,12 +4307,38 @@ async function carregarDre(){
      e essa separacao que muda a leitura do mes. */
   const lucroBruto = receita - soma('deducoes') - soma('cmv');
   const operacional = lucroBruto - soma('despesas');
-  const sobra = operacional - soma('investimento') - soma('socios') - soma('nao_classificado');
+  /* `nao_resultado` (caucao, dinheiro que entra e sai) TEM que entrar aqui:
+     ele esta dentro das saidas do mes, entao sem ele a sobra do DRE fica
+     acima do saldo do fluxo — em agosto/2026 dava R$ 318.797 contra os
+     R$ 313.797 do fluxo, numa linha que diz "confere com o saldo". */
+  const sobra = operacional - soma('investimento') - soma('socios')
+              - soma('nao_resultado') - soma('nao_classificado');
 
-  const linhasDe = grupo => Object.entries(g[grupo] || {})
-    .sort((x,y) => y[1].valor - x[1].valor)
-    .map(([rot, i]) => `<tr class="item"><td>${rot}</td>
-      <td>${fmtMoeda(i.valor)}${pct(i.valor)}</td></tr>`).join('');
+  /* As contas de um grupo do DRE, juntadas pela familia do plano. Familia
+     unica (ou ausente, nos meses antigos que so tem a quebra grossa) cai numa
+     lista simples — subtitulo pra um item so e ruido. */
+  const linhasDe = grupo => {
+    const contas = Object.entries(g[grupo] || {});
+    if(!contas.length) return '';
+    const porFamilia = new Map();
+    for(const [rot, i] of contas){
+      const f = i.familia || '';
+      if(!porFamilia.has(f)) porFamilia.set(f, []);
+      porFamilia.get(f).push([rot, i]);
+    }
+    const item = ([rot, i], classe) => `<tr class="item${classe || ''}">
+      <td>${rot}</td><td>${fmtMoeda(i.valor)}${pct(i.valor)}</td></tr>`;
+    if(porFamilia.size <= 1)
+      return contas.sort((x,y) => y[1].valor - x[1].valor).map(c => item(c)).join('');
+
+    const familias = [...porFamilia.entries()].map(([f, lista]) => ({
+      nome: f, lista: lista.sort((x,y) => y[1].valor - x[1].valor),
+      total: lista.reduce((s,[,i]) => s + i.valor, 0)}));
+    familias.sort((x,y) => y.total - x.total);
+    return familias.map(f => `<tr class="familia"><td>${f.nome}</td>
+        <td>${fmtMoeda(f.total)}${pct(f.total)}</td></tr>`
+      + f.lista.map(c => item(c)).join('')).join('');
+  };
 
   const bloco = (chave, rotulo) => {
     const t = soma(chave);
@@ -4343,7 +4374,8 @@ async function carregarDre(){
                       'o que a operação gerou, antes de investir ou distribuir')}
           ${bloco('investimento', '(−) Investimentos')}
           ${bloco('socios', '(−) Distribuição aos sócios')}
-          ${bloco('nao_classificado', '(−) Não classificado')}
+          ${bloco('nao_resultado', '(−) Passou pelo caixa, não é resultado')}
+          ${bloco('nao_classificado', '(−) A classificar')}
           ${resultado('= SOBRA DE CAIXA', sobra, 'confere com o saldo do fluxo de caixa')}
         </table></div>
       </div>
@@ -4357,6 +4389,11 @@ async function carregarDre(){
             <span class="val">${receita ? (soma('cmv') / receita * 100).toFixed(1).replace('.',',') : '0'}%</span></div>
           <div class="dp-destaque"><span class="rot">Não é despesa, mas sai do caixa</span>
             <span class="val">${fmtMoeda(soma('investimento') + soma('socios'))}</span></div>
+          ${m.a_classificar ? `<div class="dp-destaque"><span class="rot">Ainda sem categoria</span>
+            <span class="val" style="color:var(--bad)">${fmtMoeda(m.a_classificar)}
+              <span class="pct" style="margin-left:4px">${
+                (m.a_classificar / (m.classificado + m.a_classificar) * 100).toFixed(0)}% das saídas</span>
+            </span></div>` : ''}
         </div>
         <div class="dp-aviso">
           <b>Investimento</b> (imóveis, obras, equipamentos) e <b>distribuição aos
@@ -4367,6 +4404,11 @@ async function carregarDre(){
           <br><br><b>Custo da mercadoria</b> é a compra da sucata mais o que ela custa
           pra virar peça vendável: guincho e oficina. Sem eles a peça não existe pra
           vender, então são custo de matéria-prima e não despesa operacional.
+          ${m.itens ? `<br><br><b>De onde vem esta quebra:</b> os ${m.itens} lançamentos
+          da planilha deste mês, um a um, classificados no plano de contas. O que
+          o lançamento não deixa saber — "Div.", "Cartão", nome de pessoa solto —
+          fica em <b>A classificar</b> com o rótulo original, em vez de virar
+          palpite dentro de uma categoria.` : ''}
           ${m.dre_incompleto ? '<br><br><b>⚠ Este mês não fecha:</b> a soma das rubricas não bate com as saídas.' : ''}
         </div>
       </div>
