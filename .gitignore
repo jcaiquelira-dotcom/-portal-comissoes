@@ -1,4 +1,8 @@
 .env
+# qualquer variante de .env tambem: os backups de troca de chave
+# (.env.bak-*, .env.chave-*) carregam a chave de API em texto puro.
+.env.*
+*.bak
 eventos.db
 vendas.db
 insights_output.txt

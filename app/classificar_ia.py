@@ -239,6 +239,16 @@ def main():
                     falta = (len(alvo) - _custo["feitos"]) / ritmo / 60
                     print(f"  {_custo['feitos']}/{len(alvo)}  "
                           f"({ritmo*60:.0f}/min, faltam ~{falta:.0f} min)", flush=True)
+            # Leitura vazia (parse falhou, modelo devolveu fora do schema) conta
+            # como erro DESTA conversa e para aqui. Em 02/09/2026 uma unica
+            # dessas passou adiante — a tupla (sid, None, ...) e "verdadeira",
+            # escapou do `if not r` e explodiu dentro do gravar. O laco morreu
+            # apos 100 salvas enquanto as 2.859 chamadas ja na fila do pool
+            # seguiram rodando e cobrando: ~US$ 14 pagos e jogados fora.
+            if res is None:
+                with _lock:
+                    _custo["erros"] += 1
+                return None
             return sid, res, ent, sai
         except Exception as e:  # rede, rate limit, recusa — registra e segue
             # Credito acabado ou chave invalida nao e falha de uma conversa: e
@@ -263,11 +273,24 @@ def main():
     preparar_tabela(conn)
 
     def gravar(lote):
+        # Monta linha a linha e descarta a torta: gravar e o unico ponto onde o
+        # trabalho ja PAGO vira permanente, entao ele nunca pode levantar. Um
+        # registro ruim custa uma conversa; uma excecao aqui custa a rodada.
+        linhas = []
+        for sid, a, ent, sai in lote:
+            try:
+                linhas.append((sid, int(a.virou_venda), a.confianca_venda,
+                               a.motivo_nao_venda, a.peca_procurada,
+                               a.tinhamos_a_peca, a.tipo_cliente, a.resumo,
+                               ent, sai, MODELO))
+            except AttributeError:
+                with _lock:
+                    _custo["erros"] += 1
+        if not linhas:
+            return
         conn.executemany(
             "INSERT OR REPLACE INTO classificacao_ia VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            [(sid, int(a.virou_venda), a.confianca_venda, a.motivo_nao_venda,
-              a.peca_procurada, a.tinhamos_a_peca, a.tipo_cliente, a.resumo, ent, sai, MODELO)
-             for sid, a, ent, sai in lote],
+            linhas,
         )
         conn.commit()
 
@@ -276,7 +299,7 @@ def main():
     with ThreadPoolExecutor(max_workers=CONCORRENCIA) as pool:
         for fut in as_completed([pool.submit(tarefa, s) for s in alvo]):
             r = fut.result()
-            if not r:
+            if not r or r[1] is None:
                 continue
             pendentes.append(r)
             if len(pendentes) >= GRAVAR_A_CADA:
