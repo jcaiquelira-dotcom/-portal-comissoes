@@ -40,7 +40,7 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
-from openpyxl.formatting.rule import CellIsRule
+from openpyxl.formatting.rule import CellIsRule, FormulaRule
 
 MESES = ["Jan", "Fev", "Mar", "Abr", "Maio", "Jun",
          "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
@@ -206,6 +206,22 @@ def aba_mes(wb, mes, plano, formas, ano):
     ws.conditional_formatting.add("G8", CellIsRule(
         operator="greaterThan", formula=["0.02"], font=Font(bold=True, color=VERMELHO)))
 
+    # Quanto do mes tem valor mas nao tem categoria. Sem esta conta o DRE
+    # perderia essas linhas em silencio e a Sobra de Caixa deixaria de fechar
+    # com o Saldo — que e justamente o numero que amarra os dois relatorios.
+    ws["F9"] = "Falta escolher a categoria"
+    ws["F9"].font = Font(size=10, color="808080")
+    ws["G9"] = '=SUMIFS($D$6:$D$%d,$B$6:$B$%d,"")' % (ult, ult)
+    ws["G9"].number_format = DINHEIRO
+    ws.conditional_formatting.add("G9", CellIsRule(
+        operator="greaterThan", formula=["0"], font=Font(bold=True, color=VERMELHO)))
+
+    # E a linha em si fica vermelha, pra ele achar sem procurar.
+    ws.conditional_formatting.add(
+        "A6:F%d" % ult,
+        FormulaRule(formula=['AND($D6<>"",$B6="")'],
+                    fill=PatternFill("solid", fgColor="FDE3E1")))
+
     # --- a tabela de lancamentos --------------------------------------------
     cabecalho = ["Dia", "Categoria", "Histórico — quem e o quê", "Valor",
                  "Como pagou", "Grupo (automático)"]
@@ -328,6 +344,7 @@ def aba_dre(wb, plano, ano):
         ("investimento", "(−) INVESTIMENTO E OBRA"),
         ("socios", "(−) DISTRIBUIÇÃO DE LUCRO"),
         ("nao_resultado", "(−) SÓ PASSOU PELO CAIXA"),
+        ("__sem_categoria__", "(−) SEM CATEGORIA ESCOLHIDA"),
         (None, "SOBRA DE CAIXA"),
     ]
     por_dre = {}
@@ -340,6 +357,12 @@ def aba_dre(wb, plano, ano):
         if chave is None:
             marcos[rotulo] = r
             linha_titulo(r, rotulo, fundo="CFE0F5")
+            r += 1
+            continue
+        if chave == "__sem_categoria__":
+            marcos[rotulo] = r
+            linha_titulo(r, rotulo, fundo="FDE3E1",
+                         formula_por_mes=lambda col: "='%s'!$G$9" % MESES[col - 3])
             r += 1
             continue
         contas = por_dre.get(chave, [])
@@ -377,7 +400,8 @@ def aba_dre(wb, plano, ano):
     def sobra(L):
         partes = [marcos.get(k) for k in ("(−) INVESTIMENTO E OBRA",
                                           "(−) DISTRIBUIÇÃO DE LUCRO",
-                                          "(−) SÓ PASSOU PELO CAIXA")]
+                                          "(−) SÓ PASSOU PELO CAIXA",
+                                          "(−) SEM CATEGORIA ESCOLHIDA")]
         expr = "={0}{1}".format(L, marcos["RESULTADO OPERACIONAL"])
         for p in partes:
             if p:
