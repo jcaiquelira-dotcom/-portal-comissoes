@@ -49,7 +49,10 @@ SAIDA_PERIODO = ROOT / "_windsor_periodo.json"
 
 # A versao entra na URL. Subir de versao e uma decisao consciente, nao algo que
 # acontece sozinho: o Google aposenta versoes antigas com meses de aviso.
-VERSAO = "v18"
+# A v18 saiu do ar; em 02/09/2026 as vivas eram v22 e v23, e v18-v21 davam
+# 404 com pagina HTML de erro — que nao parece problema de versao nenhum.
+# O Google aposenta uma versao por ano: quando voltar 404 em HTML, e isto.
+VERSAO = "v22"
 BASE = f"https://googleads.googleapis.com/{VERSAO}"
 
 
@@ -158,14 +161,100 @@ def coletar(cred: dict, access: str, de: str, ate: str) -> list:
     return linhas
 
 
+def termos_de_busca(cred, access, de, ate) -> list:
+    """O que a pessoa DIGITOU pra o anuncio aparecer.
+
+    Isto e diferente da palavra-chave que voce comprou: a palavra-chave e o
+    alvo, o termo e o tiro. Quem compra "peca usada" em correspondencia ampla
+    paga tambem por "peca usada e roubada", "onde vender peca usada" e
+    "peca usada barata gratis" — e so esta consulta mostra isso.
+
+    E o dado que vira dinheiro mais rapido do painel inteiro, porque a acao e
+    imediata: termo que gasta e nao clica vira palavra negativa e o gasto para
+    no mesmo dia.
+
+    `search_term_view` e por termo + dia. Agrego por termo aqui: o gestor
+    decide sobre o termo, nao sobre o termo-naquele-dia, e a serie diaria de um
+    termo com 3 cliques no mes e ruido.
+    """
+    # NAO peca `segments.keyword.info.text` aqui. Ele parece util — seria a
+    # palavra-chave comprada ao lado do termo digitado — mas campanha de
+    # Shopping e Performance Max nao tem palavra-chave, e o Google responde
+    # ZERO LINHA em vez de erro ou de campo vazio. Com esse campo a consulta
+    # devolvia 0; sem ele, 34.300. Um filtro silencioso que parece "a conta nao
+    # tem termo nenhum", que foi exatamente a conclusao errada que eu tirei.
+    gaql = f"""
+        SELECT search_term_view.search_term,
+               campaign.name, metrics.cost_micros, metrics.clicks,
+               metrics.impressions, metrics.conversions
+          FROM search_term_view
+         WHERE segments.date BETWEEN '{de}' AND '{ate}'
+    """
+    juntos = {}
+    for res in consultar(cred, access, gaql):
+        r = _achatar(res)
+        termo = (r.get("searchTermView.searchTerm")
+                 or r.get("search_term_view.search_term") or "").strip()
+        if not termo:
+            continue
+        a = juntos.setdefault(termo, {
+            "termo": termo, "spend": 0.0, "clicks": 0, "impressions": 0,
+            "conversions": 0.0, "palavra_comprada": set(), "campanhas": set()})
+        a["spend"] += int(r.get("metrics.costMicros") or 0) / 1_000_000
+        a["clicks"] += int(r.get("metrics.clicks") or 0)
+        a["impressions"] += int(r.get("metrics.impressions") or 0)
+        a["conversions"] += float(r.get("metrics.conversions") or 0)
+        if r.get("campaign.name"):
+            a["campanhas"].add(r["campaign.name"])
+
+    saida = []
+    for a in juntos.values():
+        a["spend"] = round(a["spend"], 2)
+        a["conversions"] = round(a["conversions"], 2)
+        a["palavra_comprada"] = sorted(a["palavra_comprada"])[:3]
+        a["campanhas"] = sorted(a["campanhas"])[:3]
+        a["ctr"] = round(a["clicks"] / a["impressions"] * 100, 2) if a["impressions"] else 0.0
+        a["custo_por_clique"] = round(a["spend"] / a["clicks"], 2) if a["clicks"] else None
+        saida.append(a)
+    return sorted(saida, key=lambda x: -x["spend"])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--testar", action="store_true",
                     help="so confere se a credencial responde, sem gravar nada")
+    ap.add_argument("--termos", action="store_true",
+                    help="mostra os termos de busca que dispararam os anuncios")
     args = ap.parse_args()
 
     cred = _cred()
     access = token_de_acesso(cred)
+
+    if args.termos:
+        hoje = date.today()
+        de = (hoje - timedelta(days=90)).isoformat()
+        termos = termos_de_busca(cred, access, de, hoje.isoformat())
+        gasto = sum(t["spend"] for t in termos)
+        print(f"{len(termos)} termos em 90 dias | R$ {gasto:,.2f}\n")
+        print("--- ONDE O DINHEIRO ESTA INDO ---")
+        print("%9s %6s %6s %7s  %s" % ("gasto", "cliq", "impr", "CTR", "termo"))
+        for t in termos[:20]:
+            print("%9.2f %6d %6d %6.1f%%  %s"
+                  % (t["spend"], t["clicks"], t["impressions"], t["ctr"], t["termo"][:56]))
+        # Gasta e ninguem clica: e a lista que vira palavra negativa hoje mesmo.
+        queima = [t for t in termos if t["spend"] >= 5 and t["clicks"] == 0]
+        if queima:
+            print(f"\n--- PAGOU E NINGUEM CLICOU (R$ {sum(t['spend'] for t in queima):,.2f}) ---")
+            for t in sorted(queima, key=lambda x: -x["spend"])[:15]:
+                print("%9.2f %6s %6d %7s  %s"
+                      % (t["spend"], "0", t["impressions"], "0%", t["termo"][:56]))
+        caro = [t for t in termos if t["clicks"] >= 3 and (t["custo_por_clique"] or 0) >= 2]
+        if caro:
+            print("\n--- CLIQUE MAIS CARO ---")
+            for t in sorted(caro, key=lambda x: -(x["custo_por_clique"] or 0))[:10]:
+                print("%9.2f %6d %6s R$%5.2f/clique  %s"
+                      % (t["spend"], t["clicks"], "", t["custo_por_clique"], t["termo"][:48]))
+        return
 
     if args.testar:
         nome = consultar(cred, access,

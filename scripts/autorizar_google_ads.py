@@ -41,6 +41,32 @@ DESTINO = Path(r"G:\Meu Drive\portal-comissoes\segredos\google_ads.json")
 ESCOPO = " ".join([
     "https://www.googleapis.com/auth/adwords",
     "https://www.googleapis.com/auth/analytics.readonly",
+    # Planilhas de comissao (01/09/2026): o gestor mantem uma planilha por
+    # vendedor no Drive e o portal precisa le-las. Sao dois escopos separados
+    # de proposito:
+    #   spreadsheets.readonly  -> le o conteudo das planilhas
+    #   drive.metadata.readonly -> acha o arquivo pelo NOME e devolve o id.
+    # O segundo e so metadado: da pra listar nome e id, nao da pra abrir o
+    # conteudo de nenhum outro arquivo do Drive. Pedir drive.readonly inteiro
+    # daria acesso de leitura a tudo que o gestor tem la, o que e muito mais
+    # do que esta tarefa precisa.
+    "https://www.googleapis.com/auth/spreadsheets.readonly",
+    "https://www.googleapis.com/auth/drive.metadata.readonly",
+    # Perfil da Empresa (02/09/2026). Mesmo motivo do Google Ads: o plano
+    # basico do Windsor so deixa UMA fonte conectada por vez, entao Ads, Meta e
+    # Perfil se revezavam e quem ficava de fora congelava sem avisar — o Perfil
+    # parou em 30/08 assim. Com o Ads saindo do Windsor pela API, tirar o
+    # Perfil tambem deixa a vaga livre pro Meta em definitivo.
+    #
+    # `business.manage` e o unico escopo que a Business Profile Performance API
+    # aceita; nao existe versao readonly dela. O que o portal faz com ele e so
+    # ler metrica diaria e termo de busca — nunca escreve no perfil.
+    "https://www.googleapis.com/auth/business.manage",
+    # Search Console (02/09/2026): a unica fonte que mostra o que o site ganha
+    # SEM pagar anuncio — quais buscas trazem clique de graca, em que posicao a
+    # loja aparece, e o que aparece muito mas ninguem clica. Tem escopo
+    # readonly de verdade, diferente do Perfil.
+    "https://www.googleapis.com/auth/webmasters.readonly",
 ])
 _recebido = {}
 
@@ -171,9 +197,10 @@ def main():
     DESTINO.parent.mkdir(parents=True, exist_ok=True)
     DESTINO.write_text(json.dumps(cred, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\nrefresh_token gravado em {DESTINO}")
-    print("Esse arquivo fica fora do git. Agora confira as duas conexoes:")
-    print("    python app/analytics_api.py --testar   (funciona ja)")
-    print("    python app/google_ads_api.py --testar  (so depois da aprovacao)")
+    print("Esse arquivo fica fora do git. Agora confira as conexoes:")
+    print("    python app/analytics_api.py --testar")
+    print("    python app/google_ads_api.py --testar")
+    print("    python app/perfil_google_api.py --testar")
 
 
 if __name__ == "__main__":
