@@ -171,6 +171,49 @@
   /* DRE: hierarquia por indentacao e peso, nao por cor. Um demonstrativo se le
      de cima pra baixo somando e subtraindo — a linha de resultado tem que
      saltar sem depender de o leitor distinguir tons. */
+  /* ---- lancamentos ---- */
+  .lc-form{display:grid;grid-template-columns:120px 1fr 130px;gap:10px;align-items:end;}
+  .lc-form .lc-larga{grid-column:1 / -1;}
+  .lc-form .lc-conta-campo{grid-column:2 / -1;}
+  .lc-form label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;
+    color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;}
+  .lc-form input,.lc-form select{padding:8px 10px;border:1px solid var(--line);
+    border-radius:6px;background:var(--surface);color:var(--text);font:inherit;
+    font-size:13.5px;width:100%;}
+  .lc-form input:focus,.lc-form select:focus{outline:2px solid var(--accent);
+    outline-offset:1px;border-color:var(--accent);}
+  .lc-ajuda{font-size:11.5px;color:var(--muted);text-transform:none;
+    letter-spacing:0;font-weight:400;min-height:15px;}
+  .lc-teto{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:12.5px;}
+  .lc-barra{flex:1;height:6px;border-radius:3px;background:var(--surface-2);
+    overflow:hidden;}
+  .lc-barra span{display:block;height:100%;background:var(--good);
+    transition:width .3s;}
+  .lc-barra.estourou span{background:var(--bad);}
+  .lc-lista{width:100%;border-collapse:collapse;font-size:13px;}
+  .lc-lista th{text-align:left;font-size:11px;text-transform:uppercase;
+    letter-spacing:.05em;color:var(--muted);padding:6px 8px;
+    border-bottom:1px solid var(--line);font-weight:600;}
+  .lc-lista td{padding:7px 8px;border-bottom:1px solid var(--line);
+    vertical-align:top;}
+  .lc-lista td.val{text-align:right;font-family:'IBM Plex Mono',monospace;
+    white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .lc-lista td.val.ent{color:var(--good);}
+  .lc-conta{font-weight:600;}
+  .lc-hist{color:var(--muted);font-size:12px;}
+  .lc-forma{font-size:11px;color:var(--muted);border:1px solid var(--line);
+    border-radius:10px;padding:1px 7px;white-space:nowrap;}
+  .lc-apagar{background:none;border:none;color:var(--muted);cursor:pointer;
+    font-size:15px;line-height:1;padding:2px 6px;border-radius:4px;}
+  .lc-apagar:hover{color:var(--bad);background:var(--surface-2);}
+  @media(max-width:640px){
+    .lc-form{grid-template-columns:1fr;}
+    /* Sem isto a Conta continuaria pedindo a coluna 2 e o grid criaria
+       uma segunda coluna implicita — a tela ficava com um layout que
+       nao e nem o de celular nem o de desktop. */
+    .lc-form .lc-conta-campo{grid-column:1 / -1;}
+  }
+
   .dre-tab{width:100%;border-collapse:collapse;font-size:13.5px;}
   .dre-tab td{padding:7px 10px;border-bottom:1px solid var(--line);}
   .dre-tab td:last-child{text-align:right;font-family:'IBM Plex Mono',monospace;
@@ -186,6 +229,9 @@
   /* Barras do fluxo: entrada pra cima, saida pra baixo, a partir de uma linha
      do meio. E o desenho que responde "sobrou ou faltou?" antes de qualquer
      numero ser lido. */
+  .fx-fonte{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);border:1px solid var(--line);border-radius:8px;
+    padding:0 5px;margin-left:5px;vertical-align:1px;}
   .fx-linha{display:grid;grid-template-columns:64px 1fr 108px 104px;
     align-items:center;gap:9px;padding:3px 0;}
   .fx-mes{font-size:12px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
@@ -1166,6 +1212,9 @@
         </div>
       </div>
     </section>
+
+    <!-- ---------- LANÇAMENTOS ---------- -->
+    <section id="secLancamentos" class="oculto"><div id="lancCorpo"></div></section>
 
     <!-- ---------- FLUXO DE CAIXA ---------- -->
     <section id="secFluxoCaixa" class="oculto"><div id="fluxoCorpo"></div></section>
@@ -3873,6 +3922,233 @@ function mktPeriodoPadrao(){
   return {de: primeiroDiaMes(), ate: todayStr()};
 }
 
+/* ---------- Lançamentos ----------
+   Conta escolhida de lista fechada, histórico livre ao lado. São dois campos
+   de propósito: hoje é um só, e por isso R$ 327.497 do ano estão lançados como
+   "Cartão" — que responde por onde o dinheiro saiu e nunca o que foi comprado.
+
+   O plano de contas vem do servidor a cada carga. Ter uma cópia da lista aqui
+   pareceria mais rápido e criaria duas verdades que divergem no primeiro
+   ajuste que alguém fizer só de um lado. */
+let planoContas = null;
+
+async function carregarPlanoContas(){
+  if(planoContas) return planoContas;
+  const r = await fetch('/api/admin/plano-contas');
+  if(!r.ok) return null;
+  planoContas = await r.json();
+  return planoContas;
+}
+
+function lancMesSel(){
+  const el = document.getElementById('lancCorpo');
+  return (el && el.dataset.mes) || diaBR().slice(0,7);
+}
+
+async function carregarLancamentos(){
+  const el = document.getElementById('lancCorpo');
+  if(!el) return;
+  const plano = await carregarPlanoContas();
+  if(!plano) return;
+  const mes = lancMesSel();
+  const r = await fetch('/api/admin/lancamentos?mes=' + mes);
+  if(!r.ok) return;
+  const d = await r.json();
+  el.dataset.mes = d.mes;
+  pintarLancamentos(el, plano, d);
+}
+
+function pintarLancamentos(el, plano, d){
+  const res = d.resumo;
+  const estourou = res.gerais_pct > res.teto_pct;
+  // A barra mede o quanto do teto ja foi usado, e nao o percentual em si:
+  // 12,5% num teto de 2% e "seis vezes o limite", nao "12% da barra".
+  const usoTeto = Math.min(100, res.teto_pct ? res.gerais_pct / res.teto_pct * 100 : 0);
+
+  const opcoes = plano.plano.map(b =>
+    `<optgroup label="${b.grupo}">` + b.contas.map(c =>
+      `<option value="${c.codigo}" data-ajuda="${(c.ajuda || '').replace(/"/g,'&quot;')}"
+        >${c.codigo} · ${c.nome}</option>`).join('') + '</optgroup>').join('');
+
+  const linhas = d.lancamentos.map(l => {
+    const c = lancConta(plano, l.conta) || {nome: l.conta, entrada: false};
+    return `<tr>
+      <td style="white-space:nowrap;color:var(--muted);">${l.data.slice(8,10)}/${l.data.slice(5,7)}</td>
+      <td><span class="lc-conta">${c.nome}</span>
+          <div class="lc-hist">${escaparHtml(l.historico || '')}</div></td>
+      <td>${l.forma ? `<span class="lc-forma">${escaparHtml(l.forma)}</span>` : ''}</td>
+      <td class="val${c.entrada ? ' ent' : ''}">${c.entrada ? '+' : '−'} ${fmtMoeda(l.valor).replace('R$','').trim()}</td>
+      <td style="width:34px;">${d.fechado ? '' :
+        `<button class="lc-apagar" data-apagar-lanc="${l.id}" title="Apagar">×</button>`}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="dp-grid duas" style="align-items:start;">
+      <div class="card">
+        <p class="card-titulo">Novo lançamento</p>
+        ${d.fechado ? `<div class="dp-aviso" style="margin-top:0;">
+          <b>${rotuloMes(d.mes)} está fechado.</b> Pra lançar aqui, reabra o mês
+          em Fechamento de mês.</div>` : `
+        <form class="lc-form" id="lancForm" autocomplete="off">
+          <label>Data
+            <input type="date" id="lcData" value="${diaBR()}" required></label>
+          <label class="lc-conta-campo">Conta
+            <select id="lcConta" required>
+              <option value="">— escolha —</option>${opcoes}
+            </select></label>
+          <div class="lc-larga lc-ajuda" id="lcAjuda"></div>
+          <label>Valor
+            <input type="text" id="lcValor" inputmode="decimal" placeholder="0,00" required></label>
+          <label>Histórico — quem e o quê
+            <input type="text" id="lcHistorico" maxlength="180" required
+                   placeholder="Amaral — retífica do motor do Jetta"></label>
+          <label>Como pagou
+            <select id="lcForma"><option value="">—</option>
+              ${plano.formas.map(f => `<option>${f}</option>`).join('')}
+            </select></label>
+          <div class="lc-larga" style="display:flex;gap:10px;align-items:center;">
+            <button class="btn" type="submit">Lançar</button>
+            <span class="status-msg" id="lcStatus"></span>
+          </div>
+        </form>`}
+        <div class="dp-aviso" style="margin-bottom:0;">
+          O nome do fornecedor vai no <b>histórico</b>, nunca na conta. Assim você
+          continua sabendo quem recebeu, e passa a saber por quê.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="aud-cabecalho">
+          <p class="card-titulo" style="margin:0;">${rotuloMes(d.mes)}</p>
+          <input type="month" value="${d.mes}" id="lcMes"
+                 style="padding:5px 8px;border:1px solid var(--line);border-radius:6px;
+                        background:var(--surface);color:var(--text);font:inherit;font-size:12.5px;">
+        </div>
+        <div class="dp-lista">
+          <div class="dp-destaque"><span class="rot">Entradas</span>
+            <span class="val" style="color:var(--good)">${fmtMoeda(res.entradas)}</span></div>
+          <div class="dp-destaque"><span class="rot">Saídas</span>
+            <span class="val">${fmtMoeda(res.saidas)}</span></div>
+          <div class="dp-destaque"><span class="rot">Saldo</span>
+            <span class="val" style="color:var(--${res.saldo >= 0 ? 'good' : 'bad'})">${fmtMoeda(res.saldo)}</span></div>
+        </div>
+        <div class="lc-teto">
+          <span>Despesas gerais</span>
+          <span class="lc-barra${estourou ? ' estourou' : ''}"><span style="width:${usoTeto}%"></span></span>
+          <span style="font-family:'IBM Plex Mono',monospace;color:var(--${estourou ? 'bad' : 'muted'})">
+            ${res.gerais_pct.toFixed(1).replace('.',',')}% / ${res.teto_pct}%</span>
+        </div>
+        <div class="dp-aviso" style="margin-bottom:0;">
+          ${estourou
+            ? `<b>Passou do teto.</b> ${fmtMoeda(res.gerais)} em Despesas gerais é
+               mais que ${res.teto_pct}% das saídas do mês — tem coisa aí dentro que
+               pertence a outra conta. Vale abrir antes de fechar o mês.`
+            : `Toda planilha precisa de uma conta de sobra, senão o lançamento trava
+               e alguém inventa um rótulo. Essa é a única — e o teto de ${res.teto_pct}%
+               é o que impede ela de virar o "Div." de novo.`}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="aud-cabecalho">
+        <p class="card-titulo" style="margin:0;">Lançamentos do mês</p>
+        <span class="aud-conta">${d.lancamentos.length} ${d.lancamentos.length === 1 ? 'lançamento' : 'lançamentos'}</span>
+      </div>
+      ${d.lancamentos.length ? `<div class="tabela-rolante"><table class="lc-lista">
+        <thead><tr><th>Dia</th><th>Conta e histórico</th><th>Pagto</th>
+          <th style="text-align:right">Valor</th><th></th></tr></thead>
+        <tbody>${linhas}</tbody></table></div>`
+        : `<div class="dp-aviso" style="margin-bottom:0;">Nenhum lançamento em
+           ${rotuloMes(d.mes)} ainda.</div>`}
+    </div>`;
+}
+
+function lancConta(plano, codigo){
+  for(const b of plano.plano){
+    const c = b.contas.find(x => x.codigo === codigo);
+    if(c) return c;
+  }
+  return null;
+}
+
+function escaparHtml(t){
+  const d = document.createElement('div');
+  d.textContent = t == null ? '' : String(t);
+  return d.innerHTML;
+}
+
+/* A ajuda da conta aparece embaixo do select enquanto a pessoa escolhe: é onde
+   cabe "Reparo — obra nova vai em Investimento", que é exatamente a dúvida que
+   faz o lançamento cair no lugar errado. */
+document.addEventListener('change', ev => {
+  if(ev.target && ev.target.id === 'lcConta'){
+    const op = ev.target.selectedOptions[0];
+    const el = document.getElementById('lcAjuda');
+    if(el) el.textContent = (op && op.dataset.ajuda) || '';
+  }
+  if(ev.target && ev.target.id === 'lcMes'){
+    const el = document.getElementById('lancCorpo');
+    el.dataset.mes = ev.target.value;
+    carregarLancamentos();
+  }
+});
+
+document.addEventListener('submit', async ev => {
+  if(!ev.target || ev.target.id !== 'lancForm') return;
+  ev.preventDefault();
+  const st = document.getElementById('lcStatus');
+  const btn = ev.target.querySelector('button[type=submit]');
+  const corpo = {
+    data: document.getElementById('lcData').value,
+    conta: document.getElementById('lcConta').value,
+    valor: document.getElementById('lcValor').value,
+    historico: document.getElementById('lcHistorico').value,
+    forma: document.getElementById('lcForma').value,
+  };
+  btn.disabled = true;
+  st.textContent = 'Lançando…';
+  st.className = 'status-msg show';
+  try{
+    const r = await fetch('/api/admin/lancamentos', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(corpo)});
+    const d = await r.json();
+    if(!r.ok){
+      st.textContent = d.erro || 'Não consegui lançar.';
+      st.className = 'status-msg show err';
+      btn.disabled = false;
+      return;
+    }
+    // O pacote do financeiro fica velho no instante em que um lançamento entra;
+    // limpar aqui evita o fluxo e o DRE mostrarem o mês sem esta linha.
+    finDados = null;
+    await carregarLancamentos();
+    const s2 = document.getElementById('lcStatus');
+    if(s2){ s2.textContent = 'Lançado.'; s2.className = 'status-msg show'; }
+  }catch(e){
+    st.textContent = 'Falhou: ' + e.message;
+    st.className = 'status-msg show err';
+    btn.disabled = false;
+  }
+});
+
+document.addEventListener('click', async ev => {
+  const b = ev.target.closest && ev.target.closest('[data-apagar-lanc]');
+  if(!b) return;
+  if(!confirm('Apagar este lançamento?')) return;
+  const r = await fetch('/api/admin/lancamentos/' + b.dataset.apagarLanc,
+                        {method: 'DELETE'});
+  if(!r.ok){
+    const d = await r.json().catch(() => ({}));
+    alert(d.erro || 'Não consegui apagar.');
+    return;
+  }
+  finDados = null;
+  carregarLancamentos();
+});
+
 /* ---------- Financeiro: Fluxo de caixa e DRE ----------
    As duas telas leem o MESMO pacote. A sobra do DRE fecha no saldo do fluxo —
    e o que garante que os dois relatorios contam a mesma historia. */
@@ -3929,8 +4205,18 @@ async function carregarFluxoCaixa(){
       ? ` <span title="${v.dupla_contagem
             ? 'R$ ' + fmtMoeda(v.dupla_contagem).slice(3) + ' estavam contados duas vezes na planilha; descontei.'
             : 'O saldo que a planilha escreve difere do calculado.'}">⚠</span>` : '';
+    // De onde veio o numero. Mes com lancamento no portal passa a valer sobre a
+    // planilha, e uma troca de fonte que a tela nao mostrasse seria uma troca
+    // silenciosa — o gestor olharia um numero achando que e o outro.
+    const conf = v.conferencia;
+    const fonte = v.fonte === 'portal'
+      ? `<span class="fx-fonte" title="${v.lancamentos || 0} lançamento${
+           v.lancamentos === 1 ? '' : 's'} no portal${conf
+           ? `. A planilha diz ${fmtMoeda(conf.saidas)} de saídas neste mês; está valendo o portal.`
+           : ''}">portal${conf ? ' ⚠' : ''}</span>`
+      : '';
     return `<div class="fx-linha" title="entradas ${fmtMoeda(v.entradas)} · saídas ${fmtMoeda(v.saidas)}">
-      <span class="fx-mes">${rotuloMes(k)}${alerta}</span>
+      <span class="fx-mes">${rotuloMes(k)}${alerta}${fonte}</span>
       <span class="fx-barras">
         <span class="fx-ent" style="width:${le}%"></span>
         <span class="fx-sai" style="width:${ls}%;height:8px;top:11px"></span>
@@ -5961,6 +6247,7 @@ const SECOES = {
   marketing:  {titulo: 'Marketing',         el: 'secMarketing'},
   analytics:  {titulo: 'Analytics · o site',  el: 'secAnalytics'},
   permissoes: {titulo: 'Permissões de acesso', el: 'secPermissoes'},
+  lancamentos:{titulo: 'Lançamentos do mês',   el: 'secLancamentos'},
   fluxo_caixa:{titulo: 'Fluxo de caixa',      el: 'secFluxoCaixa'},
   dre:        {titulo: 'DRE · resultado do mês', el: 'secDre'},
   carros:     {titulo: 'Carros pra chegar', el: 'secCarros'},
@@ -6048,6 +6335,7 @@ function irParaSecao(chave, sub){
     carregarAuditoria();
   }
   if(chave === 'marketing') carregarPerfilGoogle();
+  if(chave === 'lancamentos') carregarLancamentos();
   if(chave === 'fluxo_caixa') carregarFluxoCaixa();
   if(chave === 'dre') carregarDre();
   if(chave === 'permissoes') carregarPermissoes();

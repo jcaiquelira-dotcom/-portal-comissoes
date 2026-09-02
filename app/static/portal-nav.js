@@ -115,6 +115,7 @@ const ITENS = [
   {grupo: 'Administração', chave: 'rh',            texto: 'Gestão de pessoas',  pagina: '/admin.html', hash: '#rh',            icone: 'equipe'},
   {grupo: 'Comercial', chave: 'atendimento',   texto: 'Atendimento agora',  pagina: '/admin.html', hash: '#atendimento',   icone: 'retomada'},
   {grupo: 'Comercial', chave: 'retomada',      texto: 'Follow-up do time',  pagina: '/admin.html', hash: '#retomada',      icone: 'retomada'},
+  {grupo: 'Administração', chave: 'lancamentos',   texto: 'Lançamentos',       pagina: '/admin.html', hash: '#lancamentos',   icone: 'cifrao'},
   {grupo: 'Administração', chave: 'fluxo_caixa',   texto: 'Fluxo de caixa',    pagina: '/admin.html', hash: '#fluxo_caixa',   icone: 'cifrao'},
   {grupo: 'Administração', chave: 'dre',           texto: 'DRE',               pagina: '/admin.html', hash: '#dre',           icone: 'desempenho'},
   {grupo: 'Administração', chave: 'fechamento',    texto: 'Fechamento de mês',  pagina: '/admin.html', hash: '#fechamento',    icone: 'fechamento'},
