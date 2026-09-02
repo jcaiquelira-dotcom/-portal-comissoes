@@ -1544,10 +1544,15 @@ CANAIS_CANONICOS = {
     "b": "Balcão", "balcao": "Balcão",
     "ml": "Mercado Livre", "mercado livre": "Mercado Livre",
     "itau": "Itaú",
-    "cred": "Crediário", "crediario": "Crediário",
+    "deb": "Débito", "debito": "Débito",
+    # O time deixou de usar "crediário" em 02/09/2026: na pratica o que era
+    # lancado assim era cartao de credito. As 20 vendas antigas foram
+    # convertidas por script na mesma data, e "crediario" continua no mapa pra
+    # quem digitar por habito cair no nome novo em vez de fragmentar.
+    "cred": "Crédito", "credito": "Crédito", "crediario": "Crédito",
     "din": "Dinheiro", "dinh": "Dinheiro", "dinheiro": "Dinheiro",
     "site": "Site", "loja integrada": "Site",
-    "itau / cred": "Itaú / Crediário",
+    "itau / cred": "Itaú / Crédito",
 }
 
 
@@ -1568,7 +1573,7 @@ def normalizar_canal(texto) -> str:
     chave = _achatar_canal(t)
     if chave in CANAIS_CANONICOS:
         return CANAIS_CANONICOS[chave]
-    # "Cred 4x" -> "Crediário 4x": a primeira palavra e o canal, o resto e
+    # "Cred 4x" -> "Crédito 4x": a primeira palavra e o canal, o resto e
     # detalhe (parcelamento) que nao se joga fora. Divide o texto REAL, nao a
     # chave achatada — os dois podem ter contagens de espaco diferentes.
     partes = t.split(" ", 1)
