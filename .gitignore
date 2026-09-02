@@ -15,3 +15,6 @@ __pycache__/
 # Pacote de deploy antigo (PythonAnywhere)
 *.zip
 segredos/backups/
+
+# backups locais de edicao — nunca vao pro repo
+*.bak

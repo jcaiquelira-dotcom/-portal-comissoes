@@ -888,6 +888,7 @@
       <div id="mlResultado"></div>
       <div id="siteConta"></div>
       <div id="shopeeConta"></div>
+      <div id="shopeeConta2"></div>
 
       <div class="card" style="margin-bottom:14px;">
         <p class="card-titulo">Evolução de vendas no período</p>
@@ -1457,7 +1458,7 @@ let resumoAtual = null;
 /* Payload cru de cada canal. Guardado porque trocar o filtro nao muda o
    historico — muda so o recorte — e refazer a chamada a cada clique de preset
    seria pagar rede pra receber a mesma coisa. */
-let siteContaDados = null, shopeeContaDados = null;
+let siteContaDados = null, shopeeContaDados = null, shopeeConta2Dados = null;
 /* Quem esta usando a tela. `gestor` e a senha master (ve tudo); um usuario
    comum ve so as areas marcadas no cadastro dele. A tela inteira se monta a
    partir disso — menu, KPIs do topo e o que carrega no primeiro acesso. */
@@ -2133,7 +2134,7 @@ async function carregarResumo(){
   // Os cards de canal se repintam junto: eles leem deste mesmo payload, entao
   // o periodo deles nunca fica atras do periodo do topo.
   pintarSiteConta();
-  pintarShopeeConta();
+  pintarShopeeContas();
   pintarMlResultado();
 
   const mkts = resumoAtual.marketplaces || [];
@@ -2174,7 +2175,7 @@ async function carregarResumo(){
       + `<span class="base">${fmt(ant[chave])} · ${dm(ant.de)} a ${dm(ant.ate)}`
       + (correndo ? ' · período ainda correndo' : '') + '</span>';
   };
-  const nomeCurto = {mercado_livre: 'ML', shopee: 'Shopee', site: 'Site'};
+  const nomeCurto = {mercado_livre: 'ML', shopee: 'Shopee 1', shopee_2: 'Shopee 2', site: 'Site'};
 
   document.getElementById('totalGeralValue').textContent = fmtMoeda(consTotal);
   sub('totalGeralValueSub', mkts.length
@@ -5878,10 +5879,21 @@ async function carregarPerfilGoogle(){
 
 async function carregarShopeeConta(){
   if(!document.getElementById('shopeeConta')) return;
-  const res = await fetch('/api/admin/shopee-conta');
-  if(!res.ok) return;
-  shopeeContaDados = await res.json();
-  pintarShopeeConta();
+  /* Duas contas Shopee desde 02/09/2026: nevadaecopecas (1) e gabrielanevada
+     (2). Cada uma tem seu card, com a MESMA funcao de pintura — o rateio
+     mensal e a precedencia do dia sobre o mes nao podem divergir entre elas. */
+  const [r1, r2] = await Promise.all([
+    fetch('/api/admin/shopee-conta?loja=1'),
+    fetch('/api/admin/shopee-conta?loja=2'),
+  ]);
+  if(r1.ok) shopeeContaDados = await r1.json();
+  if(r2.ok) shopeeConta2Dados = await r2.json();
+  pintarShopeeContas();
+}
+
+function pintarShopeeContas(){
+  pintarShopeeConta(shopeeContaDados, 'shopeeConta',  'shopee',   'Shopee 1');
+  pintarShopeeConta(shopeeConta2Dados, 'shopeeConta2', 'shopee_2', 'Shopee 2');
 }
 
 /* Mesma ideia do site: numero do periodo vem do resumo, nao daqui.
@@ -5890,18 +5902,18 @@ async function carregarShopeeConta(){
    periodo que corta o mes no meio precisa ratear por dia — e essa regra ja
    existe no servidor. Repeti-la em JavaScript seria manter duas contas
    diferentes pro mesmo mes de agosto. */
-function pintarShopeeConta(){
-  const el = document.getElementById('shopeeConta');
-  if(!el || !shopeeContaDados) return;
-  const d = shopeeContaDados;
+function pintarShopeeConta(dados, elId, mktId, titulo){
+  const el = document.getElementById(elId);
+  if(!el || !dados) return;
+  const d = dados;
   if(d.sem_dados){ el.innerHTML = ''; return; }
   if(!resumoAtual){ el.innerHTML = ''; return; }
   if(document.getElementById('vendedorFiltro').value){ el.innerHTML = ''; return; }
 
   const de = document.getElementById('deInput').value;
   const ate = document.getElementById('ateInput').value;
-  const mkt = (resumoAtual.marketplaces || []).find(m => m.id === 'shopee');
-  const ausente = (resumoAtual.marketplaces_ausentes || []).find(m => m.id === 'shopee');
+  const mkt = (resumoAtual.marketplaces || []).find(m => m.id === mktId);
+  const ausente = (resumoAtual.marketplaces_ausentes || []).find(m => m.id === mktId);
 
   const NOMES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const nomeMes = m => NOMES[Number(m.slice(5, 7)) - 1] + '/' + m.slice(2, 4);
@@ -5941,7 +5953,7 @@ function pintarShopeeConta(){
   const serie = porMes;
   const meses = Object.keys(porMes).sort();
   const cab = `<div class="aud-cabecalho">
-      <p class="card-titulo" style="margin:0;">Shopee</p>
+      <p class="card-titulo" style="margin:0;">${titulo}</p>
       <span class="ml-selo">${meses.length ? nomeMes(meses[0]) + ' a ' + nomeMes(meses[meses.length - 1])
         : 'sem mês no período'}</span>
       <span class="aud-conta">relatório mensal do Seller Centre</span>
@@ -5951,7 +5963,7 @@ function pintarShopeeConta(){
     el.innerHTML = `<div class="card" style="margin-bottom:14px;">${cab}
       <div class="dp-aviso" style="margin-top:0;">${ausente ? ausente.motivo
         : 'Sem venda neste período.'} O card fica aqui de propósito: sumir faria
-        parecer que o total do topo já inclui a Shopee.</div></div>`;
+        parecer que o total do topo já inclui a ${titulo}.</div></div>`;
     return;
   }
 

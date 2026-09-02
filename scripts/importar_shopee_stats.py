@@ -91,12 +91,26 @@ def resumir(formato: str, serie: dict) -> None:
         print(f"  {mes}: R$ {m['total']:>10,.2f} | {m['qtd']:>3} pedidos")
 
 
+# Sao duas contas Shopee desde 02/09/2026: a nevadaecopecas (loja 1, chave
+# historica `shopee_conta`) e a gabrielanevada (loja 2, `shopee_conta_2`). A
+# chave da loja 1 NAO mudou de nome de proposito — renomear obrigaria a migrar
+# o historico e a mexer em tudo que ja le essa chave.
+CHAVES = {"1": "shopee_conta", "2": "shopee_conta_2"}
+
+
 def main():
-    if len(sys.argv) < 2:
-        raise SystemExit("uso: python importar_shopee_stats.py <arquivo.xlsx>")
-    caminho = Path(sys.argv[1])
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    lojas = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--loja=")]
+    loja = lojas[0] if lojas else "1"
+    if loja not in CHAVES:
+        raise SystemExit(f"--loja deve ser 1 ou 2 (veio {loja!r})")
+    chave = CHAVES[loja]
+    if not args:
+        raise SystemExit("uso: python importar_shopee_stats.py <arquivo.xlsx> [--loja=1|2]")
+    caminho = Path(args[0])
     if not caminho.exists():
         raise SystemExit(f"arquivo não encontrado: {caminho}")
+    print(f"loja {loja} -> chave {chave}")
 
     formato, serie = ler(caminho)
     resumir(formato, serie)
@@ -108,7 +122,7 @@ def main():
     from psycopg2.extras import Json
     conn = psycopg2.connect(url)
     with conn, conn.cursor() as cur:
-        cur.execute("SELECT valor FROM dados_json WHERE chave='shopee_conta' FOR UPDATE")
+        cur.execute("SELECT valor FROM dados_json WHERE chave=%s FOR UPDATE", (chave,))
         linha = cur.fetchone()
         vendas = (linha[0].get("vendas") or {}) if linha else {}
         serie_mes = dict(vendas.get("serie_mes") or {})
@@ -118,13 +132,13 @@ def main():
         (serie_dia if formato == "dia" else serie_mes).update(serie)
         cur.execute("INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
                     "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
-                    ("shopee_conta", Json({
+                    (chave, Json({
                         "gerado_em": datetime.now(FUSO).isoformat(timespec="seconds"),
                         "fonte": caminho.name,
                         "vendas": {"serie_mes": serie_mes, "serie_dia": serie_dia},
                     })))
     conn.close()
-    print(f"\n  gravado shopee_conta ({len(serie_dia)} dias, {len(serie_mes)} meses)")
+    print(f"\n  gravado {chave} ({len(serie_dia)} dias, {len(serie_mes)} meses)")
 
 
 if __name__ == "__main__":
