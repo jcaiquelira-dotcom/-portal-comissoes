@@ -54,8 +54,15 @@ echo --- fila de retomada --- >> "%LOG%"
 echo --- meta ads (windsor) --- >> "%LOG%"
 "%PY%" app\atualizar_meta_ads.py >> "%LOG%" 2>&1
 
-echo --- google ads (windsor) --- >> "%LOG%"
-"%PY%" app\atualizar_google_ads.py >> "%LOG%" 2>&1
+rem Google Ads vem DIRETO da API do Google desde 02/09/2026, nao mais do
+rem Windsor. Motivo: no plano basico do Windsor so UMA fonte fica conectada
+rem por vez, e o Google ficou desligado desde 28/08 sem ninguem notar - o
+rem painel mostrava R$ 4.353 de agosto quando foram R$ 4.881.
+rem Escreve os MESMOS dois arquivos (_w_amplo.json e _windsor_periodo.json),
+rem entao o sincronizar_marketing.py nao muda. Pra voltar atras, e so trocar
+rem de volta pelo atualizar_google_ads.py.
+echo --- google ads (api direta) --- >> "%LOG%"
+"%PY%" app\google_ads_api.py >> "%LOG%" 2>&1
 
 echo --- desempenho e marketing --- >> "%LOG%"
 "%PY%" app\sincronizar_desempenho.py >> "%LOG%" 2>&1
