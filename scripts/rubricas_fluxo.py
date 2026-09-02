@@ -176,7 +176,131 @@ def itens_do_bloco(ws, cel_subtotal, alvo):
     return itens
 
 
-def itens_do_mes(ws, partes):
+def itens_de_socios(ws, wsf, cel_subtotal, alvo):
+    """Abre a coluna das retiradas dos socios, marcando de quem e cada linha.
+
+    A coluna nao e um bloco so: sao quatro faixas de linhas, uma por socio, com
+    o preenchimento alternando de tom pra separar visualmente. Em agosto a
+    propria planilha escreve os subtotais de cada faixa — I36 = I2..I13 (P1),
+    I37 = I14..I25 (P2), I38 = I26..I30 (P3), I39 = I31..I35 (P4) — e em julho
+    o Itau de R$ 10.000 cai na linha 26, dentro da faixa do P3, que e o que o
+    gestor descreveu de cabeca.
+
+    As linhas de subtotal sao puladas: da pra reconhece-las porque a formula
+    delas aponta pra outras celulas da MESMA coluna. Sem isso eu somaria o
+    subtotal junto com os itens que ele ja resume, e o mes dobraria.
+
+    Devolve None se os itens nao reconstruirem o subtotal, ou se as faixas nao
+    derem exatamente quatro — a atribuicao por socio so vale se a estrutura for
+    a que eu penso que e.
+    """
+    letra = ''.join(c for c in cel_subtotal if c.isalpha())
+    col = openpyxl.utils.column_index_from_string(letra)
+    lin = int(''.join(c for c in cel_subtotal if c.isdigit()))
+
+    # As linhas que o subtotal de fato soma. Varrer a coluna inteira pegava
+    # linha de fora: em julho o total e SUM(I4:I34) e a linha I3 existe com
+    # valor, mas nao entra — somar ela dava R$ 1.864 a mais que o mes.
+    faixa_total = _linhas_da_formula(wsf[cel_subtotal].value, letra)
+    if not faixa_total:
+        faixa_total = set(range(1, lin))
+
+    ref_propria = re.compile(r'\b%s\d+' % letra, re.I)
+    brutos = []
+    for r in sorted(faixa_total):
+        c = ws.cell(row=r, column=col)
+        if not isinstance(c.value, (int, float)) or not c.value:
+            continue
+        f = wsf.cell(row=r, column=col).value
+        if isinstance(f, str) and f.startswith('=') and ref_propria.search(f):
+            continue                      # e subtotal de faixa, nao lancamento
+        brutos.append({"linha": r, "valor": float(c.value),
+                       "rotulo": str(ws.cell(row=r, column=col - 1).value or "").strip(),
+                       "celula": c.coordinate, "tom": _tom(c)})
+
+    if not brutos or abs(sum(b["valor"] for b in brutos) - alvo) > 1:
+        return None
+
+    bandas = (_bandas_por_subtotal(ws, wsf, col, letra, lin, faixa_total)
+              or _bandas_por_cor(brutos))
+    if not bandas:
+        return [dict(b, socio=None) for b in brutos]
+    return [dict(b, socio=_socio_da_linha(b["linha"], bandas)) for b in brutos]
+
+
+def _linhas_da_formula(formula, letra) -> set:
+    """Linhas da propria coluna que uma formula soma. Aceita SUM(I2:I35) e
+    tambem a forma escrita a mao, =I2+I3+I4..., que a planilha usa igual."""
+    if not isinstance(formula, str) or not formula.startswith('='):
+        return set()
+    linhas = set()
+    for a, b in re.findall(r'%s(\d+)\s*:\s*%s(\d+)' % (letra, letra),
+                           formula, re.I):
+        linhas.update(range(int(a), int(b) + 1))
+    sem_faixas = re.sub(r'%s\d+\s*:\s*%s\d+' % (letra, letra), '', formula, flags=re.I)
+    linhas.update(int(n) for n in re.findall(r'%s(\d+)' % letra, sem_faixas, re.I))
+    return linhas
+
+
+def _bandas_por_subtotal(ws, wsf, col, letra, lin_total, faixa_total):
+    """As faixas dos socios lidas dos subtotais que a planilha escreve.
+
+    Em agosto elas estao explicitas: I36 = I2..I13, I37 = I14..I25,
+    I38 = I26..I30, I39 = I31..I35. E a evidencia mais forte que existe, e
+    funciona ate quando um socio nao teve movimento nenhum no mes — foi o caso
+    do P3 em agosto, em que a cor sozinha so mostrava tres faixas.
+    """
+    achadas = []
+    for r in range(1, lin_total):
+        if r in faixa_total:
+            continue
+        f = wsf.cell(row=r, column=col).value
+        linhas = _linhas_da_formula(f, letra)
+        if linhas and linhas <= faixa_total:
+            achadas.append((r, linhas))
+    if len(achadas) != 4:
+        return None
+    achadas.sort(key=lambda x: min(x[1]))
+    return [linhas for _r, linhas in achadas]
+
+
+def _bandas_por_cor(brutos):
+    """As faixas pelo preenchimento: tom novo, socio novo.
+
+    Vale quando a planilha nao escreve os subtotais por faixa. So aceita se der
+    exatamente quatro — com tres ou cinco eu nao sei qual e qual, e chutar aqui
+    poe a retirada de um socio na conta de outro.
+    """
+    faixas, atual = [], None
+    for b in brutos:
+        if atual is None or b["tom"] != atual:
+            faixas.append(set())
+            atual = b["tom"]
+        faixas[-1].add(b["linha"])
+    return faixas if len(faixas) == 4 else None
+
+
+def _socio_da_linha(linha, bandas):
+    for i, banda in enumerate(bandas, start=1):
+        if linha in banda:
+            return i
+    return None
+
+
+def _tom(celula) -> str:
+    """Assinatura do preenchimento da celula, pra comparar faixas."""
+    f = celula.fill
+    if not f or f.patternType is None:
+        return "-"
+    cor = f.fgColor
+    tema = getattr(cor, "theme", None)
+    if isinstance(tema, int):
+        return "t%d/%.2f" % (tema, getattr(cor, "tint", 0) or 0)
+    rgb = getattr(cor, "rgb", None)
+    return rgb if isinstance(rgb, str) else "?"
+
+
+def itens_do_mes(ws, partes, wsf=None):
     """Todo lancamento do mes, um a um, com o bloco de onde saiu.
 
     O bloco viaja junto porque o rotulo sozinho nao basta pra classificar:
@@ -198,6 +322,15 @@ def itens_do_mes(ws, partes):
             saida.append({"rotulo": "(Veiculos)", "valor": p["valor"],
                           "bloco": bloco, "celula": cel or ""})
             continue
+        # A coluna dos socios abre por faixa, nao por soma de baixo pra cima:
+        # ali as linhas de subtotal moram na mesma coluna dos lancamentos, e
+        # subir somando pegaria o subtotal em vez dos itens que ele resume.
+        if bloco == "Parcelas e socios" and wsf is not None:
+            dos_socios = itens_de_socios(ws, wsf, cel, p["valor"])
+            if dos_socios is not None:
+                for i in dos_socios:
+                    saida.append({**i, "bloco": bloco})
+                continue
         itens = itens_do_bloco(ws, cel, p["valor"])
         if itens is None:
             saida.append({"rotulo": "(bloco inteiro)", "valor": p["valor"],

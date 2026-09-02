@@ -1063,7 +1063,19 @@ PLANO_DE_CONTAS = [
         ("5.02", "Encargos", "FGTS, INSS, sindicato, Sincomercio"),
         ("5.03", "Beneficios", "Almoco, convenio, uniforme, EPI"),
         ("5.04", "Ferias, 13o e rescisoes", "Separado do salario: e sazonal"),
-        ("5.05", "Pro-labore", "Retirada fixa de socio — nao e distribuicao de lucro"),
+        # Um por socio: na planilha as retiradas ja vem separadas em quatro
+        # faixas de linhas, e juntar tudo numa conta so jogaria fora uma
+        # informacao que o gestor ja mantem na mao.
+        ("5.05", "Pro-labore P1 — Ricardo", "Retirada do socio, em dinheiro ou em conta paga"),
+        ("5.06", "Pro-labore P2 — Odilon", "Retirada do socio, em dinheiro ou em conta paga"),
+        ("5.07", "Pro-labore P3 — Caique", "Retirada do socio, em dinheiro ou em conta paga"),
+        ("5.08", "Pro-labore P4 — Gabriela", "Retirada do socio, em dinheiro ou em conta paga"),
+        ("5.09", "Pro-labore — socio nao identificado",
+         "Retirada que nao deu pra atribuir a um socio"),
+        # Plano de saude dos familiares dos socios. Nao e beneficio de
+        # funcionario — confirmado pelo gestor em 01/09/2026 — entao nao pode
+        # entrar em 5.03, senao o custo de pessoal da empresa fica inflado.
+        ("5.10", "Plano de saude dos socios", "Santa Helena — familiares dos socios"),
     ]},
     {"grupo": "Ocupacao e estrutura", "dre": "despesas", "contas": [
         ("6.01", "Aluguel", ""),

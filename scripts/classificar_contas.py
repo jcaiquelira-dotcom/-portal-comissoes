@@ -69,10 +69,21 @@ REGRAS = [
 
     # --- pessoal ------------------------------------------------------------
     (r"^fgts|^inss|sindicato|^sind\b|^sind\.|sincomercio|trein\.sind", "5.02"),
-    (r"^almoco|^cafe|convenio|^uniformes?$|^epi$|sta ?helena|san ?helena|"
-     r"santa helena|^bones$|^cesta", "5.03"),
+    # Santa Helena e o plano de saude dos FAMILIARES DOS SOCIOS, nao beneficio
+    # de funcionario (confirmado pelo gestor em 01/09/2026). Sao R$ 28.949 no
+    # ano: dentro de Beneficios eles inflavam o custo de pessoal da empresa
+    # com uma despesa que e dos socios.
+    (r"sta ?helena|san ?helena|santa helena", "5.10"),
+    (r"^almoco|^cafe|convenio|^uniformes?$|^epi$|^bones$|^cesta", "5.03"),
     (r"^ferias|ferias$|recis[ao]|rescis[ao]|^rec\.|^13", "5.04"),
-    (r"^pro.?labore", "5.05"),
+    # "Pro-labore" escrito sem dizer de quem: fica na conta sem dono, que e a
+    # resposta certa — inventar um socio aqui seria pior que nao saber.
+    (r"^pro.?labore", "5.09"),
+    # Fora da coluna dos socios, um rotulo que comeca com P1..P4 ainda e
+    # dinheiro daquele socio: "P1 ML", "P3 Gabriel". Mesma natureza, mesma
+    # conta — o que muda e so onde a linha estava escrita.
+    (r"^p1\b", "5.05"), (r"^p2\b", "5.06"),
+    (r"^p3\b", "5.07"), (r"^p4\b", "5.08"),
 
     # --- ocupacao -----------------------------------------------------------
     (r"^aluguel", "6.01"),
@@ -107,7 +118,6 @@ REGRAS = [
      r"terrenos|compensacao terreno|limpeza terreno|pro\.estrutural|"
      r"^projeto$|^planta$|^portas|janela|^escada$|^tabuas$|^piso|borracha p|"
      r"^lote pg$|^deposito$|^quadra$|^telhas$|^gesso", "0.01"),
-    (r"^p[1-4]\b|^p[1-4] ", "0.02"),
     (r"^caucao|^calcao", "0.04"),
 ]
 
@@ -121,27 +131,10 @@ SO_PAGAMENTO = re.compile(
     r"^(cartao|cartao p[1-4]|cartao diversos|cartao ri|visa|elo|master|"
     r"bb|itau|pix|dinheiro|cheque|deposito|transferencia)$")
 
-# Regras que valem DENTRO de um bloco so, testadas antes das globais.
-#
-# "itau" solto poderia ser tarifa bancaria; dentro do bloco de Parcelas ele e
-# R$ 10.000 exatos em abril, maio, junho e julho — parcela de financiamento,
-# nao tarifa. O mesmo vale pra "bb", "ml" e "cartao" ali: sao pagamento de
-# saldo devedor, e amortizacao de principal nao e despesa do mes.
-#
-# O "(vazio)" desse bloco e a distribuicao aos socios: em agosto ele vale
-# R$ 53.793, exatamente o que o DRE ja mostrava como socios antes desta
-# mudanca. E a confirmacao de que a coluna e essa mesmo.
-REGRAS_POR_BLOCO = {
-    "Parcelas e socios": [
-        # Rotulo vazio nessa coluna e a distribuicao aos socios: em agosto vale
-        # R$ 53.793, exatamente o que o DRE mostrava como socios antes disto.
-        (r"^$|^\(vazio\)$|^p[1-4]\b", "0.02"),
-        (r"^(bb|itau|ml|cartao|visa|elo|cartcielo)$", "0.03"),
-        (r"^consorcios?$", "9.02"),
-    ],
-}
-REGRAS_POR_BLOCO = {b: [(re.compile(p), c) for p, c in regras]
-                    for b, regras in REGRAS_POR_BLOCO.items()}
+# Regras que valem DENTRO de um bloco so, testadas antes das globais. Vazio
+# hoje: a coluna dos socios, que era o unico caso, e resolvida antes de chegar
+# aqui, porque la o bloco decide sozinho e o rotulo nao opina.
+REGRAS_POR_BLOCO = {}
 
 # Conta que cada bloco usa quando o rotulo nao casa com regra nenhuma. So
 # existe onde o bloco INTEIRO tem uma natureza so — em Transportes tudo e
@@ -166,13 +159,35 @@ BLOCOS_DE_SUCATA = {"Sucatas", "Diversos"}
 RE_CARROS = re.compile(CARROS)
 
 
-def classificar(rotulo: str, bloco: str = "") -> str:
+# A coluna dos socios inteira e retirada, independente do que o rotulo diga.
+#
+# Decisao do gestor em 01/09/2026: "voce pode somar e considerar como se fosse
+# pro-labore". Faz sentido com o que esta la dentro — "Concreto", "Laje",
+# "Projeto" aparecem nas faixas dos socios, ou seja, a empresa pagou a obra
+# pessoal de alguem. O que foi comprado nao muda a natureza: o dinheiro saiu
+# pra um socio.
+#
+# Vale registrar o efeito: isso tira ~R$ 63 mil por mes de "fora do DRE" e
+# poe dentro das despesas. O resultado operacional cai na mesma medida, e
+# passa a ser o numero certo — antes a empresa parecia gerar um lucro que ja
+# tinha sido retirado.
+PRO_LABORE = {1: "5.05", 2: "5.06", 3: "5.07", 4: "5.08"}
+PRO_LABORE_SEM_DONO = "5.09"
+
+
+def classificar(rotulo: str, bloco: str = "", socio=None) -> str:
     """Conta do plano pra este item, ou None se eu nao souber.
 
     None nao e falha: e a resposta honesta pra "Div.", pra "Cartao" e pra nome
     de pessoa solto. Quem chama transforma isso em linha visivel no painel.
     """
     r = ach(rotulo)
+
+    # A coluna dos socios manda em tudo: la o rotulo diz o que foi comprado, e
+    # a pergunta e pra quem o dinheiro foi. "Itau" ali e a retirada do P3, nao
+    # tarifa de banco — e foi exatamente esse o caso que o gestor corrigiu.
+    if bloco == "Parcelas e socios":
+        return PRO_LABORE.get(socio, PRO_LABORE_SEM_DONO)
 
     # Regra do bloco vem primeiro: e a unica que conhece o contexto, e contexto
     # e o que separa "itau, tarifa do banco" de "itau, parcela de 10 mil".

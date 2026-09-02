@@ -216,7 +216,7 @@ def montar_dre_contas(itens: list, contas_por_codigo: dict, cc) -> tuple:
     grupos = {}
     classificado = a_classificar = 0.0
     for i in itens:
-        codigo = cc.classificar(i["rotulo"], i.get("bloco", ""))
+        codigo = cc.classificar(i["rotulo"], i.get("bloco", ""), i.get("socio"))
         conta = contas_por_codigo.get(codigo) if codigo else None
         if conta:
             grupo = conta["dre"]
@@ -349,7 +349,7 @@ def main() -> int:
                 # Quebra fina, por conta do plano. Se por algum motivo o mes
                 # nao abrir em itens, cai na quebra grossa por bloco — melhor
                 # o DRE antigo do que DRE nenhum.
-                itens = rubricas_fluxo.itens_do_mes(wb[aba], partes)
+                itens = rubricas_fluxo.itens_do_mes(wb[aba], partes, wbf[aba])
                 soma_itens = round(sum(i["valor"] for i in itens), 2)
                 if abs(soma_itens - soma) < 1 and itens:
                     dre, classif, aclass = montar_dre_contas(
