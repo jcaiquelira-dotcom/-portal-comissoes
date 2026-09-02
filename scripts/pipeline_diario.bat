@@ -35,6 +35,15 @@ echo --- totalk (sync incremental) --- >> "%LOG%"
 echo --- classificacao IA (so conversas novas) --- >> "%LOG%"
 "%PY%" app\classificar_ia.py --limite 300 >> "%LOG%" 2>&1
 
+rem O canal de cada conversa (anuncio, site, direto) sai daqui, e NAO da
+rem leitura da IA: e utm mais texto das mensagens. Ficou fora do pipeline
+rem ate 02/09/2026, e o resultado foram 699 conversas paradas em "Sem
+rem origem" desde 28/08 - o painel mostrava o Meta com conversas e o card
+rem de origem com zero anuncio, como se a integracao tivesse caido.
+rem Precisa vir DEPOIS do sync e ANTES do dataset, que le a tabela canal.
+echo --- canal e sinal das conversas --- >> "%LOG%"
+"%PY%" app\remontar_canal_sinal.py >> "%LOG%" 2>&1
+
 echo --- dataset (base da fila) --- >> "%LOG%"
 "%PY%" app\export_dataset.py >> "%LOG%" 2>&1
 
