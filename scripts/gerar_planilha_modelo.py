@@ -45,8 +45,23 @@ from openpyxl.formatting.rule import CellIsRule
 MESES = ["Jan", "Fev", "Mar", "Abr", "Maio", "Jun",
          "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
 # Linhas por bloco. O maior movimento de uma categoria num mes foi frete, com
-# cerca de 16 lancamentos; 25 deixa folga sem esticar a tela.
-LINHAS_POR_BLOCO = 25
+# cerca de 16 lancamentos; 18 deixa folga sem esticar a tela pra baixo.
+LINHAS_POR_BLOCO = 18
+# Duas faixas de blocos, e so. Cada faixa a mais sao 21 linhas a mais de altura,
+# e altura e exatamente o que o gestor pediu pra nao ter.
+FAIXAS = 2
+PRIMEIRA_FAIXA = 4
+# O mes inteiro cabe na tela com um zoom menor. 80% mostra ~56 linhas num
+# monitor comum, e o mes ocupa 45 — ele abre e ve tudo, sem rolar.
+ZOOM = 80
+
+# Onde o resumo do mes mora. Fixo aqui porque a aba do ano e o teste apontam
+# pra ca: quando o resumo saiu de B4/B5 pra ca, a aba do ano continuou lendo
+# B4 e passou a mostrar mes vazio sem reclamar de nada.
+CEL_CREDITOS = "D1"
+CEL_DEBITOS = "G1"
+CEL_SALDO = "J1"
+CEL_GERAIS = "M1"
 
 AZUL = "1F3864"
 CINZA_CLARO = "F2F2F2"
@@ -95,44 +110,70 @@ def layout_dos_blocos(familias):
     """Onde cada bloco cai na aba do mes.
 
     Devolve {codigo: {"col_dia","col_desc","col_valor","linha_1","linha_n",
-                      "linha_total"}}.
+                      "linha_total"}} mais as faixas pra desenhar.
 
-    As familias sao faixas empilhadas; dentro da faixa as categorias ficam lado
-    a lado, do jeito que a planilha atual poe Fixo, Impostos, Sucatas e
-    Colaboradores um do lado do outro. Empilhar por familia e o que impede a
-    aba de virar 171 colunas de largura.
+    O eixo aqui e LARGURA, nao altura. A planilha dele poe os blocos um do lado
+    do outro e cabe na tela sem rolar pra baixo: e assim que ele enxerga o mes
+    inteiro de uma vez. Empilhar uma familia embaixo da outra dava 307 linhas —
+    tecnicamente organizado e inutil na pratica, porque ele perde a visao do
+    mes.
+
+    Sao 57 blocos contra os 9 dele, entao nao ha como caber na MESMA largura.
+    A troca escolhida: poucas faixas, muita largura — rolar pro lado, que e o
+    que ele ja faz hoje, em vez de rolar pra baixo, que e o que ele reclamou.
     """
-    pos, faixas = {}, []
-    linha = 7                                  # abaixo do resumo do mes
+    # Duas faixas, equilibradas por numero de blocos. Mais faixas e mais altura;
+    # menos faixas e uma largura que ninguem navega.
+    total_blocos = sum(len(f["contas"]) for f in familias)
+    alvo = total_blocos / FAIXAS
+    grupos, atual, acumulado = [], [], 0
     for fam in familias:
+        atual.append(fam)
+        acumulado += len(fam["contas"])
+        if acumulado >= alvo and len(grupos) < FAIXAS - 1:
+            grupos.append(atual)
+            atual, acumulado = [], 0
+    if atual:
+        grupos.append(atual)
+
+    pos, faixas = {}, []
+    linha = PRIMEIRA_FAIXA
+    for grupo in grupos:
         cab_familia = linha
         cab_conta = linha + 1
         primeira = linha + 2
         ultima = primeira + LINHAS_POR_BLOCO - 1
         total = ultima + 1
-        for i, conta in enumerate(fam["contas"]):
-            base = 1 + i * 3
-            pos[conta["codigo"]] = {
-                "col_dia": base, "col_desc": base + 1, "col_valor": base + 2,
-                "linha_1": primeira, "linha_n": ultima, "linha_total": total,
-            }
-        faixas.append({"familia": fam, "cab_familia": cab_familia,
+        col = 1
+        blocos_da_familia = []
+        for fam in grupo:
+            col_inicio = col
+            for conta in fam["contas"]:
+                pos[conta["codigo"]] = {
+                    "col_dia": col, "col_desc": col + 1, "col_valor": col + 2,
+                    "linha_1": primeira, "linha_n": ultima, "linha_total": total,
+                }
+                col += 3
+            blocos_da_familia.append({"familia": fam, "col_inicio": col_inicio,
+                                      "col_fim": col - 1})
+        faixas.append({"familias": blocos_da_familia, "cab_familia": cab_familia,
                        "cab_conta": cab_conta, "linha_1": primeira,
                        "linha_n": ultima, "linha_total": total,
-                       "colunas": len(fam["contas"]) * 3})
-        linha = total + 3                      # respiro entre faixas
+                       "colunas": col - 1})
+        linha = total + 2                      # uma linha de respiro so
     return pos, faixas, linha
 
 
 def aba_mes(wb, mes, familias, ano, pos, faixas):
     ws = wb.create_sheet(mes)
     ws.sheet_view.showGridLines = False
-    _titulo(ws, "A1", "%s de %d" % (mes, ano), 18)
-    ws["A2"] = ("Escreva embaixo do título certo. A coluna já é a categoria — "
-                "não precisa escolher nada em lista.")
-    ws["A2"].font = Font(size=10, italic=True, color="808080")
+    ws.sheet_view.zoomScale = ZOOM
 
-    # --- resumo do mes, com as palavras dele -------------------------------
+    _titulo(ws, "A1", "%s de %d" % (mes, ano), 16)
+
+    # --- resumo do mes, deitado numa linha so ------------------------------
+    # Em pe ele comia seis linhas do alto da tela. Deitado cabe tudo em duas, e
+    # cada linha economizada aqui e uma linha a mais de lancamento visivel.
     entradas, saidas = [], []
     for fam in familias:
         for c in fam["contas"]:
@@ -141,29 +182,32 @@ def aba_mes(wb, mes, familias, ano, pos, faixas):
             (entradas if fam["entrada"] else saidas).append(ref)
     soma = lambda refs: "=" + ("+".join(refs) if refs else "0")
 
-    for i, (rot, formula, cor) in enumerate(
-            [("Créditos (entrou)", soma(entradas), VERDE),
-             ("Débitos (saiu)", soma(saidas), VERMELHO),
-             ("Saldo", "=B4-B5", AZUL)], start=4):
-        c = ws.cell(row=i, column=1, value=rot)
-        c.font = Font(bold=True, size=11)
-        v = ws.cell(row=i, column=2, value=formula)
-        v.number_format = DINHEIRO
-        v.font = Font(bold=True, size=13, color=cor)
-    ws.conditional_formatting.add("B6", CellIsRule(
-        operator="lessThan", formula=["0"], font=Font(bold=True, color=VERMELHO)))
-
     p_ger = pos["7.07"]
     ref_ger = "%s%d" % (get_column_letter(p_ger["col_valor"]), p_ger["linha_total"])
-    ws.cell(row=4, column=4, value="Despesas gerais (limite 2%)").font = Font(
-        size=10, color="808080")
-    g = ws.cell(row=4, column=5, value="=IF($B$5=0,0,%s/$B$5)" % ref_ger)
-    g.number_format = "0.0%"
-    ws.conditional_formatting.add(g.coordinate, CellIsRule(
+    resumo = [
+        (CEL_CREDITOS, "Créditos (entrou)", soma(entradas), DINHEIRO, VERDE),
+        (CEL_DEBITOS, "Débitos (saiu)", soma(saidas), DINHEIRO, VERMELHO),
+        (CEL_SALDO, "Saldo", "=%s-%s" % (CEL_CREDITOS, CEL_DEBITOS), DINHEIRO, AZUL),
+        (CEL_GERAIS, "Despesas gerais",
+         "=IF(${0}=0,0,{1}/${0})".format(CEL_DEBITOS, ref_ger), "0.0%", "808080"),
+    ]
+    for cel, rot, formula, fmt, cor in resumo:
+        v = ws[cel]
+        v.value = formula
+        v.number_format = fmt
+        v.font = Font(bold=True, size=13, color=cor)
+        r = ws.cell(row=2, column=v.column - 1, value=rot)
+        r.font = Font(size=9, color="808080")
+        r.alignment = Alignment(horizontal="right")
+        ws.merge_cells(start_row=2, start_column=v.column - 1,
+                       end_row=2, end_column=v.column)
+    ws.conditional_formatting.add(CEL_SALDO, CellIsRule(
+        operator="lessThan", formula=["0"], font=Font(bold=True, color=VERMELHO)))
+    ws.conditional_formatting.add(CEL_GERAIS, CellIsRule(
         operator="greaterThan", formula=["0.02"],
         font=Font(bold=True, color=VERMELHO)))
-    ws.cell(row=5, column=4,
-            value="Se passar de 2%, tem coisa no bloco errado.").font = Font(
+    ws.cell(row=2, column=16,
+            value="Escreva embaixo do título certo — a coluna já é a categoria.").font = Font(
         size=9, italic=True, color="A0A0A0")
 
     # --- as faixas ----------------------------------------------------------
@@ -174,63 +218,69 @@ def aba_mes(wb, mes, familias, ano, pos, faixas):
     ws.add_data_validation(dv)
 
     for faixa in faixas:
-        fam = faixa["familia"]
-        cor = COR_DA_FAMILIA.get(fam["grupo"], AZUL)
+        for bloco in faixa["familias"]:
+            fam = bloco["familia"]
+            cor = COR_DA_FAMILIA.get(fam["grupo"], AZUL)
 
-        ws.merge_cells(start_row=faixa["cab_familia"], start_column=1,
-                       end_row=faixa["cab_familia"], end_column=faixa["colunas"])
-        t = ws.cell(row=faixa["cab_familia"], column=1, value=fam["grupo"].upper())
-        t.font = Font(bold=True, size=12, color=BRANCO)
-        t.fill = PatternFill("solid", fgColor=cor)
-        t.alignment = Alignment(horizontal="left", vertical="center", indent=1)
-        ws.row_dimensions[faixa["cab_familia"]].height = 22
+            ws.merge_cells(start_row=faixa["cab_familia"],
+                           start_column=bloco["col_inicio"],
+                           end_row=faixa["cab_familia"],
+                           end_column=bloco["col_fim"])
+            t = ws.cell(row=faixa["cab_familia"], column=bloco["col_inicio"],
+                        value=fam["grupo"].upper())
+            t.font = Font(bold=True, size=11, color=BRANCO)
+            t.fill = PatternFill("solid", fgColor=cor)
+            t.alignment = Alignment(horizontal="left", vertical="center", indent=1)
+            ws.row_dimensions[faixa["cab_familia"]].height = 20
 
-        for conta in fam["contas"]:
-            p = pos[conta["codigo"]]
-            cd, cdesc, cv = p["col_dia"], p["col_desc"], p["col_valor"]
+            for conta in fam["contas"]:
+                p = pos[conta["codigo"]]
+                cd, cdesc, cv = p["col_dia"], p["col_desc"], p["col_valor"]
 
-            ws.merge_cells(start_row=faixa["cab_conta"], start_column=cd,
-                           end_row=faixa["cab_conta"], end_column=cv)
-            h = ws.cell(row=faixa["cab_conta"], column=cd, value=conta["nome"])
-            h.font = Font(bold=True, size=10, color=BRANCO)
-            h.fill = PatternFill("solid", fgColor=cor)
-            h.alignment = Alignment(horizontal="center", vertical="center",
-                                    wrap_text=True)
-            if conta["ajuda"]:
-                h.comment = Comment("%s\n\n%s" % (conta["codigo"], conta["ajuda"]),
-                                    "Plano de contas")
-            ws.row_dimensions[faixa["cab_conta"]].height = 30
+                ws.merge_cells(start_row=faixa["cab_conta"], start_column=cd,
+                               end_row=faixa["cab_conta"], end_column=cv)
+                h = ws.cell(row=faixa["cab_conta"], column=cd, value=conta["nome"])
+                h.font = Font(bold=True, size=9, color=BRANCO)
+                h.fill = PatternFill("solid", fgColor=cor)
+                h.alignment = Alignment(horizontal="center", vertical="center",
+                                        wrap_text=True)
+                if conta["ajuda"]:
+                    h.comment = Comment("%s\n\n%s" % (conta["codigo"], conta["ajuda"]),
+                                        "Plano de contas")
+                ws.row_dimensions[faixa["cab_conta"]].height = 28
 
-            for r in range(p["linha_1"], p["linha_n"] + 1):
-                for col, fmt in ((cd, "0"), (cdesc, None), (cv, DINHEIRO)):
-                    c = ws.cell(row=r, column=col)
-                    c.border = BORDA
-                    if fmt:
-                        c.number_format = fmt
-                    if r % 2 == 0:
-                        c.fill = PatternFill("solid", fgColor=CINZA_CLARO)
-                ws.cell(row=r, column=cd).font = Font(size=9, color="808080")
-            dv.add("%s%d:%s%d" % (get_column_letter(cv), p["linha_1"],
-                                  get_column_letter(cv), p["linha_n"]))
+                for r in range(p["linha_1"], p["linha_n"] + 1):
+                    for c_, fmt in ((cd, "0"), (cdesc, None), (cv, DINHEIRO)):
+                        c = ws.cell(row=r, column=c_)
+                        c.border = BORDA
+                        c.font = Font(size=9)
+                        if fmt:
+                            c.number_format = fmt
+                        if r % 2 == 0:
+                            c.fill = PatternFill("solid", fgColor=CINZA_CLARO)
+                    ws.cell(row=r, column=cd).font = Font(size=8, color="808080")
+                dv.add("%s%d:%s%d" % (get_column_letter(cv), p["linha_1"],
+                                      get_column_letter(cv), p["linha_n"]))
 
-            rt = p["linha_total"]
-            lab = ws.cell(row=rt, column=cdesc, value="Total")
-            lab.font = Font(bold=True, size=9, color=cor)
-            lab.alignment = Alignment(horizontal="right")
-            tot = ws.cell(row=rt, column=cv, value="=SUM(%s%d:%s%d)" % (
-                get_column_letter(cv), p["linha_1"],
-                get_column_letter(cv), p["linha_n"]))
-            tot.number_format = DINHEIRO
-            tot.font = Font(bold=True, size=10, color=cor)
-            tot.border = Border(top=GROSSA, bottom=GROSSA, left=FINA, right=FINA)
+                rt = p["linha_total"]
+                lab = ws.cell(row=rt, column=cdesc, value="Total")
+                lab.font = Font(bold=True, size=8, color=cor)
+                lab.alignment = Alignment(horizontal="right")
+                tot = ws.cell(row=rt, column=cv, value="=SUM(%s%d:%s%d)" % (
+                    get_column_letter(cv), p["linha_1"],
+                    get_column_letter(cv), p["linha_n"]))
+                tot.number_format = DINHEIRO
+                tot.font = Font(bold=True, size=9, color=cor)
+                tot.border = Border(top=GROSSA, bottom=GROSSA, left=FINA, right=FINA)
 
-    maior = max(len(f["contas"]) for f in familias)
-    for i in range(maior):
-        base = 1 + i * 3
-        ws.column_dimensions[get_column_letter(base)].width = 5
-        ws.column_dimensions[get_column_letter(base + 1)].width = 22
-        ws.column_dimensions[get_column_letter(base + 2)].width = 13
-    ws.freeze_panes = "A7"
+    # Colunas estreitas: cabe mais bloco na tela sem apertar o texto, porque a
+    # descricao e curta ("Goiaba", "Correios", "Aluguel do patio").
+    largura = max(f["colunas"] for f in faixas)
+    for c in range(1, largura + 1):
+        resto = (c - 1) % 3
+        ws.column_dimensions[get_column_letter(c)].width = (
+            4 if resto == 0 else 18 if resto == 1 else 12)
+    ws.freeze_panes = "A3"
     return ws
 
 
@@ -324,8 +374,10 @@ def aba_ano(wb, ano):
         c.alignment = Alignment(horizontal="center")
     for i, m in enumerate(MESES, start=4):
         ws.cell(row=i, column=1, value=m).font = Font(bold=True)
-        ws.cell(row=i, column=2, value="='%s'!B4" % m).number_format = DINHEIRO
-        ws.cell(row=i, column=3, value="='%s'!B5" % m).number_format = DINHEIRO
+        ws.cell(row=i, column=2,
+                value="='%s'!%s" % (m, CEL_CREDITOS)).number_format = DINHEIRO
+        ws.cell(row=i, column=3,
+                value="='%s'!%s" % (m, CEL_DEBITOS)).number_format = DINHEIRO
         c = ws.cell(row=i, column=4, value="=B%d-C%d" % (i, i))
         c.number_format = DINHEIRO
         c.font = Font(bold=True)
