@@ -461,6 +461,77 @@ def rodar_postgres(catalogo, veiculos, abc, duracao_ate_aqui):
     return len(catalogo), disponiveis, com_tempo
 
 
+# Quanto o catalogo pode encolher numa recarga legitima. Peca vendida sai do
+# estoque, entao encolher e normal; encolher pela metade nao e.
+ENCOLHIMENTO_MAXIMO = 0.5
+
+
+def _quantas_ja_existem() -> int:
+    """Quantas pecas o catalogo tem AGORA, antes de qualquer escrita."""
+    try:
+        if DATABASE_URL:
+            import psycopg2
+            with psycopg2.connect(DATABASE_URL) as conn, conn.cursor() as cur:
+                cur.execute("SELECT count(*) FROM catalogo_erp")
+                return cur.fetchone()[0]
+        if not DB_PATH.exists():
+            return 0
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            return conn.execute("SELECT count(*) FROM catalogo_erp").fetchone()[0]
+        finally:
+            conn.close()
+    except Exception:
+        # Tabela nova, banco vazio: nao ha o que proteger.
+        return 0
+
+
+def _travar_se_o_catalogo_sumiu(catalogo: list) -> None:
+    """Recusa a recarga quando ela apagaria o catalogo em vez de atualizar.
+
+    Existe por um caminho real de perda total, achado em 02/09/2026: a tela do
+    gestor tem o botao "Reimportar planilhas do estoque", que roda este script
+    no servidor. No Render nao existe data/simulador/raw_erp/ — `data/` esta no
+    .gitignore e as planilhas so moram na maquina da loja. `glob` numa pasta
+    que nao existe devolve lista VAZIA, sem erro nenhum; o script seguia,
+    rodava DELETE FROM catalogo_erp, inseria zero linhas, terminava com codigo
+    0, e a tela escrevia "Importacao concluida." em verde.
+
+    Um clique apagaria 172.854 pecas e cegaria o simulador de todos os
+    vendedores, com mensagem de sucesso na tela.
+
+    A trava tem duas partes porque sao dois enganos diferentes: catalogo vazio
+    e quase sempre pasta ausente; catalogo pela metade e planilha incompleta ou
+    exportacao cortada. Nos dois casos, parar antes do DELETE e a resposta —
+    quem quiser mesmo esvaziar tem o --forcar, que exige dizer isso em voz alta.
+    """
+    if "--forcar" in sys.argv:
+        print("  (--forcar: seguindo mesmo assim)")
+        return
+
+    if not catalogo:
+        existiam = _quantas_ja_existem()
+        sys.exit(
+            "\nPAREI ANTES DE APAGAR.\n"
+            f"Nao li nenhuma peca em {RAW_DIR}\n"
+            + (f"e o catalogo atual tem {existiam:,} pecas.\n" if existiam else "\n")
+            + "Seguir aqui apagaria o catalogo e nao poria nada no lugar.\n\n"
+            "Causa quase certa: as planilhas do ERP nao estao nesta maquina. Elas\n"
+            "moram no computador da loja; o servidor nunca as teve.\n"
+            "Rode este script de la, com DATABASE_URL setada.")
+
+    existiam = _quantas_ja_existem()
+    if existiam and len(catalogo) < existiam * ENCOLHIMENTO_MAXIMO:
+        sys.exit(
+            "\nPAREI ANTES DE APAGAR.\n"
+            f"Li {len(catalogo):,} pecas, mas o catalogo atual tem {existiam:,}.\n"
+            f"Isso e menos da metade — recarga normal nao encolhe assim.\n\n"
+            "Confira se todas as partes do relatorio do ERP estao em\n"
+            f"{RAW_DIR}\n"
+            "(sao varios arquivos: relatorio_produtos_76_parte1, parte2, ...).\n\n"
+            "Se a queda for real mesmo, rode de novo com --forcar.")
+
+
 def main():
     inicio = time.time()
     print(f"Modo: {'Postgres (produção)' if DATABASE_URL else 'SQLite local'}")
@@ -480,6 +551,7 @@ def main():
     print("\n== Catálogo ERP ==")
     catalogo = ler_catalogo()
     print(f"  total: {len(catalogo)} linhas")
+    _travar_se_o_catalogo_sumiu(catalogo)
 
     duracao_parcial = time.time() - inicio
     print("\n== Gravando + enriquecendo (tempo em estoque + curva por peça) ==")

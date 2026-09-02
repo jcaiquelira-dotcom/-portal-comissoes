@@ -5605,6 +5605,18 @@ def api_admin_simulador_status():
 def api_admin_simulador_reimportar():
     if not exigir_admin():
         return jsonify({"erro": "Não autenticado."}), 401
+    # As planilhas do ERP nunca estiveram no servidor: `data/` esta no
+    # .gitignore e elas moram na maquina da loja. Sem esta checagem o botao
+    # rodava o ETL num diretorio vazio, que apagava o catalogo e devolvia
+    # sucesso. O script tambem trava sozinho agora, mas recusar aqui poupa a
+    # ida e diz a coisa certa em vez de mostrar um log de erro.
+    bruto = ROOT / "data" / "simulador" / "raw_erp"
+    if not any(bruto.glob("relatorio_produtos_76_parte*.xlsx")):
+        return jsonify({"ok": False, "erro":
+                        "As planilhas do ERP não estão neste servidor — elas ficam "
+                        "no computador da loja. Rode a reimportação de lá, que ela "
+                        "sobe pro portal sozinha."}), 400
+
     script = ROOT / "scripts" / "etl_simulador.py"
     resultado = subprocess.run(
         [sys.executable, str(script)],
