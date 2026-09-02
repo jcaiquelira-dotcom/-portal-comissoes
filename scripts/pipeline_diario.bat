@@ -64,6 +64,16 @@ rem de volta pelo atualizar_google_ads.py.
 echo --- google ads (api direta) --- >> "%LOG%"
 "%PY%" app\google_ads_api.py >> "%LOG%" 2>&1
 
+rem Perfil da Empresa e Search Console, tambem direto do Google. Enquanto as
+rem APIs nao estiverem habilitadas no projeto do Cloud eles falham e o
+rem pipeline segue - cada passo aqui continua mesmo se o anterior quebrar, e
+rem o log conta qual foi.
+echo --- perfil da empresa (api direta) --- >> "%LOG%"
+"%PY%" app\perfil_google_api.py >> "%LOG%" 2>&1
+
+echo --- search console --- >> "%LOG%"
+"%PY%" app\search_console_api.py >> "%LOG%" 2>&1
+
 echo --- desempenho e marketing --- >> "%LOG%"
 "%PY%" app\sincronizar_desempenho.py >> "%LOG%" 2>&1
 "%PY%" app\sincronizar_marketing.py >> "%LOG%" 2>&1
@@ -75,6 +85,13 @@ echo --- carros pra chegar --- >> "%LOG%"
 
 echo --- metas bonus (producao) --- >> "%LOG%"
 "%PY%" "%PORTAL%\scripts\sincronizar_metas_bonus.py" >> "%LOG%" 2>&1
+
+rem O sincronizar_analytics so EMPURRA o _ga4.json pro portal; quem o gera e
+rem o analytics_api. Ate 02/09/2026 so o segundo passo rodava, entao o card
+rem carimbava data de hoje em cima de dado congelado em 30/08 - parado com
+rem cara de atualizado, que e pior que parado com cara de parado.
+echo --- google analytics (coleta) --- >> "%LOG%"
+"%PY%" app\analytics_api.py >> "%LOG%" 2>&1
 
 echo --- google analytics do site --- >> "%LOG%"
 "%PY%" app\sincronizar_analytics.py >> "%LOG%" 2>&1
