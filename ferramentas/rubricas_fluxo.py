@@ -27,8 +27,13 @@ Classificacao de cada rubrica no DRE (confirmada pelo gestor em 01/09/2026):
 import openpyxl
 import re
 import unicodedata
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho  # config/caminhos.json — ver app/caminhos.py
 
-P = r'C:\Users\José Caique\Downloads\Fluxo Julho 26.xlsx'
+
+P = str(caminho("fluxo_caixa_xlsx"))
 
 
 def ach(t):

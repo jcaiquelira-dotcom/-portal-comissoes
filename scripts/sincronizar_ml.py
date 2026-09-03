@@ -30,8 +30,11 @@ import urllib.request
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho  # config/caminhos.json — ver app/caminhos.py
 
-AUTH = Path(r"C:\Users\José Caique\Documents\ml-dashboard\ml_auth.json")
+AUTH = caminho("ml_auth")
 API = "https://api.mercadolibre.com"
 FUSO = timezone(timedelta(hours=-3))
 

@@ -22,10 +22,13 @@ import sys
 import unicodedata
 from datetime import datetime, date
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho  # config/caminhos.json — ver app/caminhos.py
 
 from openpyxl import load_workbook
 
-PLANILHA = Path(r"C:\Users\José Caique\Desktop\NEVADA ECOPECAS\Carros para chegar.xlsx")
+PLANILHA = caminho("carros_planilha")
 
 # Nome da coluna na planilha (sem acento, minúsculo) -> nome do campo aqui.
 # Casado por nome e não por posição: coluna nova no meio não quebra a leitura.

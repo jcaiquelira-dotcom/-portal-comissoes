@@ -22,8 +22,11 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho  # config/caminhos.json — ver app/caminhos.py
 
-ORIGEM = Path(r"G:\Meu Drive\painel-metas\data")
+ORIGEM = caminho("painel_metas_data")
 
 # setor da pessoa -> tipo do lançamento, como o painel-metas nomeia os dois.
 TIPO = {"anunciante": "anuncio", "cadastrador": "cadastro"}

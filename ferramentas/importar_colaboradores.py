@@ -35,10 +35,13 @@ import unicodedata
 import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho  # config/caminhos.json — ver app/caminhos.py
 
 from openpyxl import load_workbook
 
-PLANILHA = Path(r"C:\Users\José Caique\Desktop\Colaboradores 2026.xlsx")
+PLANILHA = caminho("colaboradores_planilha")
 
 # Como o setor aparece na planilha -> como o portal chama.
 SETORES = {

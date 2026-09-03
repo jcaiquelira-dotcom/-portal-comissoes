@@ -120,7 +120,9 @@ não essa classe de problema. O conserto é submeter em blocos de 200–300.
 ### 5.2 ~~Marcador do pipeline grava antes de rodar~~ — corrigido em 03/09
 O wrapper agora espera a rede (até 10 min), usa trava de 2h e só marca o dia
 quando o log tem "- fim". Cópia versionada em `scripts/disparar_pipeline.bat`.
-**Conferir amanhã** se a rodada das 07:30 (ou do logon) completou sozinha.
+**Validado em 03/09 às 10:59:** rodada disparada pelo wrapper novo terminou, a trava
+foi removida e o marcador foi gravado **depois** do `fim`. Falta só ver a das 07:30
+de amanhã acontecer sem ninguém por perto.
 
 ### 5.3 `painel-metas` e `portal-pecas` sem git
 Rodam só local, nunca precisaram de repo pra deploy. Mas qualquer edição neles é
@@ -132,9 +134,11 @@ sem precisar subir pro GitHub.
 ### 5.5 Plano de simplificação — ver `SIMPLIFICACAO.md`
 Diagnóstico medido em 03/09 e plano em 6 fases (arrumar a casa → biblioteca
 comum → um dono por chave → um repositório → quebrar server.py/admin.html →
-banco de conversas). Cada fase é uma sessão. **Fase 0 em andamento (03/09):** órfãos movidos pra `ferramentas/` e `_arquivo/`
-nos dois repos. Falta a parte que toca scripts vivos — `config/caminhos.json` e
-segredos num lugar só — que espera a rodada do pipeline terminar.
+banco de conversas). Cada fase é uma sessão. **Fase 0 concluída em 03/09.** Órfãos em `ferramentas/` e `_arquivo/` nos dois repos;
+`config/caminhos.json` + `app/caminhos.py` em cada um (21 caminhos absolutos viraram
+2 arquivos); `ml_auth.json` saiu de Documents pra `segredos/`. Deixado de propósito:
+o `.env` do vendas-insights fica onde está até a Fase 3 (um repositório) — mover
+agora só trocaria um caminho cravado por outro.
 
 ---
 

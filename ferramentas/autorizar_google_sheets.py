@@ -35,7 +35,7 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 
-DESTINO = Path(r"G:\Meu Drive\portal-comissoes\segredos\google_ads.json")
+DESTINO = Path(__file__).resolve().parent.parent / "segredos" / "google_ads.json"
 PORTAS = (8765, 8080, 8000)      # as mesmas ja cadastradas no cliente OAuth
 ESCOPO = " ".join([
     "https://www.googleapis.com/auth/adwords",
