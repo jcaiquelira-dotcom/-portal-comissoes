@@ -352,6 +352,26 @@
   .canal-grid .canal-nome{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .canal-grid .barra{height:6px;border-radius:20px;background:var(--surface-2);overflow:hidden;}
   .canal-grid .barra span{display:block;height:100%;border-radius:20px;background:var(--accent);}
+  /* Grade da analise de perdas do site. Colunas proprias porque aqui a coluna
+     que importa e a do limite inferior, nao a da taxa: e ela que decide a
+     ordem, e precisa ficar ao lado da taxa nominal pra diferenca entre as duas
+     ser visivel de relance em amostra pequena. */
+  .perda-grid{
+    display:grid;
+    grid-template-columns:minmax(110px,1.4fr) minmax(60px,1.6fr) 46px 62px 74px 96px;
+    gap:6px 14px;align-items:center;font-size:12.5px;
+  }
+  .perda-grid .cab{
+    font-size:10px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);font-weight:700;padding-bottom:2px;
+    border-bottom:1px solid var(--line);
+  }
+  .perda-grid .n{font-family:'IBM Plex Mono',monospace;text-align:right;white-space:nowrap;}
+  .perda-grid .rot{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .perda-grid .barra{height:6px;border-radius:20px;background:var(--surface-2);overflow:hidden;}
+  .perda-grid .barra span{display:block;height:100%;border-radius:20px;background:var(--bad);}
+  .perda-titulo{font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);font-weight:700;margin:14px 0 6px;}
   /* Dica abaixo de um campo do formulario. Existe porque "Desligado em" e um
      campo cujo efeito nao e obvio pelo rotulo — e a diferenca entre desligar e
      excluir precisa estar escrita ali, nao so na cabeca de quem programou. */
@@ -5579,6 +5599,90 @@ async function carregarMlConta(){
   </div>`;
 }
 
+/* Limite inferior de Wilson (95%).
+
+   Ordenar por taxa bruta faz amostra pequena parecer campea: 1 de 2 vira 50% e
+   passa na frente de 336 de 477. O Wilson desconta a incerteza, entao um grupo
+   com 8 pedidos nunca lidera sozinho — e a distancia entre a taxa e o limite
+   mostra, na propria tela, o quanto aquele numero ainda e chute. */
+function wilsonInf(sucessos, n){
+  if(!n) return 0;
+  const z = 1.96, p = sucessos / n;
+  const centro = p + z*z/(2*n);
+  const ajuste = z * Math.sqrt(p*(1-p)/n + z*z/(4*n*n));
+  return (centro - ajuste) / (1 + z*z/n);
+}
+
+/* Painel secundario do card do site: onde o dinheiro nao entrou.
+
+   Cobre o HISTORICO INTEIRO de proposito, e nao o periodo filtrado. Padrao de
+   falha e coisa de volume: recortado em duas semanas, cada cruzamento cairia
+   pra 3 ou 4 pedidos e o painel passaria a apontar campeao por sorte. O card
+   de cima acompanha o filtro; este responde outra pergunta. */
+function painelPerdasSite(a){
+  if(!a || !a.n) return '';
+  const pctFalha = 100 * (1 - a.ok / a.n);
+  const linha = (rot, [n, ok, perda], maxPerda) => {
+    const taxa = n ? 100*ok/n : 0, w = 100*wilsonInf(ok, n);
+    return `
+      <span class="rot">${rot}</span>
+      <span class="barra"><span style="width:${maxPerda ? (perda/maxPerda*100).toFixed(1) : 0}%"></span></span>
+      <span class="n">${n}</span>
+      <span class="n">${taxa.toFixed(0)}%</span>
+      <span class="n" style="color:var(--muted)">${w.toFixed(0)}%</span>
+      <span class="n">${perda ? fmtMoeda(perda) : '—'}</span>`;
+  };
+  const bloco = (titulo, dados) => {
+    const itens = Object.entries(dados).filter(([, v]) => v[0] >= 8);
+    if(!itens.length) return '';
+    itens.sort((x, y) => wilsonInf(y[1][1], y[1][0]) - wilsonInf(x[1][1], x[1][0]));
+    const maxP = Math.max(...itens.map(([, v]) => v[2]), 1);
+    return `<p class="perda-titulo">${titulo}</p>
+      <div class="perda-grid">
+        <span class="cab">Grupo</span><span class="cab"></span>
+        <span class="cab n">Ped.</span><span class="cab n">Pagos</span>
+        <span class="cab n">Piso</span><span class="cab n">Perdido</span>
+        ${itens.map(([k, v]) => linha(k, v, maxP)).join('')}
+      </div>`;
+  };
+  const pior = Object.entries(a.cruz || {}).filter(([, v]) => v[0] >= 8)
+    .sort((x, y) => wilsonInf(x[1][1], x[1][0]) - wilsonInf(y[1][1], y[1][0]))[0];
+
+  return `<details class="dp-recolhivel" style="margin-top:12px;">
+    <summary>Os ${(a.n - a.ok).toLocaleString('pt-BR')} pedidos que não viraram dinheiro
+      (${pctFalha.toFixed(0)}% · ${fmtMoeda(a.perda)})</summary>
+
+    ${pior ? `<div class="dp-aviso" style="margin-top:8px;">
+      <b style="color:var(--bad)">${pior[0]}</b> é o pior recorte: ${pior[1][0]} pedidos,
+      ${pior[1][1]} pagos (${(100*pior[1][1]/pior[1][0]).toFixed(0)}%),
+      <b>${fmtMoeda(pior[1][2])}</b> perdidos — ${(100*pior[1][2]/a.perda).toFixed(0)}% de
+      toda a perda numa combinação só.</div>` : ''}
+
+    ${bloco('Forma de pagamento', a.pagamento)}
+    ${bloco('Valor × pagamento', a.cruz)}
+    ${bloco('Faixa de valor', a.faixa)}
+    ${bloco('Frete', a.frete)}
+    ${bloco('Estado', a.uf)}
+
+    ${a.descartado && a.descartado.n ? `<div class="dp-aviso" style="margin-top:12px;">
+      <b>${a.descartado.n} pedidos (${fmtMoeda(a.descartado.valor)}) ficaram de fora desta
+      análise.</b> ${a.descartado.motivo} Mantê-los inflaria a taxa de falha em
+      3 pontos e apontaria "Retirar na Loja" como problema onde havia um ataque.</div>` : ''}
+
+    <div class="dp-aviso"><b>Piso</b> é o limite inferior de Wilson: o pior caso
+      estatístico daquele grupo, a 95% de confiança. A ordem das tabelas segue ele, e
+      não a taxa — senão um grupo de 8 pedidos com sorte lideraria sobre um de 477.
+      Quanto mais longe o piso está da taxa, menos aquele número se sustenta.
+      <b>Grupos com menos de 8 pedidos não aparecem.</b>
+      <br><br>O painel do site <b>não registra motivo de cancelamento</b>: isto mostra
+      <i>onde</i> o dinheiro se perde, não <i>por quê</i>. Separar "cartão recusado" de
+      "cliente desistiu" exigiria dado do gateway de pagamento.
+      Reembolsados contam como perda: o dinheiro entrou e voltou.
+      <br><br>Período analisado: ${a.de.split('-').reverse().join('/')} a
+      ${a.ate.split('-').reverse().join('/')} — histórico inteiro, não o filtro acima.</div>
+  </details>`;
+}
+
 async function carregarSiteConta(){
   if(!document.getElementById('siteConta')) return;
   const res = await fetch('/api/admin/site-conta');
@@ -5641,6 +5745,7 @@ function pintarSiteConta(){
              `${dData(melhor)} · ${serie[melhor].qtd} pedidos`) : ''}
       ${tile('Dias com venda', dias.length, `de ${dData(de)} a ${dData(ate)}`)}
     </div>
+    ${painelPerdasSite(d.analise)}
     <div class="dp-aviso">Só pedidos pagos — cancelados e reembolsados ficam de fora,
       mesmo critério do ML e da Shopee.${mkt.cobre_periodo === false
         ? ' <b>A série começa depois do início do período</b> — o que veio antes disso não está aqui.' : ''}
