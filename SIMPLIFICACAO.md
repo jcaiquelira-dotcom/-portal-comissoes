@@ -156,8 +156,16 @@ par; `export_dataset` gerou item idêntico ao de antes para as 11.191 sessões q
 o sync não tocou; a fila idem (as 3 diferenças são o campo `dias`, que anda com
 o relógio); `insights.py` e `extrair_ticket.py` rodam com o SQL novo.
 
-### Fase 6 — git nos dois que faltam
-`painel-metas` e `portal-pecas` ganham repo local (dois minutos cada).
+### Fase 6 — git nos dois que faltam — CONCLUÍDA em 03/09/2026
+`painel-metas` e `portal-pecas` ganharam repo local (branch `main`, sem GitHub —
+não há deploy, só precisam de histórico pra voltar atrás). Em cada um, o
+`.gitignore` explica o que fica fora: em painel-metas, `data/` (os lançamentos
+que o app reescreve) e o `_backup_data_20260827/` que era o "git" de antes; em
+portal-pecas, `segredos/`, o `cerebro.db` (126 MB, refeito pelo ETL) e as
+planilhas do ERP. Os dois JSON curados do portal-pecas entraram.
+
+**As seis fases estão fechadas.** O que sobrou é rotina: conferir as rodadas
+das 07:30, e as pendências do Caique em PENDENCIAS.md.
 
 ## O que NÃO fazer
 Reescrever. O código tem comentários que explicam decisões de negócio ("Confirmado

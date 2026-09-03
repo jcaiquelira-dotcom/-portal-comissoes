@@ -124,17 +124,19 @@ quando o log tem "- fim". Cópia versionada em `scripts/disparar_pipeline.bat`.
 foi removida e o marcador foi gravado **depois** do `fim`. Falta só ver a das 07:30
 de amanhã acontecer sem ninguém por perto.
 
-### 5.3 `painel-metas` e `portal-pecas` sem git
-Rodam só local, nunca precisaram de repo pra deploy. Mas qualquer edição neles é
-definitiva — sem histórico pra voltar atrás. Dois minutos pra criar repo local,
-sem precisar subir pro GitHub.
+### 5.3 ~~`painel-metas` e `portal-pecas` sem git~~ — resolvido em 03/09 (Fase 6)
+Repo local em cada um, primeiro commit feito. Dados, segredos e o banco do ETL
+ficaram fora, com o motivo escrito no `.gitignore` de cada pasta.
 
 ### 5.4 ~~Mudanças não commitadas~~ — commitadas em 03/09 junto com o passo do pipeline
 
 ### 5.5 Plano de simplificação — ver `SIMPLIFICACAO.md`
 Diagnóstico medido em 03/09 e plano em 6 fases (arrumar a casa → biblioteca
 comum → um dono por chave → um repositório → quebrar server.py/admin.html →
-banco de conversas). Cada fase é uma sessão. **Fase 5 concluída em 03/09** — `mensagens.raw` foi pro `vendas_raw.db`; o
+banco de conversas). Cada fase é uma sessão. **Fase 6 concluída em 03/09** — git local em `painel-metas` e `portal-pecas`.
+Com isso as seis fases da SIMPLIFICACAO.md estão fechadas.
+
+**Fase 5 concluída em 03/09** — `mensagens.raw` foi pro `vendas_raw.db`; o
 `vendas.db` caiu de 406 MB pra 104 MB, com `user_id` como coluna. **Decisão sua:**
 apagar `vendas_backup_2026-09-03_12h52_antes_fase5.db` (406 MB) e o
 `vendas_backup_2026-08-27_11h15.db` (276 MB) da pasta de dados quando estiver
