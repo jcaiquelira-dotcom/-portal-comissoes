@@ -110,18 +110,8 @@ def gravar(bloco: dict) -> None:
     if not url:
         print("DATABASE_URL nao definida.")
         return
-    import psycopg2
-    from psycopg2.extras import Json
-    conn = psycopg2.connect(url)
-    with conn, conn.cursor() as cur:
-        cur.execute("CREATE TABLE IF NOT EXISTS dados_json ("
-                    "chave TEXT PRIMARY KEY, valor JSONB NOT NULL)")
-        cur.execute(
-            "INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
-            "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
-            ("analytics_site", Json(bloco)))
-        print("  gravado analytics_site")
-    conn.close()
+    C.gravar_chave("analytics_site", bloco)
+    print("  gravado analytics_site")
 
 
 def main():

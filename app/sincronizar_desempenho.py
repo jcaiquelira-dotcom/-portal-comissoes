@@ -25,6 +25,9 @@ import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
+sys.path.insert(0, str(portal("app")))
+import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
 ROOT = Path(__file__).resolve().parent.parent
 BANCO = ROOT / "vendas.db"
@@ -133,21 +136,11 @@ def resumir(dados):
 
 
 def gravar(dados, url):
-    import psycopg2
-    from psycopg2.extras import Json
-
     gerado_em = datetime.now().astimezone().isoformat(timespec="seconds")
-    conn = psycopg2.connect(url)
-    with conn, conn.cursor() as cur:
-        cur.execute("CREATE TABLE IF NOT EXISTS dados_json ("
-                    "chave TEXT PRIMARY KEY, valor JSONB NOT NULL)")
-        for vid, meses in dados.items():
-            cur.execute(
-                "INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
-                "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
-                (f"insights_{vid}", Json({"gerado_em": gerado_em, "meses": meses})))
-            print(f"  gravado insights_{vid} ({len(meses)} meses)")
-    conn.close()
+    C.gravar_chaves({f"insights_{vid}": {"gerado_em": gerado_em, "meses": meses}
+                     for vid, meses in dados.items()})
+    for vid, meses in dados.items():
+        print(f"  gravado insights_{vid} ({len(meses)} meses)")
 
 
 def main():

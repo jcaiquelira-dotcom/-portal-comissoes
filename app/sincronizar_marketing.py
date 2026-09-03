@@ -251,24 +251,13 @@ def resumir(leads, gasto):
 
 
 def gravar(leads, gasto, meta, url):
-    import psycopg2
-    from psycopg2.extras import Json
-
     gerado_em = datetime.now().astimezone().isoformat(timespec="seconds")
-    conn = psycopg2.connect(url)
-    with conn, conn.cursor() as cur:
-        cur.execute("CREATE TABLE IF NOT EXISTS dados_json ("
-                    "chave TEXT PRIMARY KEY, valor JSONB NOT NULL)")
-        for chave, corpo in (("marketing_leads", {"gerado_em": gerado_em, "linhas": leads}),
-                             ("marketing_gasto", {"gerado_em": gerado_em, "linhas": gasto,
-                                                  "meta": meta,
-                                                  "fontes_ausentes": [] if meta else ["Meta Ads"]})):
-            cur.execute(
-                "INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
-                "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
-                (chave, Json(corpo)))
-            print(f"  gravado {chave}")
-    conn.close()
+    pares = {"marketing_leads": {"gerado_em": gerado_em, "linhas": leads},
+             "marketing_gasto": {"gerado_em": gerado_em, "linhas": gasto, "meta": meta,
+                                 "fontes_ausentes": [] if meta else ["Meta Ads"]}}
+    C.gravar_chaves(pares)
+    for chave in pares:
+        print(f"  gravado {chave}")
 
 
 def main():

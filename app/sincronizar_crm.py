@@ -28,6 +28,8 @@ import os
 import sys
 from pathlib import Path
 from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
+sys.path.insert(0, str(portal("app")))
+import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
 ROOT = Path(__file__).resolve().parent.parent
 ORIGEM = ROOT / "Fila_CRM_CONFIDENCIAL.json"
@@ -47,30 +49,15 @@ def carregar():
 
 
 def enviar_postgres(dados, url):
-    import psycopg2
-    from psycopg2.extras import Json
-
-    conn = psycopg2.connect(url)
-    with conn, conn.cursor() as cur:
-        # A tabela já existe (o portal a cria no boot); o CREATE aqui é só pra
-        # este script não depender da ordem em que os dois sobem.
-        cur.execute("CREATE TABLE IF NOT EXISTS dados_json ("
-                    "chave TEXT PRIMARY KEY, valor JSONB NOT NULL)")
-        for vendedor_id, bloco in dados["vendedores"].items():
-            payload = {
-                "gerado_em": dados["gerado_em"],
-                "de": dados["de"],
-                "ate": dados["ate"],
-                "nome": bloco["nome"],
-                "itens": bloco["itens"],
-            }
-            cur.execute(
-                "INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
-                "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
-                (f"crm_fila_{vendedor_id}", Json(payload)),
-            )
-            print(f"  crm_fila_{vendedor_id}: {len(bloco['itens'])} clientes")
-    conn.close()
+    # Todas as filas numa transacao so: ou os tres vendedores recebem a fila
+    # nova, ou nenhum — antes cada uma era um INSERT separado.
+    pares = {f"crm_fila_{vid}": {"gerado_em": dados["gerado_em"], "de": dados["de"],
+                                 "ate": dados["ate"], "nome": bloco["nome"],
+                                 "itens": bloco["itens"]}
+             for vid, bloco in dados["vendedores"].items()}
+    C.gravar_chaves(pares)
+    for vid, bloco in dados["vendedores"].items():
+        print(f"  crm_fila_{vid}: {len(bloco['itens'])} clientes")
 
 
 def enviar_local(dados):
