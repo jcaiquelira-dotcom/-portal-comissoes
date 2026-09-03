@@ -472,7 +472,8 @@ function item(it){
   return '<div class="' + cls.join(' ') + '">'
     + '<div class="topo">'
       + '<span class="peca" title="' + esc(it.peca) + '">' + esc(it.peca) + '</span>'
-      + '<span class="quando">' + esc(it.data.slice(0,5)) + ' · ' + it.dias + 'd</span>'
+      + '<span class="quando">' + esc((it.data || '').slice(0,5))
+      + (it.dias != null ? ' · ' + it.dias + 'd' : '') + '</span>'
       + '<div class="acoes">' + chamar + btnMsg + botoes + desmarcar + '</div>'
     + '</div>'
     + '<div class="baixo">'

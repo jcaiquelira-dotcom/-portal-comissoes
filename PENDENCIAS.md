@@ -187,6 +187,15 @@ roda desacompanhado.
 
 ## Resolvido em 02–03/09/2026
 
+- [x] **Meta Bônus alinhado à planilha "Gestão de Processos.xlsx"** (Drive, 03/09): nova
+      `ferramentas/importar_gestao_processos.py` compara aba por aba com o painel e
+      grava só o que falta (70 dias de anúncio, 3 cadastros de agosto, 3 carros, 2
+      contagens de peças; Lucas criado como anunciante inativo). Rodar de novo quando
+      a planilha for atualizada; sem `--gravar` só compara. **Decisão sua:** a planilha
+      diz meta bônus de anúncio 1.150 e de cadastro 1.550; o painel tem 1.200 e 1.600.
+      Não mexi. A coluna "Pedro/Alison" de julho não dá pra atribuir.
+- [x] Follow-up do vendedor: item do histórico mostrava "undefinedd" quando não tinha
+      o campo de dias (checkup de 03/09, logado como Flávia).
 - [x] **Painel de perdas do site tinha sumido** (checkup de 03/09): a análise de 02/09
       foi gravada por um trecho avulso da sessão, e o coletor diário regravava a
       chave `site_conta` inteira — na rodada das 11:21 ela foi embora. Agora é a
