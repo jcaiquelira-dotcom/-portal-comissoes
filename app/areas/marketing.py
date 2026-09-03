@@ -28,6 +28,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from nucleo import (
+    data_de_texto,
     AREAS,
     EXTENSOES_FOTO_PERMITIDAS,
     FOTOS_DIR,
@@ -417,7 +418,7 @@ def api_marketing_gestor():
         if ini <= fim:
             dias_relatorio = (date.fromisoformat(meta["ate"])
                               - date.fromisoformat(meta["de"])).days + 1
-            dias_dentro = (date.fromisoformat(fim) - date.fromisoformat(ini)).days + 1
+            dias_dentro = (data_de_texto(fim) - data_de_texto(ini)).days + 1
             fatia = dias_dentro / dias_relatorio if dias_relatorio else 0
             meta_rateio = {
                 "de": ini, "ate": fim,
@@ -443,7 +444,7 @@ def api_marketing_gestor():
         if ini <= fim:
             dias_relatorio = (date.fromisoformat(ml_ads["ate"])
                               - date.fromisoformat(ml_ads["de"])).days + 1
-            dias_dentro = (date.fromisoformat(fim) - date.fromisoformat(ini)).days + 1
+            dias_dentro = (data_de_texto(fim) - data_de_texto(ini)).days + 1
             fatia = dias_dentro / dias_relatorio if dias_relatorio else 0
             ml_rateio = {
                 "de": ini, "ate": fim,

@@ -187,6 +187,13 @@ roda desacompanhado.
 
 ## Resolvido em 02–03/09/2026
 
+- [x] **Painel Geral do gestor caía em setembro** ("day is out of range for month"):
+      o fim de mês é escrito como "-31" e o rateio por dia da Shopee, que entrou em
+      02/09, convertia esse texto em data. Setembro foi o primeiro mês de 30 dias
+      desde então. Corrigido no núcleo (`data_de_texto`) nos quatro pontos que
+      convertiam. Achado pela nova `ferramentas/checar_rotas.py`, que chama todas
+      as rotas GET com sessão de gestor e de vendedor — a varredura sem login dava
+      401 antes de chegar no bug. Rodar antes de publicar.
 - [x] Fila de follow-up restaurada e regenerada — 175 clientes, cobertura até 02/09
 - [x] Bug do `classificar_ia.py` que descartava trabalho já pago (3 barreiras)
 - [x] R$ 213.450 de investimento externo (APS) que estavam fora do DRE — jun, jul,

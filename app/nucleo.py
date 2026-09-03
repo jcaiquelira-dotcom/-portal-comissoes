@@ -677,7 +677,20 @@ def excedeu_tentativas_login(tipo: str, vendedor_id: str = None) -> bool:
 app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="")
 
 def mes_para_intervalo(mes: str) -> tuple[str, str]:
+    # O "-31" e um teto TEXTUAL: em comparacao de string ISO ele cobre qualquer
+    # mes, inclusive os de 30 dias. Nunca converta esse texto com
+    # date.fromisoformat — use data_de_texto(), que sabe disso.
     return f"{mes}-01", f"{mes}-31"
+
+
+def data_de_texto(iso: str) -> date:
+    """'AAAA-MM-DD' vira date, aceitando o dia 31 de mes_para_intervalo() em
+    mes de 30 dias (e 29/30/31 em fevereiro): o dia e limitado ao ultimo dia
+    real do mes. Em 03/09/2026 o Painel Geral do gestor caiu com
+    "day is out of range for month" — primeiro mes de 30 dias desde que o
+    rateio por dia passou a converter o fim do periodo em date."""
+    ano, mes, dia = int(iso[:4]), int(iso[5:7]), int(iso[8:10])
+    return date(ano, mes, min(dia, calendar.monthrange(ano, mes)[1]))
 
 def valor_liquido(v: dict) -> float:
     """Valor da venda menos o que foi devolvido, sem apagar o histórico.

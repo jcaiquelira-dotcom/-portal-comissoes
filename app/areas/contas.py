@@ -28,6 +28,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from nucleo import (
+    data_de_texto,
     AREAS,
     AREAS_PROPRIAS,
     CREDENCIAIS_FILE,
@@ -1119,7 +1120,7 @@ def api_admin_resumo():
             # Sao DUAS lojas desde 02/09/2026 — nevadaecopecas (1) e gabrielanevada
             # (2). A conta e identica nas duas, entao mora numa funcao so: duplicar
             # o rateio seria duplicar o lugar onde ele pode divergir depois.
-            d_de, d_ate = date.fromisoformat(de), date.fromisoformat(ate)
+            d_de, d_ate = data_de_texto(de), data_de_texto(ate)
 
             def bloco_shopee(arquivo, id_, nome):
                 shp = ler_json(resolver_pasta_dados() / arquivo, None) or {}
@@ -1219,7 +1220,7 @@ def api_admin_resumo():
     # Reusa calcular_comissao(), a mesma funcao do periodo atual. Reescrever a
     # soma aqui criaria duas contas de comissao que um dia divergiriam — e a
     # que ninguem olha e a que fica errada.
-    d1, d2 = date.fromisoformat(de), date.fromisoformat(ate)
+    d1, d2 = data_de_texto(de), data_de_texto(ate)
     dias_janela = (d2 - d1).days + 1
     anterior_kpis = None
     if 0 < dias_janela <= 400:
