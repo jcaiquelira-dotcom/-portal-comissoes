@@ -463,10 +463,11 @@
             </div>
             <!-- Meta de pecas desmontadas no mes — na planilha antiga era o
                  "Pc Grande". Fica aqui, ao lado dos carros, porque e deles. -->
-            <!-- Desmontagem se mede por carros no mes; pecas e o secundario. -->
+            <!-- Desmontagem nao tem meta: a partir do 9o carro do mes, R$ 100 por
+                 carro, sem teto (regra do gestor, 03/09/2026). Pecas e secundario. -->
             <div class="mb-veic-form" style="margin-top:8px;">
-              <input type="number" id="mbMetaCarros" min="0" step="1" placeholder="Meta de carros no mês">
-              <input type="number" id="mbMetaCarrosBonus" min="0" step="1" placeholder="Bônus de carros">
+              <input type="number" id="mbMetaCarros" min="0" step="1" placeholder="Carros sem bônus (piso, 8)" title="Até este número de carros no mês não há bônus">
+              <input type="number" id="mbMetaCarrosBonus" min="0" step="1" placeholder="R$ por carro acima (100)" title="Valor pago por cada carro acima do piso">
               <input type="number" id="mbMetaVeic" min="0" step="1" placeholder="Meta de peças no mês">
               <input type="number" id="mbMetaVeicBonus" min="0" step="1" placeholder="Bônus de peças">
               <button class="btn btn-neutro btn-pequeno" id="mbSalvarMetaVeic">Salvar metas da desmontagem</button>

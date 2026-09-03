@@ -1908,8 +1908,8 @@ async function mbSalvarMetaVeic(){
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({meta: document.getElementById('mbMetaVeic').value,
       meta_bonus: document.getElementById('mbMetaVeicBonus').value,
-      meta_carros: document.getElementById('mbMetaCarros').value,
-      meta_carros_bonus: document.getElementById('mbMetaCarrosBonus').value})});
+      piso_carros: document.getElementById('mbMetaCarros').value,
+      bonus_carro: document.getElementById('mbMetaCarrosBonus').value})});
   const d = await res.json().catch(() => ({}));
   if(!res.ok){
     status.textContent = d.erro || 'Erro ao salvar a meta de peças.';
@@ -1968,7 +1968,7 @@ function mbComparativo(d){
         <th>${r ? 'projeção vs anterior' : 'vs anterior'}</th></tr></thead>
       <tbody>${blocos}
         <tr class="mb-cmp-setor"><td colspan="${meses.length + 2}">Desmontagem</td></tr>
-        <tr><td>Carros</td>${meses.map(m => cel(carros[m], d.veiculos.meta_carros, d.veiculos.meta_carros_bonus, m)).join('')}<td>${delta(carros)}</td></tr>
+        <tr><td>Carros</td>${meses.map(m => cel(carros[m], 0, d.veiculos.piso_carros + 1, m)).join('')}<td>${delta(carros)}</td></tr>
         <tr><td>Peças</td>${meses.map(m => cel(pecas[m], d.veiculos.meta, d.veiculos.meta_bonus, m)).join('')}<td>${delta(pecas)}</td></tr>
       </tbody></table></div>
     <div class="dp-aviso">Verde = bateu o bônus; laranja = bateu a meta; vermelho = abaixo.
@@ -1992,11 +1992,11 @@ async function mbCarregarSaldos(mes){
   const totalPagar = d.linhas.filter(l => !l.pago).reduce((s, l) => s + l.a_pagar, 0);
   const linhas = d.linhas.map(l => `<tr${l.inativo ? ' style="color:var(--muted)"' : ''}>
       <td>${l.nome}${l.inativo ? ' <small>(inativo)</small>' : ''}</td>
-      <td>${l.setor === 'anunciante' ? 'Anúncios' : 'Cadastros'}</td>
-      <td class="n">${n(l.saldo_anterior)}</td>
+      <td>${l.setor === 'anunciante' ? 'Anúncios' : (l.setor === 'cadastrador' ? 'Cadastros' : 'Carros')}</td>
+      <td class="n">${l.setor === 'desmontagem' ? '—' : n(l.saldo_anterior)}</td>
       <td class="n">${n(l.producao)}</td>
-      <td class="n">${n(l.acima)}</td>
-      <td class="n"><b>${n(l.acumulado)}</b></td>
+      <td class="n">${n(l.acima)}${l.setor === 'desmontagem' ? ` <small>acima de ${n(l.meta)}</small>` : ''}</td>
+      <td class="n"><b>${l.setor === 'desmontagem' ? '—' : n(l.acumulado)}</b></td>
       <td class="n" style="color:${l.a_pagar ? 'var(--good)' : 'var(--muted)'}">${fmtMoeda(l.a_pagar)}</td>
       <td class="n">${n(l.sobra)}</td>
       <td>${l.pago
@@ -2011,10 +2011,10 @@ async function mbCarregarSaldos(mes){
         <th>Acima da meta</th><th>Acumulado</th><th>A pagar</th><th>Sobra</th><th></th></tr></thead>
       <tbody>${linhas}</tbody></table></div>`
       : '<div class="vazio">Ninguém com saldo ou produção neste mês.</div>'}
-    <div class="dp-aviso">A cada <b>50 acima da meta</b>, R$ 50. "Pago" leva os múltiplos de 50 do
-      acumulado; a <b>sobra</b> fica de crédito, em unidades, pro mês seguinte. Mês sem "Pago"
-      continua acumulando. Saldo anterior, acumulado e sobra são em anúncios ou cadastros;
-      só "A pagar" é em reais.</div>
+    <div class="dp-aviso">Anúncios e cadastros: a cada <b>50 acima da meta</b>, R$ 50. "Pago" leva os
+      múltiplos de 50 do acumulado; a <b>sobra</b> fica de crédito, em unidades, pro mês seguinte.
+      Mês sem "Pago" continua acumulando. Desmontagem: <b>R$ por carro acima do piso</b> no mês,
+      sem sobra — carro é inteiro. Só "A pagar" é em reais.</div>
   </div>`;
 }
 
@@ -2095,9 +2095,9 @@ function renderMetaBonus(d){
     kpi('No bônus', noBonus, `de ${todas.length} pessoas`, noBonus ? 'var(--good)' : null),
     kpi('Na meta', naMeta, `de ${todas.length} pessoas`),
     kpi('Carros desmontados', v.carros,
-        v.meta_carros ? `meta ${v.meta_carros.toLocaleString('pt-BR')} · bônus ${(v.meta_carros_bonus || 0).toLocaleString('pt-BR')}` : 'sem meta de carros',
-        !v.meta_carros ? null : (v.carros >= (v.meta_carros_bonus || Infinity) ? 'var(--good)'
-          : (v.carros >= v.meta_carros ? 'var(--accent)' : 'var(--bad)'))),
+        v.bonus_carros_valor ? `bônus ${fmtMoeda(v.bonus_carros_valor)} · ${fmtMoeda(v.bonus_carro)} por carro a partir do ${v.piso_carros + 1}º`
+                             : `bônus a partir do ${v.piso_carros + 1}º carro (${fmtMoeda(v.bonus_carro)} cada)`,
+        v.bonus_carros_valor ? 'var(--good)' : null),
     kpi('Peças no mês', v.pecas.toLocaleString('pt-BR'),
         `meta ${v.meta.toLocaleString('pt-BR')} · bônus ${v.meta_bonus.toLocaleString('pt-BR')}`,
         v.pecas >= v.meta_bonus ? 'var(--good)' : (v.pecas >= v.meta ? 'var(--accent)' : 'var(--bad)')),
@@ -2135,7 +2135,7 @@ function renderMetaBonus(d){
   // Meta de peças do mês: os campos ficam no bloco de lançamento; aqui só
   // mostro o valor atual (sem pisar no que o gestor estiver digitando).
   for(const [id, val] of [['mbMetaVeic', v.meta], ['mbMetaVeicBonus', v.meta_bonus],
-                          ['mbMetaCarros', v.meta_carros], ['mbMetaCarrosBonus', v.meta_carros_bonus]]){
+                          ['mbMetaCarros', v.piso_carros], ['mbMetaCarrosBonus', v.bonus_carro]]){
     const el = document.getElementById(id);
     if(el && document.activeElement !== el) el.value = val || '';
   }

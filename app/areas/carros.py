@@ -351,7 +351,7 @@ def api_mb_meta_veiculos():
     # Desmontagem se mede por CARROS no mes (regra do gestor, 03/09/2026);
     # pecas e a medida secundaria. Os quatro campos sao opcionais: o que nao
     # vier no corpo fica como esta.
-    for campo in ("meta", "meta_bonus", "meta_carros", "meta_carros_bonus"):
+    for campo in ("meta", "meta_bonus", "piso_carros", "bonus_carro"):
         if campo not in corpo:
             continue
         bruto = str(corpo.get(campo) or "").strip().replace(",", ".")
@@ -422,6 +422,26 @@ def _mb_saldos(dados: dict, mes: str) -> list:
                 "pago": pago,
             })
     linhas.sort(key=lambda x: (x["setor"], -x["acumulado"], x["nome"]))
+
+    # Desmontagem: bonus da equipe, R$ por carro acima do piso, sem sobra nem
+    # acumulo entre meses — carro e inteiro. Entra no mesmo quadro pra ser
+    # pago pelo mesmo botao.
+    mv = dados["meta_veiculos"]
+    piso = float(mv.get("piso_carros") if mv.get("piso_carros") is not None else 8)
+    por_carro = float(mv.get("bonus_carro") if mv.get("bonus_carro") is not None else 100)
+    if mes > inicio_geral:
+        carros = sum(1 for v in dados["veiculos"].values() if (v.get("data") or "")[:7] == mes)
+        acima = max(0.0, carros - piso)
+        pg = pago_de.get(("desmontagem", "equipe", mes))
+        if carros > 0 or pg:
+            pago = pg and {"id": pg[0], **pg[1]}
+            linhas.append({
+                "setor": "desmontagem", "pessoa_id": "equipe", "nome": "Equipe de desmontagem",
+                "inativo": False, "meta": piso, "saldo_anterior": 0.0, "producao": float(carros),
+                "acima": acima, "acumulado": acima,
+                "a_pagar": float(pago["valor"]) if pago else acima * por_carro,
+                "sobra": 0.0, "pago": pago, "por_carro": por_carro,
+            })
     return linhas
 
 
@@ -443,7 +463,8 @@ def api_mb_saldo_pagar():
     corpo = request.get_json(silent=True) or {}
     setor, pid, mes = corpo.get("setor"), corpo.get("pessoa_id"), (corpo.get("mes") or "").strip()
     dados = _mb_bruto()
-    if setor not in dados["pessoas"] or pid not in dados["pessoas"][setor]:
+    equipe = setor == "desmontagem" and pid == "equipe"
+    if not equipe and (setor not in dados["pessoas"] or pid not in dados["pessoas"][setor]):
         return jsonify({"erro": "Pessoa desconhecida."}), 400
     if not re.fullmatch(r"\d{4}-\d{2}", mes):
         return jsonify({"erro": "Mês inválido."}), 400
@@ -452,15 +473,21 @@ def api_mb_saldo_pagar():
         return jsonify({"erro": "Nada acumulado para essa pessoa neste mês."}), 400
     if linha["pago"]:
         return jsonify({"erro": "Este mês já está marcado como pago."}), 400
-    valor = int(linha["acumulado"] // PASSO_BONUS) * PASSO_BONUS
-    if valor <= 0:
-        return jsonify({"erro": "Ainda não chegou a 50 acima da meta — nada a pagar."}), 400
+    if equipe:
+        valor, unidades = linha["a_pagar"], linha["acima"]   # carros acima do piso
+        if valor <= 0:
+            return jsonify({"erro": f"Ainda não passou de {linha['meta']:.0f} carros — nada a pagar."}), 400
+    else:
+        valor = int(linha["acumulado"] // PASSO_BONUS) * PASSO_BONUS
+        unidades = valor
+        if valor <= 0:
+            return jsonify({"erro": "Ainda não chegou a 50 acima da meta — nada a pagar."}), 400
     dados["saldos"].setdefault("pagamentos", {})[uuid.uuid4().hex[:12]] = {
-        "setor": setor, "pessoa_id": pid, "mes": mes, "valor": valor, "unidades": valor,
+        "setor": setor, "pessoa_id": pid, "mes": mes, "valor": valor, "unidades": unidades,
         "pago_em": agora_br().isoformat(timespec="seconds"),
     }
     _mb_gravar(dados)
-    return jsonify({"ok": True, "valor": valor, "sobra": linha["acumulado"] - valor})
+    return jsonify({"ok": True, "valor": valor, "sobra": 0 if equipe else linha["acumulado"] - valor})
 
 
 @app.route("/api/admin/metas-bonus/saldos/pagar/<pgid>", methods=["DELETE"])
