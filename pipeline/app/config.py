@@ -6,7 +6,14 @@ Segredo nao entra em codigo: .env esta no .gitignore, o codigo nao.
 import os
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+# ROOT e a pasta de DADOS (onde mora o .env), lida de config/caminhos.json.
+# No Render nao existe .env nem essa pasta: env() le a variavel de ambiente
+# antes de tocar no arquivo, entao la isto nunca e usado.
+try:
+    from caminhos import caminho
+    ROOT = caminho("dados")
+except SystemExit:
+    ROOT = Path(__file__).resolve().parent.parent
 _ENV = ROOT / ".env"
 
 

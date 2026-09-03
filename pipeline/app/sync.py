@@ -7,10 +7,11 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 from config import env
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = caminho("dados")   # pasta de dados desta maquina (config/caminhos.json)
 TOKEN = env("TOTALK_TOKEN", obrigatorio=False) or os.environ.get("TOTALK_API_TOKEN")
 BASE_URL = "https://api.wts.chat"
 SQLITE_PATH = ROOT / "vendas.db"

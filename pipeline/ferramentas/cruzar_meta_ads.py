@@ -22,7 +22,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = caminho("dados")   # pasta de dados desta maquina (config/caminhos.json)
 CSV_META = caminho("meta_csv")
 TICKET = 968
 

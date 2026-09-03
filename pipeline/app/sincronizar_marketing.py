@@ -31,8 +31,11 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
+ROOT = caminho("dados")   # pasta de dados desta maquina (config/caminhos.json)
+sys.path.insert(0, str(portal("app")))
+import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
-ROOT = Path(__file__).resolve().parent.parent
 BANCO = ROOT / "vendas.db"
 # _w_amplo cobre o ano todo; _windsor_periodo é mais curto mas traz clique e
 # impressão. Um completa o outro: o amplo dá a série longa, o outro dá o resto.
@@ -48,9 +51,6 @@ META_JSON = ROOT / "_meta_ads.json"
 # sincronizar_desempenho, e as duas ignoravam a transferencia de assento — o
 # painel dizia Gustavo em setembro pras conversas que ja eram do Lucas.
 from agentes import slug as _slug_agente
-from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
-sys.path.insert(0, str(portal("app")))
-import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
 
 def coletar_leads():

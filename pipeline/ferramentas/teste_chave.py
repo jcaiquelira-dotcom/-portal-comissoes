@@ -6,8 +6,11 @@ from pathlib import Path
 import anthropic
 
 from config import env
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = caminho("dados")   # pasta de dados desta maquina (config/caminhos.json)
 os.environ["ANTHROPIC_API_KEY"] = env("ANTHROPIC_API_KEY")
 
 client = anthropic.Anthropic()

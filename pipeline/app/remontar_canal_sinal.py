@@ -39,7 +39,7 @@ from caminhos import caminho, portal  # config/caminhos.json — ver app/caminho
 sys.path.insert(0, str(portal("app")))
 import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
-BANCO = Path(__file__).resolve().parent.parent / "vendas.db"
+BANCO = caminho("dados") / "vendas.db"
 
 # A tabela antiga NAO bate 100% com a regra nova, e isso e esperado: ela foi
 # construida antes de duas correcoes que o export_dataset ja documenta —

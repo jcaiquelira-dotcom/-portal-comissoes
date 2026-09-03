@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 PORTAL_COMISSOES_DIR = portal("data")
-DATASET_PATH = Path(__file__).resolve().parent.parent / "dataset.json"
+DATASET_PATH = caminho("dados") / "dataset.json"
 
 VENDEDORES = ["flavia", "gustavo", "matheus"]  # Brenda fica de fora de proposito
 NOME_EXIBICAO = {"flavia": "Flávia", "gustavo": "Gustavo", "matheus": "Matheus"}

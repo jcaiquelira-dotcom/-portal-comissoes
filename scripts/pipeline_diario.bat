@@ -16,7 +16,9 @@ rem de acento em nome de pasta.
 rem =====================================================================
 set "PY=C:\Users\JOSCAI~1\AppData\Local\Programs\Python\Python312\python.exe"
 set "PORTAL=G:\Meu Drive\portal-comissoes"
-set "INSIGHTS=C:\Users\JOSCAI~1\Desktop\ARQUIVOS IA\vendas-insights"
+rem Desde 03/09/2026 (Fase 3) o vendas-insights mora dentro deste repo, em pipeline/.
+rem Os DADOS (vendas.db, .env, _*.json) continuam fora do Drive: config/caminhos.json -> dados.
+set "INSIGHTS=%PORTAL%\pipeline"
 set "LOG=%PORTAL%\segredos\pipeline_diario.log"
 set /p DATABASE_URL=<"%PORTAL%\segredos\database_url.txt"
 

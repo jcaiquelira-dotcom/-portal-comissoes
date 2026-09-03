@@ -31,7 +31,7 @@ from caminhos import caminho, portal  # config/caminhos.json — ver app/caminho
 sys.path.insert(0, str(portal("app")))
 import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = caminho("dados")   # pasta de dados desta maquina (config/caminhos.json)
 ORIGEM = ROOT / "Fila_CRM_CONFIDENCIAL.json"
 # O portal fica no Drive, fora deste projeto. Só é usado no modo --local.
 PORTAL_DATA = portal("data")

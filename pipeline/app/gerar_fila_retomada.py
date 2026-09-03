@@ -45,6 +45,7 @@ import urllib.request
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -52,7 +53,7 @@ from openpyxl.utils import get_column_letter
 
 from config import env
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = caminho("dados")   # pasta de dados desta maquina (config/caminhos.json)
 TOKEN = env("TOTALK_TOKEN")
 BASE = "https://api.wts.chat"
 HOJE = datetime.now(timezone.utc)  # "dias parado" conta ate hoje, nao ate o fim do sync

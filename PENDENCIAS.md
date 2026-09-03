@@ -134,7 +134,13 @@ sem precisar subir pro GitHub.
 ### 5.5 Plano de simplificação — ver `SIMPLIFICACAO.md`
 Diagnóstico medido em 03/09 e plano em 6 fases (arrumar a casa → biblioteca
 comum → um dono por chave → um repositório → quebrar server.py/admin.html →
-banco de conversas). Cada fase é uma sessão. **Fase 2 concluída em 03/09** — um dono por chave: gasto e Perfil são do pipeline
+banco de conversas). Cada fase é uma sessão. **Fase 3 concluída em 03/09** — um repositório: `vendas-insights` virou `pipeline/`
+aqui dentro (histórico preservado); dados continuam na pasta antiga do Desktop,
+fora do Drive. **Conferir amanhã** a rodada das 07:30 a partir de `pipeline/`.
+**Pendência sua (2.6):** repontar o webhook no Render → repo `-portal-comissoes`,
+Root Directory `pipeline`. Depois disso o repo antigo pode ser arquivado no GitHub.
+
+**Fase 2 concluída em 03/09** — um dono por chave: gasto e Perfil são do pipeline
 local (nuvem vira reserva de 30h); `ml_conta` é da nuvem (passo local saiu).
 Conferir amanhã: `ml_conta` deve seguir com `origem` e hora cheia; `marketing_gasto`
 gravado ~08:00 pelo local sem a nuvem sobrescrever.

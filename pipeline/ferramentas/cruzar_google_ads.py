@@ -11,8 +11,11 @@ import re
 import sqlite3
 from collections import defaultdict
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = caminho("dados")   # pasta de dados desta maquina (config/caminhos.json)
 WINDSOR = ROOT / "_windsor_periodo.json"
 TICKET = 968
 

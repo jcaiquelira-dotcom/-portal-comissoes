@@ -35,6 +35,7 @@ import time
 import urllib.error
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -48,9 +49,7 @@ from sync import (  # noqa: E402  (precisa do sys.path acima)
     _salvar_sessao,
 )
 
-ROOT = Path(__file__).resolve().parent.parent
-
-
+ROOT = caminho("dados")   # pasta de dados desta maquina (config/caminhos.json)
 def listar_sessoes(desde_iso):
     """Baixa a listagem de sessoes (barato: ~100 por pagina, sem as mensagens)."""
     sessoes, pagina = [], 1

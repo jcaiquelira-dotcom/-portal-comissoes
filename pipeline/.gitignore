@@ -27,3 +27,7 @@ app/_*.py
 Fila_CRM_CONFIDENCIAL.json
 vendas_backup_*.db
 COMO_LIGAR_O_WEBHOOK.txt
+
+# gerados pelo pipeline; a copia viva mora na pasta de dados (caminhos.json -> dados)
+dataset.json
+ticket_extraido.json

@@ -21,13 +21,14 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 import anthropic
 from pydantic import BaseModel, Field
 
 from config import env
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = caminho("dados")   # pasta de dados desta maquina (config/caminhos.json)
 DB = ROOT / "vendas.db"
 MODELO = "claude-sonnet-5"  # 100% de acordo com Opus 5 no campo venda, 59% mais barato
 CONCORRENCIA = 12

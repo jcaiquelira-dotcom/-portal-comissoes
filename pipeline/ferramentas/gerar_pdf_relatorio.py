@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = caminho("dados")   # pasta de dados desta maquina (config/caminhos.json)
 FONTE = ROOT / "relatorio_marketing.html"
 TEMP = ROOT / "_relatorio_print.html"
 SAIDA = ROOT / "Relatorio_Criativos_Nevada_jul-ago2026.pdf"

@@ -95,6 +95,20 @@ Decidir, chave a chave, quem grava: pipeline local ou thread da nuvem. Sugestão
 vendas-insights), `ferramentas/`, `comum/`. Os 19 caminhos cruzados viram imports
 relativos. Exige trocar o *root directory* do serviço no Render — passo do Caique.
 
+**Estado (03/09):** feita, com um ajuste de desenho medido na hora.
+- O repo único é **este** (`-portal-comissoes`); o Flask continua na raiz, então o
+  Render do portal não mudou nada. O `vendas-insights` entrou como `pipeline/` via
+  `git subtree` — histórico inteiro preservado.
+- **Os dados ficaram fora do Drive, de propósito.** `vendas.db` tem 388 MB e é
+  reescrito por 30 min todo dia; SQLite + sincronizador de nuvem é receita de
+  corrupção. A pasta antiga (`Desktop\ARQUIVOS IAendas-insights`) virou só pasta
+  de DADOS (vendas.db, dataset.json, .env, `_*.json`), apontada por
+  `pipeline/config/caminhos.json` → `dados`. 27 scripts passaram a achar a raiz por lá.
+- `pipeline_diario.bat`: `INSIGHTS=%PORTAL%\pipeline`.
+- **Falta você:** o serviço do webhook no Render (`vendas-insights.onrender.com`) ainda
+  aponta pro repo antigo. Repontar pra `-portal-comissoes` com *Root Directory*
+  `pipeline` (build e start iguais). Até lá o repo antigo continua servindo, sem risco.
+
 ### Fase 4 — quebrar os gigantes
 `server.py` em blueprints do Flask, um por seção já existente (`portal/areas/
 marketing.py`, `retomada.py`, ...). `admin.html` em um `.js` por área — o
