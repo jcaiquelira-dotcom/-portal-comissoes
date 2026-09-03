@@ -27,11 +27,12 @@ import json
 import os
 import sys
 from pathlib import Path
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 ROOT = Path(__file__).resolve().parent.parent
 ORIGEM = ROOT / "Fila_CRM_CONFIDENCIAL.json"
 # O portal fica no Drive, fora deste projeto. Só é usado no modo --local.
-PORTAL_DATA = Path(r"G:\Meu Drive\portal-comissoes\data")
+PORTAL_DATA = portal("data")
 
 
 def carregar():

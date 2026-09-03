@@ -29,8 +29,11 @@ import urllib.parse
 import urllib.request
 import webbrowser
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
-DESTINO = Path(r"G:\Meu Drive\portal-comissoes\segredos\google_ads.json")
+DESTINO = portal("segredos", "google_ads.json")
 # Dois escopos numa autorizacao so. Sao APIs diferentes mas o mesmo cliente
 # OAuth, entao pedir junto evita fazer o gestor autorizar duas vezes.
 #

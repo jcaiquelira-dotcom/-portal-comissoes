@@ -18,9 +18,10 @@ import json
 import sys
 import urllib.request
 from pathlib import Path
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 ROOT = Path(__file__).resolve().parent.parent
-KEY_FILE = Path(r"G:\Meu Drive\portal-comissoes\segredos\windsor_api_key.txt")
+KEY_FILE = portal("segredos", "windsor_api_key.txt")
 SAIDA = ROOT / "_meta_ads.json"
 
 # O nome do campo de conversa e comprido porque e o id cru da API do Meta.

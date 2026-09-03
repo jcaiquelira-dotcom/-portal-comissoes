@@ -18,9 +18,12 @@ import re
 import unicodedata
 from collections import defaultdict
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 ROOT = Path(__file__).resolve().parent.parent
-CSV_META = Path(r"C:\Users\José Caique\Desktop\META-ADS-CSV-AGOSTO.csv")
+CSV_META = caminho("meta_csv")
 TICKET = 968
 
 

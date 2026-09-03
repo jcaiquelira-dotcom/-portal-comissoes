@@ -32,9 +32,12 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 RAIZ = Path(__file__).resolve().parent.parent
-CRED = Path(r"G:\Meu Drive\portal-comissoes\segredos\google_ads.json")
+CRED = portal("segredos", "google_ads.json")
 AUTORIZAR = RAIZ / "scripts" / "autorizar_google_ads.py"
 PY = sys.executable
 

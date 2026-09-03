@@ -10,8 +10,11 @@ preciso puxar do banco de producao (Supabase) em vez destes arquivos locais.
 
 import json
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
-PORTAL_COMISSOES_DIR = Path("G:/Meu Drive/portal-comissoes/data")
+PORTAL_COMISSOES_DIR = portal("data")
 DATASET_PATH = Path(__file__).resolve().parent.parent / "dataset.json"
 
 VENDEDORES = ["flavia", "gustavo", "matheus"]  # Brenda fica de fora de proposito

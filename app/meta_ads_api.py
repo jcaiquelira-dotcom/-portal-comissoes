@@ -37,9 +37,10 @@ import urllib.parse
 import urllib.request
 from datetime import date
 from pathlib import Path
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 ROOT = Path(__file__).resolve().parent.parent
-CRED = Path(r"G:\Meu Drive\portal-comissoes\segredos\meta_ads.json")
+CRED = portal("segredos", "meta_ads.json")
 SAIDA = ROOT / "_meta_ads.json"
 
 # Da mais nova pra mais velha. A primeira que responder e a que vale.

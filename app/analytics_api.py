@@ -27,9 +27,10 @@ import urllib.parse
 import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 ROOT = Path(__file__).resolve().parent.parent
-CRED = Path(r"G:\Meu Drive\portal-comissoes\segredos\google_ads.json")
+CRED = portal("segredos", "google_ads.json")
 SAIDA = ROOT / "_ga4.json"
 BASE = "https://analyticsdata.googleapis.com/v1beta"
 

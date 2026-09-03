@@ -10,10 +10,13 @@ medido dentro dos proprios atendimentos dele.
 import json
 import subprocess
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 ROOT = Path(__file__).resolve().parent.parent
 DATASET = ROOT / "dataset.json"
-CHROME = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
+CHROME = caminho("chrome")
 
 TICKET = 968
 VENDEDORES = ["Flávia", "Gustavo", "Matheus"]

@@ -8,13 +8,16 @@ declarado -- sem isso o Chrome renderiza em latin-1 e todos os acentos quebram.
 
 import subprocess
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
 
 ROOT = Path(__file__).resolve().parent.parent
 FONTE = ROOT / "relatorio_marketing.html"
 TEMP = ROOT / "_relatorio_print.html"
 SAIDA = ROOT / "Relatorio_Criativos_Nevada_jul-ago2026.pdf"
 
-CHROME = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
+CHROME = caminho("chrome")
 
 
 def main():
