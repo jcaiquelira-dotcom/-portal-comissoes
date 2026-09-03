@@ -329,21 +329,43 @@ def sincronizar_gasto(ler_chave, ler_atual, gravar, log=print):
     return resumo
 
 
+# Quantas horas sem atualizacao a chave pode ficar antes da nuvem assumir.
+# 30h e mais que um dia: o pipeline local roda as 07:30, entao numa manha normal
+# a chave tem no maximo ~24h quando a nuvem olha, e ela fica quieta. So se o PC
+# da loja passou um dia inteiro desligado e que a reserva entra.
+RESERVA_HORAS = 30
+
+
+def recente(gerado_em, horas=RESERVA_HORAS, agora=None) -> bool:
+    """A chave foi atualizada ha menos de `horas`? Sem data legivel, e velha."""
+    try:
+        quando = datetime.fromisoformat(str(gerado_em))
+    except (TypeError, ValueError):
+        return False
+    if quando.tzinfo is None:
+        quando = quando.replace(tzinfo=FUSO)
+    agora = agora or datetime.now(FUSO)
+    return (agora - quando).total_seconds() < horas * 3600
+
+
 def iniciar(ler_chave, ler_atual, gravar, log=print):
-    """Thread diario: roda apos HORA_DIARIA se a gravacao do dia ainda nao
-    aconteceu (nem aqui, nem pelo pipeline local — a data do gerado_em conta
-    pros dois, entao nao ha rodada dupla)."""
+    """Thread de RESERVA, nao de dono. Decisao do gestor em 03/09/2026 (Fase 2
+    da SIMPLIFICACAO.md): quem grava marketing_gasto e o pipeline local, que
+    traz o Google pela API oficial — o Windsor so entrega Meta hoje (Google
+    responde 400). Esta thread so entra se a chave estiver ha mais de
+    RESERVA_HORAS sem atualizacao, ou seja, se o PC da loja ficou desligado.
+    Antes a regra era "ainda nao gravou hoje", e ai quem rodasse primeiro
+    vencia — dois gravadores brigando pelo mesmo numero."""
 
     def laco():
         time.sleep(30)
         while True:
             try:
                 agora = datetime.now(FUSO)
-                hoje = agora.date().isoformat()
                 if agora.strftime("%H:%M") >= HORA_DIARIA:
                     atual = ler_atual() or {}
-                    ja_hoje = str(atual.get("gerado_em", ""))[:10] == hoje
-                    if not ja_hoje:
+                    if not recente(atual.get("gerado_em")):
+                        log(f"[sinc-nuvem] chave sem atualizacao ha mais de {RESERVA_HORAS}h — reserva entrando")
                         sincronizar_gasto(ler_chave, ler_atual, gravar, log)
             except Exception as e:
                 log(f"[sinc-nuvem] {type(e).__name__}: {str(e)[:140]}")

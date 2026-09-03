@@ -6353,10 +6353,11 @@ try:
         while True:
             try:
                 agora = _dt.now(FUSO_BRASILIA)
-                hoje = agora.date().isoformat()
                 if agora.strftime("%H:%M") >= "06:50":
+                    # Reserva, nao dono (Fase 2, 03/09/2026): o Perfil e do pipeline
+                    # local pela API oficial. So entra se a chave parou ha 30h+.
                     atual = _perfil_atual() or {}
-                    if str(atual.get("gerado_em", ""))[:10] != hoje:
+                    if not _sn.recente(atual.get("gerado_em")):
                         _sn.sincronizar_perfil(_sn_chave, _perfil_atual, _perfil_gravar)
             except Exception as e:   # nunca derruba o portal
                 print(f"[perfil-google] {type(e).__name__}: {str(e)[:140]}")

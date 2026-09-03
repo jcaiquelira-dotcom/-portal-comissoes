@@ -82,6 +82,14 @@ Decidir, chave a chave, quem grava: pipeline local ou thread da nuvem. Sugestão
   banco — faz sentido na nuvem), monitor de atendimento
 - e **apagar o perdedor**: o Google via Windsor na nuvem sai.
 
+**Estado (03/09):** feita, por decisão do gestor.
+- `marketing_gasto` e `perfil_google`: **dono é o pipeline local**. As threads da
+  nuvem viraram reserva: só gravam se a chave estiver há mais de 30h sem
+  atualização (PC da loja desligado). Regra em `sincronizador_nuvem.recente()`.
+- `ml_conta`: **dono é a nuvem** (de hora em hora, um só rotacionador do token).
+  O passo local saiu do pipeline; `ferramentas/sincronizar_ml.py` fica como reserva manual.
+- `ml_faturamento`: já era só da nuvem.
+
 ### Fase 3 — um repositório
 `nevada/` com `portal/` (o Flask, Render aponta pra ele), `pipeline/` (o que hoje é
 vendas-insights), `ferramentas/`, `comum/`. Os 19 caminhos cruzados viram imports
