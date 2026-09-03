@@ -1,0 +1,1601 @@
+/* index.js: logica da tela do vendedor. Ate 03/09/2026 vivia embutido no proprio index.html
+   (1.598 linhas dentro de um <script>); a Fase 4 da SIMPLIFICACAO.md trouxe pra ca sem
+   mudar uma linha. Carregado pelo index.html no mesmo ponto onde o bloco ficava. */
+function fmtMoeda(v){
+  return v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+}
+function todayStr(){
+  // Sempre a data de Brasília, independente do fuso configurado no celular
+  // ou computador do vendedor — senão a venda podia cair no dia errado.
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const obter = tipo => partes.find(p => p.type === tipo).value;
+  return `${obter('year')}-${obter('month')}-${obter('day')}`;
+}
+
+function novoEnvioId(){
+  // crypto.randomUUID() não existe quando o portal é acessado por IP na rede
+  // local (http://192.168.x.x), só em https/localhost — daí a alternativa.
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'e-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+}
+
+const ICONE_OLHO_ABERTO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICONE_OLHO_FECHADO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+function atualizarIconeOlho(){
+  const oculto = document.body.classList.contains('ocultar-valores');
+  document.getElementById('toggleValoresBtn').innerHTML = oculto ? ICONE_OLHO_FECHADO : ICONE_OLHO_ABERTO;
+}
+
+if(localStorage.getItem('ocultarValores') === '1'){
+  document.body.classList.add('ocultar-valores');
+}
+document.getElementById('toggleValoresBtn').addEventListener('click', () => {
+  document.body.classList.toggle('ocultar-valores');
+  localStorage.setItem('ocultarValores', document.body.classList.contains('ocultar-valores') ? '1' : '0');
+  atualizarIconeOlho();
+});
+atualizarIconeOlho();
+
+let eu = null;
+
+async function carregarVendedores(){
+  const select = document.getElementById('vendedorSelect');
+  const selectRecuperar = document.getElementById('recuperarVendedorSelect');
+  try{
+    const res = await fetch('/api/vendedores-publico');
+    const lista = await res.json();
+    const opcoes = lista.map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
+    select.innerHTML = opcoes;
+    selectRecuperar.innerHTML = opcoes;
+  }catch(e){
+    select.innerHTML = '<option value="">Erro ao carregar vendedores</option>';
+  }
+}
+
+async function tentarSessao(){
+  try{
+    const res = await fetch('/api/me');
+    if(res.ok){
+      eu = await res.json();
+      if(levarParaGestao()) return;
+      mostrarApp();
+    }
+  }catch(e){ /* segue deslogado */ }
+  if(!eu) mostrarLogin();
+}
+
+function mostrarLogin(){
+  document.getElementById('telaLogin').classList.remove('oculto');
+  document.getElementById('appShell').classList.add('oculto');
+}
+
+/* Quem saiu da empresa continua entrando pra conferir o proprio historico,
+   mas nao registra mais nada. O servidor ja recusa qualquer escrita; isto aqui
+   e pra pessoa SABER antes — descobrir no botao, depois de preencher um
+   lancamento inteiro, seria falta de educacao da tela. */
+function aplicarSomenteLeitura(){
+  if(!eu || !eu.somente_leitura) return;
+  const d = (eu.desligado_em || '').split('-').reverse().join('/');
+  const aviso = document.createElement('div');
+  aviso.className = 'card';
+  aviso.style.cssText = 'margin-bottom:14px;border-left:4px solid var(--warn);';
+  aviso.innerHTML = `<p class="card-titulo" style="margin:0 0 6px;">Acesso somente leitura</p>
+    <div class="dp-aviso" style="margin:0;">Seu acesso está em modo de consulta
+      desde <b>${d}</b>. Você continua vendo seu histórico e suas comissões
+      normalmente, mas não é mais possível registrar ou alterar lançamentos.</div>`;
+  const alvo = document.querySelector('.conteudo');
+  if(alvo) alvo.insertBefore(aviso, alvo.firstChild);
+  // Botao que grava fica desabilitado, nao escondido: sumir daria a impressao
+  // de que a tela quebrou.
+  document.querySelectorAll('button').forEach(b => {
+    if(/salvar|lançar|lancar|registrar|adicionar|excluir|remover/i.test(b.textContent)){
+      b.disabled = true;
+      b.title = 'Acesso somente leitura desde ' + d;
+    }
+  });
+}
+
+/* Porta unica: todo mundo entra por aqui, e o sistema decide onde a pessoa
+   cai. Quem nao tem nenhuma area do proprio trabalho — o Pedro, por exemplo —
+   nao tem o que ver nesta tela; mandar pra ela seria abrir um lugar vazio e
+   deixar a pessoa procurando o menu. */
+function levarParaGestao(){
+  const areas = (eu && eu.areas) || [];
+  const proprias = ['meu_painel','minhas_vendas','meu_atendimento',
+                    'minha_performance','simulador','meu_followup','expedicao'];
+  const temPropria = areas.some(a => proprias.includes(a));
+  const temGestao = areas.some(a => !proprias.includes(a));
+  // Master tem TODAS as areas, entao "tem area propria" seria sempre verdade e
+  // ele ficaria preso na tela de vendedor. Quem administra abre na gestao — e
+  // o menu daqui continua listando o proprio trabalho, se ele quiser voltar.
+  if(eu.master || (!temPropria && temGestao)){
+    location.href = '/admin.html';
+    return true;
+  }
+  return false;
+}
+
+function mostrarApp(){
+  document.getElementById('telaLogin').classList.add('oculto');
+  document.getElementById('appShell').classList.remove('oculto');
+  aplicarSomenteLeitura();
+  /* A barra do portal do vendedor tambem se monta pelas areas — e o mesmo
+     menu da outra tela. Quem so vende ve so o proprio trabalho; quem tambem
+     gere ve os dois blocos, sem trocar de lugar. */
+  // Lista vazia e uma resposta: "nada liberado". Com `|| null` ela virava
+  // "ainda nao sei" e a barra mostrava tudo — ou seja, tirar todo o acesso de
+  // alguem na tela de Permissoes devolvia a ela o menu inteiro.
+  montarSidebar(secaoAtual, {aoSair: logout,
+                             areas: Array.isArray(eu.areas) ? eu.areas : null,
+                             master: !!eu.master});
+  preencherPerfil(eu.nome, eu.foto, eu.avatar);
+  document.getElementById('mesInput').value = todayStr().slice(0,7);
+  document.getElementById('dataInput').value = todayStr();
+  irParaSecao(secaoAtual);
+  carregarVendas();
+  carregarConfirmacao();
+  carregarPainel();
+}
+
+let editandoId = null;
+
+function entrarModoEdicao(v){
+  editandoId = v.id;
+  document.getElementById('dataInput').value = v.data;
+  document.getElementById('produtoInput').value = v.produto;
+  document.getElementById('valorInput').value = v.valor;
+  document.getElementById('skuInput').value = v.sku || '';
+  document.getElementById('canalInput').value = v.canal || '';
+  document.getElementById('addBtn').textContent = 'Salvar edição';
+  document.getElementById('cancelEditBtn').style.display = 'inline';
+  document.getElementById('produtoInput').scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function sairModoEdicao(){
+  editandoId = null;
+  document.getElementById('addBtn').textContent = 'Adicionar';
+  document.getElementById('cancelEditBtn').style.display = 'none';
+  document.getElementById('produtoInput').value = '';
+  document.getElementById('valorInput').value = '';
+  document.getElementById('skuInput').value = '';
+  document.getElementById('canalInput').value = '';
+  document.getElementById('dataInput').value = todayStr();
+}
+
+document.getElementById('cancelEditBtn').addEventListener('click', sairModoEdicao);
+
+async function carregarConfirmacao(){
+  const mes = document.getElementById('mesInput').value;
+  const res = await fetch('/api/minha-confirmacao?mes=' + mes);
+  if(res.status === 401) return;
+  const c = await res.json();
+  const statusEl = document.getElementById('confirmStatus');
+  if(c.confirmado_em){
+    const dt = new Date(c.confirmado_em);
+    statusEl.textContent = 'Confirmado em ' + dt.toLocaleString('pt-BR', {timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    statusEl.classList.add('confirmado');
+  }else{
+    statusEl.textContent = 'Você ainda não confirmou as vendas deste mês.';
+    statusEl.classList.remove('confirmado');
+  }
+}
+
+document.getElementById('confirmBtn').addEventListener('click', async () => {
+  const mes = document.getElementById('mesInput').value;
+  if(!confirm(`Confirmar que você revisou todas as suas vendas de ${mes}? Isso avisa o gestor que está tudo certo.`)) return;
+  await fetch('/api/confirmar-mes', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({mes})
+  });
+  carregarConfirmacao();
+});
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const vendedor_id = document.getElementById('vendedorSelect').value;
+  const senha = document.getElementById('senhaInput').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  try{
+    const res = await fetch('/api/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({vendedor_id, senha})
+    });
+    const dados = await res.json();
+    if(!res.ok){
+      errEl.textContent = dados.erro || 'Falha ao entrar.';
+      return;
+    }
+    eu = await (await fetch('/api/me')).json();
+    if(levarParaGestao()) return;
+    mostrarApp();
+  }catch(e){
+    errEl.textContent = 'Erro de conexão.';
+  }
+});
+
+document.getElementById('senhaInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+
+document.getElementById('esqueciSenhaBtn').addEventListener('click', () => {
+  document.getElementById('loginCard').style.display = 'none';
+  document.getElementById('recuperarCard').style.display = 'block';
+});
+
+document.getElementById('cancelarRecuperarBtn').addEventListener('click', () => {
+  document.getElementById('recuperarCard').style.display = 'none';
+  document.getElementById('loginCard').style.display = 'block';
+  document.getElementById('recuperarError').textContent = '';
+  document.getElementById('recuperarCodigoInput').value = '';
+  document.getElementById('recuperarNovaSenhaInput').value = '';
+});
+
+document.getElementById('recuperarBtn').addEventListener('click', async () => {
+  const vendedor_id = document.getElementById('recuperarVendedorSelect').value;
+  const codigo = document.getElementById('recuperarCodigoInput').value.trim();
+  const nova_senha = document.getElementById('recuperarNovaSenhaInput').value;
+  const errEl = document.getElementById('recuperarError');
+  errEl.textContent = '';
+  try{
+    const res = await fetch('/api/recuperar-senha-vendedor', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({vendedor_id, codigo, nova_senha})
+    });
+    const dados = await res.json();
+    if(!res.ok){
+      errEl.textContent = dados.erro || 'Não foi possível redefinir a senha.';
+      return;
+    }
+    alert('Senha redefinida! Faça login com a nova senha.');
+    document.getElementById('cancelarRecuperarBtn').click();
+  }catch(e){
+    errEl.textContent = 'Erro de conexão.';
+  }
+});
+
+async function logout(){
+  await fetch('/api/logout', {method:'POST'});
+  eu = null;
+  document.getElementById('senhaInput').value = '';
+  mostrarLogin();
+}
+
+let vendasDoMes = [];
+
+function chaveDuplicata(v){
+  return v.produto.trim().toLowerCase() + '|' + v.valor;
+}
+
+// Quantas vendas do mês têm o mesmo produto e valor — usado pra marcar as
+// repetidas na lista, pro vendedor revisar e apagar se tiver sido engano.
+function contarRepetidas(vendas){
+  const cont = {};
+  vendas.forEach(v => { const k = chaveDuplicata(v); cont[k] = (cont[k] || 0) + 1; });
+  return cont;
+}
+
+// Sem acento dos dois lados: "itau" acha "Itaú". canal_original entra porque
+// a grafia antiga ("ML", "B") e a que o vendedor digitou e lembra.
+function semAcento(t){
+  return t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+function textoDaVenda(v){
+  const [y,m,d] = v.data.split('-');
+  return semAcento([v.produto, v.sku, v.canal, v.canal_original,
+    `${d}/${m}/${y}`, String(v.valor).replace('.', ',')]
+    .filter(Boolean).join(' '));
+}
+
+async function carregarVendas(){
+  const mes = document.getElementById('mesInput').value;
+  const res = await fetch('/api/vendas?mes=' + mes);
+  if(res.status === 401){ logout(); return; }
+  vendasDoMes = await res.json();
+  renderVendas();
+}
+
+/* Monta a data por partes em vez de new Date("2026-08-26"): a forma com a
+   string ISO e lida como UTC e, a noite, cai no dia anterior. */
+const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+function diaDaSemana(iso){
+  const [y, m, d] = iso.split('-').map(Number);
+  return DIAS_SEMANA[new Date(y, m - 1, d).getDay()];
+}
+
+function renderVendas(){
+  const termo = (document.getElementById('buscaVendasInput')?.value || '').trim().toLowerCase();
+  const repetidas = contarRepetidas(vendasDoMes);
+  const vendas = termo
+    ? vendasDoMes.filter(v => semAcento(termo).split(/\s+/).every(p => textoDaVenda(v).includes(p)))
+    : vendasDoMes;
+
+  const body = document.getElementById('vendasBody');
+  const empty = document.getElementById('emptyVendas');
+  const resumoBusca = document.getElementById('buscaResumo');
+  body.innerHTML = '';
+  if(vendas.length === 0){
+    empty.style.display = 'block';
+    empty.textContent = termo
+      ? 'Nenhuma venda encontrada com esse termo neste mês.'
+      : 'Nenhuma venda lançada neste mês ainda.';
+  }else{
+    empty.style.display = 'none';
+    let diaAnterior = null;
+    vendas.forEach(v => {
+      const [y,m,d] = v.data.split('-');
+      const tr = document.createElement('tr');
+      // A lista vem ordenada por data, entao basta comparar com a linha de cima.
+      const trocouDia = v.data !== diaAnterior;
+      if(trocouDia) tr.classList.add('dia-novo');
+      diaAnterior = v.data;
+      const dev = v.devolucao;
+      const badge = dev
+        ? `<span class="devolucao-badge valor-money">${dev.tipo === 'total' ? 'Devolvido' : 'Dev. parcial ' + fmtMoeda(dev.valor_devolvido)}</span>`
+        : '';
+      const repetida = repetidas[chaveDuplicata(v)] > 1
+        ? `<span class="dup-badge" title="Existe outra venda deste mês com o mesmo produto e valor. Se foi engano, exclua uma delas.">repetida</span>`
+        : '';
+      const devBtn = dev
+        ? `<button class="devolucao-btn" data-devolucao="${v.id}">Editar devolução</button>
+           <button class="devolucao-btn" data-remover-devolucao="${v.id}">Desfazer devolução</button>`
+        : `<button class="devolucao-btn" data-devolucao="${v.id}">Devolução</button>`;
+      const skuLinha = v.sku ? `<br><span style="color:var(--muted);font-size:11px;">SKU ${v.sku}</span>` : '';
+      tr.innerHTML = `
+        <td>${d}/${m}/${y}${trocouDia ? `<span class="dia-semana">${diaDaSemana(v.data)}</span>` : ''}</td>
+        <td class="produto-col">${v.produto}${repetida}${skuLinha}</td>
+        <td class="valor-money">${fmtMoeda(v.valor)}</td>
+        <td><div class="acoes-col">
+          ${badge}
+          ${devBtn}
+          <button class="devolucao-btn" data-editid="${v.id}">Editar</button>
+          <button class="devolucao-btn del-btn" data-id="${v.id}">Excluir</button>
+        </div></td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+
+  if(resumoBusca){
+    const totalFiltrado = vendas.reduce((s,v) => s + v.valor, 0);
+    resumoBusca.textContent = termo
+      ? `${vendas.length} de ${vendasDoMes.length} venda(s) · ${fmtMoeda(totalFiltrado)}`
+      : '';
+  }
+
+  body.querySelectorAll('[data-editid]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = vendas.find(x => x.id === btn.dataset.editid);
+      if(v) entrarModoEdicao(v);
+    });
+  });
+
+  body.querySelectorAll('.del-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if(!confirm('Excluir esta venda?')) return;
+      const res = await fetch('/api/vendas/' + btn.dataset.id, {method:'DELETE'});
+      if(!res.ok){
+        const dados = await res.json().catch(() => ({}));
+        alert(dados.erro || 'Não foi possível excluir essa venda.');
+        return;
+      }
+      if(editandoId === btn.dataset.id) sairModoEdicao();
+      carregarVendas();
+          carregarConfirmacao();
+      carregarPainel();
+    });
+  });
+
+  body.querySelectorAll('[data-devolucao]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = vendas.find(x => x.id === btn.dataset.devolucao);
+      if(v) abrirModalDevolucao(v);
+    });
+  });
+
+  body.querySelectorAll('[data-remover-devolucao]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if(!confirm('Desfazer a devolução marcada nesta venda?')) return;
+      const res = await fetch('/api/vendas/' + btn.dataset.removerDevolucao + '/devolucao', {method:'DELETE'});
+      if(!res.ok){
+        const dados = await res.json().catch(() => ({}));
+        alert(dados.erro || 'Não foi possível desfazer a devolução.');
+        return;
+      }
+      carregarVendas();
+        });
+  });
+}
+
+let devolucaoVendaId = null;
+let devolucaoTipo = null;
+
+function abrirModalDevolucao(v){
+  devolucaoVendaId = v.id;
+  devolucaoTipo = v.devolucao ? v.devolucao.tipo : null;
+  document.getElementById('devolucaoResumo').textContent = `${v.produto} — ${fmtMoeda(v.valor)}`;
+  document.getElementById('devolucaoError').textContent = '';
+  document.getElementById('devolucaoParcialBtn').classList.toggle('ativo', devolucaoTipo === 'parcial');
+  document.getElementById('devolucaoTotalBtn').classList.toggle('ativo', devolucaoTipo === 'total');
+  document.getElementById('devolucaoValorField').style.display = devolucaoTipo === 'parcial' ? 'block' : 'none';
+  document.getElementById('devolucaoValorInput').value = (v.devolucao && v.devolucao.tipo === 'parcial') ? v.devolucao.valor_devolvido : '';
+  document.getElementById('devolucaoConfirmarBtn').style.display = devolucaoTipo ? 'block' : 'none';
+  // A classe é 'aberto' — o CSS de .modal-overlay abre com ela. Ficou
+  // 'show' num refactor e o modal parava de aparecer: o overlay recebia a
+  // classe, era preenchido com os dados certos, e seguia em display:none.
+  document.getElementById('devolucaoOverlay').classList.add('aberto');
+}
+
+function fecharModalDevolucao(){
+  document.getElementById('devolucaoOverlay').classList.remove('aberto');
+  devolucaoVendaId = null;
+}
+
+document.getElementById('devolucaoParcialBtn').addEventListener('click', () => {
+  devolucaoTipo = 'parcial';
+  document.getElementById('devolucaoParcialBtn').classList.add('ativo');
+  document.getElementById('devolucaoTotalBtn').classList.remove('ativo');
+  document.getElementById('devolucaoValorField').style.display = 'block';
+  document.getElementById('devolucaoConfirmarBtn').style.display = 'block';
+});
+
+document.getElementById('devolucaoTotalBtn').addEventListener('click', () => {
+  devolucaoTipo = 'total';
+  document.getElementById('devolucaoTotalBtn').classList.add('ativo');
+  document.getElementById('devolucaoParcialBtn').classList.remove('ativo');
+  document.getElementById('devolucaoValorField').style.display = 'none';
+  document.getElementById('devolucaoConfirmarBtn').style.display = 'block';
+});
+
+document.getElementById('devolucaoCancelarBtn').addEventListener('click', fecharModalDevolucao);
+
+document.getElementById('devolucaoConfirmarBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('devolucaoError');
+  errEl.textContent = '';
+  const body = {tipo: devolucaoTipo};
+  if(devolucaoTipo === 'parcial'){
+    body.valor = document.getElementById('devolucaoValorInput').value;
+  }
+  const res = await fetch('/api/vendas/' + devolucaoVendaId + '/devolucao', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  const dados = await res.json().catch(() => ({}));
+  if(!res.ok){
+    errEl.textContent = dados.erro || 'Não foi possível marcar a devolução.';
+    return;
+  }
+  fecharModalDevolucao();
+  carregarVendas();
+});
+
+document.getElementById('exportMinhasVendasBtn').addEventListener('click', async () => {
+  const res = await fetch('/api/vendas?todos=1');
+  if(res.status === 401){ logout(); return; }
+  const vendas = await res.json();
+
+  let csv = 'Data;Produto;SKU;Canal;Valor;Devolucao;Valor Devolvido;Valor Liquido\n';
+  vendas.slice().sort((a,b) => a.data < b.data ? -1 : 1).forEach(v => {
+    const dev = v.devolucao;
+    const devTipo = dev ? (dev.tipo === 'total' ? 'Total' : 'Parcial') : '';
+    const devValor = dev ? dev.valor_devolvido.toFixed(2).replace('.', ',') : '';
+    const liquido = dev ? Math.max(0, v.valor - dev.valor_devolvido) : v.valor;
+    const [y,m,d] = v.data.split('-');
+    csv += `${d}/${m}/${y};${v.produto.replace(/;/g,',')};${v.sku || ''};${v.canal || ''};${v.valor.toFixed(2).replace('.',',')};${devTipo};${devValor};${liquido.toFixed(2).replace('.',',')}\n`;
+  });
+
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `minhas_vendas_${eu ? eu.nome.toLowerCase() : 'vendedor'}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('mesInput').addEventListener('change', () => {
+  sairModoEdicao();
+  document.getElementById('buscaVendasInput').value = '';
+  document.getElementById('limparBuscaBtn').style.display = 'none';
+  carregarVendas();
+  carregarConfirmacao();
+  carregarPainel();
+});
+
+// Busca dentro do mês, filtrando conforme digita (sem ir ao servidor, porque
+// as vendas do mês já estão carregadas). Aceita várias palavras: "motor jetta"
+// só mostra quem tem as duas.
+document.getElementById('buscaVendasInput').addEventListener('input', () => {
+  const termo = document.getElementById('buscaVendasInput').value.trim();
+  document.getElementById('limparBuscaBtn').style.display = termo ? 'inline-block' : 'none';
+  renderVendas();
+});
+
+document.getElementById('limparBuscaBtn').addEventListener('click', () => {
+  const campo = document.getElementById('buscaVendasInput');
+  campo.value = '';
+  document.getElementById('limparBuscaBtn').style.display = 'none';
+  renderVendas();
+  campo.focus();
+});
+
+// Identifica UMA tentativa de lançamento. Fica guardado até dar certo: se o
+// servidor demorar e o vendedor mandar de novo, o envio repetido chega com o
+// mesmo id e o servidor devolve a venda que já salvou, em vez de duplicar.
+let envioPendenteId = null;
+let envioLotePendenteId = null;
+
+document.getElementById('addBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('addBtn');
+  if(btn.disabled) return;
+  const status = document.getElementById('formStatus');
+  const data = document.getElementById('dataInput').value;
+  const produto = document.getElementById('produtoInput').value.trim();
+  const valor = document.getElementById('valorInput').value;
+  const sku = document.getElementById('skuInput').value.trim();
+  const canal = document.getElementById('canalInput').value.trim();
+  status.classList.remove('show','err');
+
+  if(!produto || !valor){
+    status.textContent = 'Preencha o produto e o valor.';
+    status.classList.add('show','err');
+    return;
+  }
+
+  const editando = !!editandoId;
+  const url = editando ? '/api/vendas/' + editandoId : '/api/vendas';
+  const method = editando ? 'PUT' : 'POST';
+
+  if(!editando && !envioPendenteId) envioPendenteId = novoEnvioId();
+
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+  status.textContent = 'Salvando, aguarde...';
+  status.classList.add('show');
+
+  try{
+    const enviar = (confirmarDuplicata) => fetch(url, {
+      method,
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({data, produto, valor, sku, canal, envio_id: envioPendenteId,
+                            confirmar_duplicata: !!confirmarDuplicata})
+    });
+
+    let res = await enviar(false);
+    let dados = await res.json().catch(() => ({}));
+
+    // O servidor achou uma venda igual (mesmo produto e valor) no mês e está
+    // perguntando antes de lançar de novo.
+    if(res.status === 409 && dados.confirmar_duplicata){
+      const ex = dados.existente || {};
+      const [ey,em,ed] = (ex.data || '').split('-');
+      const quando = ed ? `${ed}/${em}/${ey}` : 'este mês';
+      const querReplicar = confirm(
+        `Esse produto já foi lançado neste mês:\n\n` +
+        `${ex.produto}\n${fmtMoeda(ex.valor)} — ${quando}\n\n` +
+        `Quer lançar mesmo assim? (Só confirme se foram duas vendas de verdade.)`
+      );
+      if(!querReplicar){
+        status.textContent = 'Lançamento cancelado — o produto já estava na lista.';
+        status.classList.add('show','err');
+        return;
+      }
+      res = await enviar(true);
+      dados = await res.json().catch(() => ({}));
+    }
+
+    if(!res.ok){
+      status.textContent = dados.erro || 'Erro ao salvar.';
+      status.classList.add('show','err');
+      return;
+    }
+    envioPendenteId = null;
+    status.textContent = editando ? 'Venda atualizada.' : 'Venda adicionada.';
+    status.classList.remove('err');
+    status.classList.add('show');
+    const mesDaVenda = (data || todayStr()).slice(0,7);
+    const mesInput = document.getElementById('mesInput');
+    // Se a venda for de outro mês, muda a visualização pra esse mês em vez de
+    // não atualizar nada — antes o vendedor via "Venda adicionada" mas a lista
+    // continuava igual, achava que não tinha salvo e lançava de novo.
+    if(mesDaVenda !== mesInput.value) mesInput.value = mesDaVenda;
+    sairModoEdicao();
+    await Promise.all([carregarVendas(), carregarConfirmacao(), carregarPainel()]);
+  }catch(e){
+    status.textContent = 'Sem conexão com o servidor. A venda pode não ter sido salva — confira na lista antes de lançar de novo.';
+    status.classList.add('show','err');
+  }finally{
+    btn.disabled = false;
+    // sairModoEdicao() já zera editandoId quando salvou; se deu erro no meio de
+    // uma edição, o botão continua como "Salvar edição".
+    btn.textContent = editandoId ? 'Salvar edição' : 'Adicionar';
+  }
+});
+
+const SHEET_LINHAS_INICIAIS = 8;
+
+function criarLinhaSheet(dataPadrao){
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="date" class="sheet-data" value="${dataPadrao || todayStr()}"></td>
+    <td><input type="text" class="sheet-produto" placeholder="Ex: Motor de arranque Gol G5"></td>
+    <td><input type="number" class="sheet-valor" min="0" step="0.01" placeholder="0,00"></td>
+    <td><input type="text" class="sheet-sku" placeholder="SKU"></td>
+    <td><input type="text" class="sheet-canal" list="canaisConhecidos" placeholder="Balcão, ML…"></td>
+    <td><button type="button" class="sheet-row-del" title="Remover linha">&times;</button></td>
+  `;
+  tr.querySelector('.sheet-row-del').addEventListener('click', () => tr.remove());
+  const canalInput = tr.querySelector('.sheet-canal');
+  canalInput.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      const dataAtual = tr.querySelector('.sheet-data').value;
+      const novaLinha = criarLinhaSheet(dataAtual);
+      document.getElementById('sheetBody').appendChild(novaLinha);
+      novaLinha.querySelector('.sheet-produto').focus();
+    }
+  });
+  return tr;
+}
+
+function iniciarSheetVazia(){
+  const body = document.getElementById('sheetBody');
+  body.innerHTML = '';
+  for(let i = 0; i < SHEET_LINHAS_INICIAIS; i++){
+    body.appendChild(criarLinhaSheet(todayStr()));
+  }
+}
+
+/* ---------- Colar direto do Excel ----------
+   O vendedor copia as linhas na planilha dele e cola aqui. O Excel entrega o
+   recorte como texto separado por TAB entre colunas e por quebra de linha
+   entre linhas — é isso que a gente desmonta e distribui pelas células, criando
+   linhas conforme precisa.
+
+   A colagem começa na célula onde ele está: colar 3 colunas em cima de
+   "Produto" preenche produto, valor e SKU, e não desloca tudo pra data. */
+const SHEET_COLUNAS = ['sheet-data', 'sheet-produto', 'sheet-valor', 'sheet-sku', 'sheet-canal'];
+
+function limparNumero(bruto){
+  let t = String(bruto || '').replace(/[R$\s ]/gi, '').trim();
+  if(!t) return '';
+  const temVirgula = t.includes(',');
+  const temPonto = t.includes('.');
+  if(temVirgula && temPonto){
+    // "1.234,56" — ponto é milhar, vírgula é decimal
+    t = t.replace(/\./g, '').replace(',', '.');
+  }else if(temVirgula){
+    t = t.replace(',', '.');
+  }else if(temPonto){
+    // Só ponto é ambíguo: "1.234" costuma ser milhar numa planilha pt-BR, mas
+    // "150.50" vindo de um arquivo em inglês é decimal. Três casas depois do
+    // ponto e mais de três dígitos no total = milhar.
+    const partes = t.split('.');
+    if(partes.length > 2 || (partes[1] && partes[1].length === 3 && partes[0].length > 0)){
+      t = partes.join('');
+    }
+  }
+  const n = parseFloat(t);
+  return isNaN(n) ? '' : String(n);
+}
+
+function limparData(bruto){
+  const t = String(bruto || '').trim();
+  if(!t) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+
+  const br = t.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/);
+  if(br){
+    const dia = br[1].padStart(2, '0');
+    const mes = br[2].padStart(2, '0');
+    let ano = br[3] || todayStr().slice(0, 4);
+    if(ano.length === 2) ano = '20' + ano;
+    return `${ano}-${mes}-${dia}`;
+  }
+  // Data do Excel colada como número de série (dias desde 30/12/1899).
+  if(/^\d{5}$/.test(t)){
+    const base = Date.UTC(1899, 11, 30);
+    const d = new Date(base + Number(t) * 86400000);
+    return d.toISOString().slice(0, 10);
+  }
+  return '';
+}
+
+function limparCelula(classe, bruto){
+  if(classe === 'sheet-data') return limparData(bruto);
+  if(classe === 'sheet-valor') return limparNumero(bruto);
+  return String(bruto || '').trim();
+}
+
+/* Excel manda \r\n e uma linha vazia no fim. Célula com quebra de linha dentro
+   vem entre aspas — raro nessa planilha, mas se vier a gente não parte no meio. */
+function partirColagem(texto){
+  const linhas = [];
+  let atual = [''], dentroDeAspas = false;
+  for(let i = 0; i < texto.length; i++){
+    const c = texto[i];
+    if(dentroDeAspas){
+      if(c === '"' && texto[i + 1] === '"'){ atual[atual.length - 1] += '"'; i++; }
+      else if(c === '"') dentroDeAspas = false;
+      else atual[atual.length - 1] += c;
+      continue;
+    }
+    if(c === '"'){ dentroDeAspas = true; }
+    else if(c === '\t'){ atual.push(''); }
+    else if(c === '\n' || c === '\r'){
+      if(c === '\r' && texto[i + 1] === '\n') i++;
+      linhas.push(atual);
+      atual = [''];
+    }else{
+      atual[atual.length - 1] += c;
+    }
+  }
+  linhas.push(atual);
+  return linhas.filter(l => l.some(c => c.trim() !== ''));
+}
+
+function colarNaSheet(ev){
+  const alvo = ev.target;
+  const classe = SHEET_COLUNAS.find(c => alvo.classList && alvo.classList.contains(c));
+  if(!classe) return;
+
+  const texto = (ev.clipboardData || window.clipboardData).getData('text');
+  if(!texto) return;
+  // Uma célula só: deixa o navegador colar normal, sem mexer em nada.
+  if(!texto.includes('\t') && !/[\r\n]/.test(texto.trim())) return;
+
+  ev.preventDefault();
+  const grade = partirColagem(texto);
+  if(!grade.length) return;
+
+  const body = document.getElementById('sheetBody');
+  const linhas = Array.from(body.querySelectorAll('tr'));
+  const linhaInicial = linhas.indexOf(alvo.closest('tr'));
+  const colunaInicial = SHEET_COLUNAS.indexOf(classe);
+
+  grade.forEach((celulas, i) => {
+    let tr = body.querySelectorAll('tr')[linhaInicial + i];
+    if(!tr){
+      tr = criarLinhaSheet(todayStr());
+      body.appendChild(tr);
+    }
+    celulas.forEach((valor, j) => {
+      const col = SHEET_COLUNAS[colunaInicial + j];
+      if(!col) return;                      // colou mais colunas do que existe
+      const campo = tr.querySelector('.' + col);
+      if(!campo) return;
+      const limpo = limparCelula(col, valor);
+      // Data que não deu pra entender não apaga a que já estava na linha.
+      if(col === 'sheet-data' && !limpo) return;
+      campo.value = limpo;
+    });
+  });
+
+  const status = document.getElementById('sheetStatus');
+  if(status){
+    const n = grade.length;
+    status.textContent = `${n} linha${n > 1 ? 's' : ''} colada${n > 1 ? 's' : ''}. Confira antes de salvar.`;
+    status.classList.remove('err');
+    status.classList.add('show');
+  }
+}
+
+document.addEventListener('paste', colarNaSheet);
+
+document.getElementById('toggleSheetBtn').addEventListener('click', () => {
+  const sec = document.getElementById('sheetSection');
+  const abrindo = sec.style.display === 'none';
+  sec.style.display = abrindo ? 'block' : 'none';
+  document.getElementById('toggleSheetBtn').textContent = abrindo ? 'Fechar planilha' : 'Preencher em planilha';
+  if(abrindo && document.getElementById('sheetBody').children.length === 0){
+    iniciarSheetVazia();
+  }
+});
+
+document.getElementById('sheetAddRowBtn').addEventListener('click', () => {
+  const linhas = document.getElementById('sheetBody').querySelectorAll('.sheet-data');
+  const ultimaData = linhas.length ? linhas[linhas.length-1].value : todayStr();
+  const nova = criarLinhaSheet(ultimaData);
+  document.getElementById('sheetBody').appendChild(nova);
+  nova.querySelector('.sheet-produto').focus();
+});
+
+document.getElementById('sheetSaveBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('sheetSaveBtn');
+  if(btn.disabled) return;
+  const status = document.getElementById('sheetStatus');
+  status.classList.remove('show','err');
+
+  const linhas = [];
+  const elementosDasLinhas = [];
+  document.getElementById('sheetBody').querySelectorAll('tr').forEach(tr => {
+    const produto = tr.querySelector('.sheet-produto').value.trim();
+    const valor = tr.querySelector('.sheet-valor').value;
+    const data = tr.querySelector('.sheet-data').value;
+    const sku = tr.querySelector('.sheet-sku').value.trim();
+    const canal = tr.querySelector('.sheet-canal').value.trim();
+    if(!produto && !valor) return;
+    linhas.push({data, produto, valor, sku, canal});
+    elementosDasLinhas.push(tr);
+  });
+
+  if(linhas.length === 0){
+    status.textContent = 'Preencha ao menos uma linha.';
+    status.classList.add('show','err');
+    return;
+  }
+
+  if(!envioLotePendenteId) envioLotePendenteId = novoEnvioId();
+
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+  status.textContent = 'Salvando, aguarde...';
+  status.classList.add('show');
+  try{
+    const res = await fetch('/api/vendas/lote', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({vendas: linhas, envio_id: envioLotePendenteId})
+    });
+    const dados = await res.json().catch(() => ({}));
+    if(!res.ok){
+      status.textContent = dados.erro || 'Erro ao salvar.';
+      status.classList.add('show','err');
+      return;
+    }
+    envioLotePendenteId = null;
+    status.classList.remove('err');
+    if(dados.erros && dados.erros.length > 0){
+      // Tira da planilha o que já foi salvo e deixa só as linhas com erro pra
+      // corrigir — senão, ao salvar de novo, o que já entrou entraria de novo.
+      (dados.linhas_salvas || []).forEach(idx => {
+        const tr = elementosDasLinhas[idx - 1];
+        if(tr) tr.remove();
+      });
+      if(document.getElementById('sheetBody').children.length === 0) iniciarSheetVazia();
+      const detalhes = dados.erros.map(e => `linha ${e.linha}: ${e.erro}`).join(' | ');
+      status.textContent = `${dados.salvas} salva(s). Corrija e salve só o que ficou: ${detalhes}`;
+      status.classList.add('show','err');
+    }else{
+      status.textContent = `${dados.salvas} venda(s) salva(s).`;
+      status.classList.add('show');
+      iniciarSheetVazia();
+    }
+    await Promise.all([carregarVendas(), carregarConfirmacao(), carregarPainel()]);
+  }catch(e){
+    status.textContent = 'Sem conexão com o servidor. As vendas podem não ter sido salvas — confira na lista antes de lançar de novo.';
+    status.classList.add('show','err');
+  }finally{
+    btn.textContent = 'Salvar tudo';
+    btn.disabled = false;
+  }
+});
+
+
+/* ============================================================
+   Painel do vendedor — indicadores, meta, evolução e rankings.
+   Tudo vem de /api/meu-painel numa chamada só.
+   ============================================================ */
+
+// Sobra de quando so existiam Painel e Minhas vendas: qualquer outro hash
+// virava 'painel'. Com a chegada de Performance isso passou a jogar a pessoa
+// de volta pro painel ao abrir ou recarregar em #performance — a secao ficava
+// escondida e a tela, em branco. A validacao agora e contra as secoes que
+// existem de fato, definidas mais abaixo em SECOES_VENDEDOR.
+let secaoAtual = (location.hash || '#painel').replace('#','');
+let dadosPainel = null;
+
+const IC = {
+  dinheiro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  carrinho: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.6 12.4a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 2-1.6L21 7H6"/></svg>',
+  alvo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/></svg>',
+  etiqueta: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11V4h7l10 10-7 7z"/><circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/></svg>',
+  voltar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h11a5 5 0 0 1 0 10H9"/><path d="M7 6l-4 4 4 4"/></svg>',
+  subir: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 8h6v6"/></svg>',
+};
+
+function kpi(rotulo, numero, rodape, icone, cor, extra){
+  return '<div class="kpi ' + (extra && extra.classe ? extra.classe : '') + '"' + (extra && extra.id ? ' id="' + extra.id + '"' : '') + '>'
+    + '<div class="icone ' + cor + '">' + icone + '</div>'
+    + '<div class="rotulo">' + rotulo + '</div>'
+    + '<div class="numero valor-money">' + numero + '</div>'
+    + (rodape ? '<div class="rodape">' + rodape + '</div>' : '')
+    + (extra && extra.html ? extra.html : '')
+    + '</div>';
+}
+
+async function carregarPainel(){
+  const mes = document.getElementById('mesInput').value;
+  const res = await fetch('/api/meu-painel?mes=' + mes);
+  if(res.status === 401){ logout(); return; }
+  dadosPainel = await res.json();
+  renderPainel();
+}
+
+function renderPainel(){
+  const d = dadosPainel;
+  if(!d) return;
+  const c = d.comissao || {};
+
+  // ---- cartões de indicadores ----
+  /* Estorno de devolucao de mes ja pago. Aparece no detalhe da comissao com a
+     peca e a data da venda: o vendedor ve a comissao menor e precisa poder
+     conferir por que, sem ter que perguntar pra alguem. */
+  const est = c.estorno || {};
+  const linhasEstorno = (est.itens || []).map(i =>
+      '<div>− ' + fmtMoeda(i.valor_devolvido) + ' · ' + (i.produto || 'sem descrição')
+      + ' (vendido em ' + i.data.slice(8,10) + '/' + i.data.slice(5,7)
+      + (i.tipo === 'parcial' ? ', devolução parcial' : '') + ')</div>').join('')
+    + (est.de_meses_anteriores
+        ? '<div>− ' + fmtMoeda(est.de_meses_anteriores) + ' que sobrou de meses anteriores</div>'
+        : '');
+
+  const temDetalhe = (c.overrides && c.overrides.length) || linhasEstorno;
+  const detalheComissao = temDetalhe
+    ? '<span class="detalhe-dica">ⓘ</span><div class="override-note valor-money" id="overrideNote">'
+      + '<div>Própria: ' + fmtMoeda(c.comissao_propria) + '</div>'
+      + (c.overrides || []).map(o => '<div>+ ' + o.percentual + '% sobre ' + o.nome + ': ' + fmtMoeda(o.valor) + '</div>').join('')
+      + (linhasEstorno
+          ? '<div style="margin-top:6px;border-top:1px solid var(--line);padding-top:6px;">'
+            + '<b>Devolvido de mês já pago</b>' + linhasEstorno + '</div>'
+          : '')
+      + (est.a_carregar
+          ? '<div style="margin-top:4px;">' + fmtMoeda(est.a_carregar)
+            + ' fica para o mês que vem</div>'
+          : '')
+      + '</div>'
+    : '';
+
+  const devolucaoRodape = d.devolucoes.quantidade
+    ? d.devolucoes.quantidade + ' devolução(ões): −' + fmtMoeda(d.devolucoes.valor)
+    : 'Nenhuma devolução no mês';
+
+  document.getElementById('kpiGrid').innerHTML =
+      kpi('Total vendido no mês', fmtMoeda(d.total_mes),
+          d.mes_corrente ? 'Hoje: ' + fmtMoeda(d.total_hoje) : '', IC.dinheiro, 'i-laranja')
+    + kpi('Comissão prevista (<span id="percentualLabel">' + (c.percentual || 0) + '%</span>)',
+          fmtMoeda(c.comissao),
+          est.comissao ? '−' + fmtMoeda(est.comissao) + ' de devolução já paga' : '',
+          IC.subir, 'i-verde',
+          {id:'cardComissao', classe: detalheComissao ? 'tem-detalhe' : '', html: detalheComissao})
+    + kpi('Vendas no mês', String(d.qtd_vendas), 'Ticket médio: ' + fmtMoeda(d.ticket_medio), IC.carrinho, 'i-azul')
+    + kpi('Ticket médio', fmtMoeda(d.ticket_medio), devolucaoRodape, IC.etiqueta, 'i-roxo')
+    + kpi('Bônus do mês', fmtMoeda(c.total_bonus || 0), 'Avaliações, fora da comissão', IC.alvo, 'i-amarelo');
+
+  ligarDetalheComissao();
+
+  // ---- meta do mês ----
+  const meta = d.metas.mensal;
+  const pct = meta > 0 ? (d.total_mes / meta) * 100 : 0;
+  document.getElementById('metaAtingido').textContent = fmtMoeda(d.total_mes);
+  document.getElementById('metaTotal').textContent = fmtMoeda(meta);
+  const pilula = document.getElementById('metaPct');
+  pilula.textContent = Math.round(pct) + '%';
+  pilula.className = 'pilula ' + (pct >= 100 ? 'ok' : pct >= 70 ? 'neutro' : 'ruim');
+  const barra = document.getElementById('metaBarra');
+  barra.style.width = Math.min(100, pct) + '%';
+  barra.classList.toggle('batida', pct >= 100);
+  document.getElementById('metaFalta').textContent =
+    d.metas.falta_no_mes > 0 ? fmtMoeda(d.metas.falta_no_mes) : 'Meta batida 🎉';
+  document.getElementById('metaPorDia').textContent =
+    d.metas.falta_no_mes > 0 ? fmtMoeda(d.metas.necessario_por_dia) + ' (' + d.metas.dias_restantes + ' dias)' : '—';
+
+  miniMeta('Hoje', d.total_hoje, d.metas.diaria, 'miniHoje');
+  miniMeta('Semana', d.total_semana, d.metas.semanal, 'miniSemana');
+
+  // ---- clientes pra chamar ----
+  // Antes aqui tinha atalho pra Follow-up, Simulador e Ranking — tres links que
+  // ja estao no menu lateral. Ocupar essa area com os clientes mais quentes faz
+  // a primeira tela do dia mostrar trabalho a fazer, e nao navegacao.
+  const ret = d.retomada;
+  const pendentes = ret ? ret.pendente : 0;
+  renderTopoRetomada(ret);
+  marcarBadge('retomada', pendentes || 0);
+
+  renderEvolucao(d.evolucao);
+  renderBarras('topProdutos', d.top_produtos, 'var(--accent)');
+  renderBarras('topCanais', d.top_canais, 'var(--info)');
+}
+
+function miniMeta(rotulo, valor, meta, prefixo){
+  const el = document.getElementById(prefixo + 'Val');
+  const bar = document.getElementById(prefixo + 'Barra');
+  if(valor === null || valor === undefined){
+    el.textContent = '—';
+    const alvoVazio = document.getElementById(prefixo + 'Alvo');
+    if(alvoVazio) alvoVazio.textContent = '—';
+    bar.style.width = '0%';
+    return;
+  }
+  el.textContent = fmtMoeda(valor);
+  const alvo = document.getElementById(prefixo + 'Alvo');
+  if(alvo) alvo.textContent = fmtMoeda(meta);
+  const p = meta > 0 ? (valor / meta) * 100 : 0;
+  bar.style.width = Math.min(100, p) + '%';
+  bar.classList.toggle('batida', p >= 100);
+}
+
+function esc(t){
+  return String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderTopoRetomada(ret){
+  const el = document.getElementById('topoRetomada');
+  const card = el.closest('.card');
+  // So prioridade ALTA acende o card. Fila cheia de MEDIA deixaria o brilho
+  // permanente, e brilho permanente para de ser aviso.
+  const temAlta = !!(ret && ret.topo && ret.topo.some(c => c.prio === 'ALTA'));
+  if(card) card.classList.toggle('tem-cliente', temAlta);
+  if(!ret || !ret.topo || !ret.topo.length){
+    el.innerHTML = ret
+      ? '<div class="vazio">Você chamou todo mundo da fila. 👏</div>'
+      : '<div class="vazio">Sem fila gerada ainda.</div>';
+    return;
+  }
+  el.innerHTML = ret.topo.map(c =>
+    '<div class="cli-ficha' + (c.prio === 'ALTA' ? ' alta' : '') + '" data-ficha="' + c.sid + '">'
+    + '<div class="cli-topo">'
+      + '<span class="cli-nome">' + esc(c.nome || 'Sem nome') + '</span>'
+      + (c.prio === 'ALTA' ? '<span class="cli-tag">ALTA</span>' : '')
+      + '<span class="cli-quando">' + (c.dias || 0) + ' dias</span>'
+    + '</div>'
+    + '<div class="cli-peca">' + esc(c.peca || '') + '</div>'
+    + (c.link
+        ? '<a class="cli-btn" href="' + esc(c.link) + '" target="_blank" rel="noopener"'
+          + ' data-chamar="' + c.sid + '">Chamar</a>'
+        : '<span class="cli-quando">sem link da conversa</span>')
+    + '</div>').join('')
+    + '<a class="cli-todos" href="/follow-up">ver os ' + (ret.pendente || 0) + ' da fila →</a>';
+}
+
+/* Precisa funcionar em http tambem: na rede local o navegador nao expoe
+   navigator.clipboard. */
+function copiarTexto(texto){
+  if(navigator.clipboard && window.isSecureContext){
+    return navigator.clipboard.writeText(texto).then(() => true).catch(() => false);
+  }
+  const t = document.createElement('textarea');
+  t.value = texto;
+  t.style.position = 'fixed';
+  t.style.opacity = '0';
+  document.body.appendChild(t);
+  t.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch(e){ ok = false; }
+  document.body.removeChild(t);
+  return Promise.resolve(ok);
+}
+
+let toastTimer = null;
+function toast(texto){
+  let el = document.getElementById('toast');
+  if(!el){
+    el = document.createElement('div');
+    el.className = 'toast';
+    el.id = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = texto;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('on'), 2200);
+}
+
+/* Chamar daqui faz o mesmo que no Follow-up: copia a mensagem pronta, abre a
+   conversa e ja marca "chamei" — senao o painel do gestor mostraria menos
+   trabalho do que o vendedor realmente fez. */
+document.addEventListener('click', ev => {
+  const btn = ev.target.closest('#topoRetomada [data-chamar]');
+  if(!btn) return;
+  const sid = btn.dataset.chamar;
+  const cli = (dadosPainel && dadosPainel.retomada && dadosPainel.retomada.topo || [])
+                .find(x => x.sid === sid);
+  if(cli && cli.msg && cli.msg.texto){
+    copiarTexto(cli.msg.texto).then(ok => { if(ok) toast('Mensagem copiada — é só colar'); });
+  }
+  const ficha = document.querySelector('[data-ficha="' + sid + '"]');
+  if(ficha) ficha.classList.add('chamado');
+  fetch('/api/retomada/' + sid + '/status', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status: 'chamei'}),
+  }).catch(() => {});
+});
+
+function renderBarras(alvoId, itens, cor){
+  const el = document.getElementById(alvoId);
+  if(!itens || !itens.length){
+    el.innerHTML = '<div class="vazio">Nada lançado neste mês ainda.</div>';
+    return;
+  }
+  const maior = Math.max(...itens.map(i => i.valor)) || 1;
+  el.innerHTML = itens.map(i =>
+    '<div class="barra-linha">'
+    + '<span class="barra-nome" title="' + i.nome.replace(/"/g,'&quot;') + '">' + i.nome + '</span>'
+    + '<span class="barra-valor valor-money">' + fmtMoeda(i.valor) + '</span>'
+    + '<span class="barra-trilha"><span class="barra-preenchida" style="width:'
+    + Math.max(3, (i.valor / maior) * 100) + '%;background:' + cor + ';"></span></span>'
+    + '</div>').join('');
+}
+
+// Gráfico de linha em SVG puro — sem biblioteca externa, pra página continuar
+// leve e funcionar mesmo se o vendedor estiver com internet ruim.
+function renderEvolucao(dias){
+  const el = document.getElementById('graficoEvolucao');
+  if(!dias || dias.length === 0){
+    el.innerHTML = '<div class="vazio">Nenhuma venda lançada neste mês ainda.</div>';
+    return;
+  }
+  const L = 40, R = 12, T = 14, B = 26;
+  const largura = Math.max(560, dias.length * 46);
+  const altura = 190;
+  const gl = largura - L - R, ga = altura - T - B;
+  const maior = Math.max(...dias.map(d => d.valor)) || 1;
+  const x = i => L + (dias.length === 1 ? gl/2 : (i / (dias.length - 1)) * gl);
+  const y = v => T + ga - (v / maior) * ga;
+
+  const pontos = dias.map((d,i) => x(i) + ',' + y(d.valor));
+  const area = 'M' + x(0) + ',' + (T+ga) + ' L' + pontos.join(' L') + ' L' + x(dias.length-1) + ',' + (T+ga) + ' Z';
+  const linha = 'M' + pontos.join(' L');
+
+  const grade = [0, .5, 1].map(f => {
+    const yy = T + ga - f * ga;
+    return '<line x1="' + L + '" y1="' + yy + '" x2="' + (largura-R) + '" y2="' + yy
+      + '" stroke="var(--line)" stroke-dasharray="3 4"/>'
+      + '<text x="6" y="' + (yy+3.5) + '" font-size="9" fill="var(--muted)">'
+      + (maior*f >= 1000 ? Math.round(maior*f/1000) + 'k' : Math.round(maior*f)) + '</text>';
+  }).join('');
+
+  const marcas = dias.map((d,i) => {
+    const mostrar = dias.length <= 12 || i % Math.ceil(dias.length/12) === 0 || i === dias.length-1;
+    return '<circle cx="' + x(i) + '" cy="' + y(d.valor) + '" r="3" fill="var(--accent)"><title>'
+      + d.data.slice(8,10) + '/' + d.data.slice(5,7) + ' — ' + fmtMoeda(d.valor) + '</title></circle>'
+      + (mostrar ? '<text x="' + x(i) + '" y="' + (altura-8) + '" font-size="9.5" fill="var(--muted)" text-anchor="middle">'
+          + d.data.slice(8,10) + '</text>' : '');
+  }).join('');
+
+  el.innerHTML = '<svg class="evo-svg" viewBox="0 0 ' + largura + ' ' + altura + '" width="' + largura + '" height="' + altura + '">'
+    + '<defs><linearGradient id="gradEvo" x1="0" y1="0" x2="0" y2="1">'
+    + '<stop offset="0%" stop-color="var(--accent)" stop-opacity=".28"/>'
+    + '<stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>'
+    + grade
+    + '<path d="' + area + '" fill="url(#gradEvo)"/>'
+    + '<path d="' + linha + '" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>'
+    + marcas + '</svg>';
+}
+
+function ligarDetalheComissao(){
+  const card = document.getElementById('cardComissao');
+  const nota = document.getElementById('overrideNote');
+  if(!card || !nota) return;
+  card.addEventListener('click', (e) => {
+    e.stopPropagation();
+    nota.classList.toggle('aberto');
+  });
+}
+document.addEventListener('click', () => {
+  const n = document.getElementById('overrideNote');
+  if(n) n.classList.remove('aberto');
+});
+
+/* ---------- Performance ----------
+   Mesmo painel que o gestor vê deste vendedor, desenhado por desempenho.js.
+   O servidor é que decide o que ele pode ver: /api/desempenho devolve tudo
+   menos a participação no faturamento do time. */
+// O badge no menu e o que faz o vendedor olhar sem precisar entrar na tela.
+function atdBadge(n){
+  const item = document.querySelector('.nav-item[data-nav="atendimento"]');
+  if(!item) return;
+  item.querySelector('.atd-badge')?.remove();
+  if(!n) return;
+  const b = document.createElement('span');
+  b.className = 'atd-badge';
+  b.textContent = n;
+  item.appendChild(b);
+}
+
+document.addEventListener('click', async ev => {
+  const botao = ev.target.closest('[data-resolver]');
+  if(!botao) return;
+  botao.disabled = true;
+  botao.textContent = 'Marcando…';
+  const res = await fetch('/api/atendimento/resolver', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({id: botao.dataset.resolver, ultima_em: botao.dataset.ultima})});
+  if(res.ok){
+    // Some o cartao na hora: esperar o recarregamento daria a sensacao de
+    // clique perdido, e a lista se renova a cada 2 minutos no servidor.
+    const cartao = botao.closest('.atd-item');
+    cartao.style.opacity = '.35';
+    cartao.querySelector('.atd-acoes').innerHTML =
+      '<span class="atd-ok">✓ resolvido por hoje</span>';
+    setTimeout(() => { cartao.remove(); carregarMeuAtendimento(); }, 900);
+  }else{
+    botao.disabled = false;
+    botao.textContent = 'Já resolvi';
+  }
+});
+
+// O vendedor responde no WhatsApp e volta pra ca: se a tela nao se atualizar
+// sozinha, ele revê quem ja atendeu e perde tempo conferindo. Entao ela se
+// renova a cada 30s enquanto estiver aberta, e imediatamente quando ele volta
+// pra aba — que e exatamente o momento em que ele volta do WhatsApp.
+let atdTimer = null;
+
+function atdAutoAtualizar(ligar){
+  clearInterval(atdTimer);
+  atdTimer = ligar ? setInterval(() => carregarMeuAtendimento(true), 30000) : null;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden && secaoAtual === 'atendimento') carregarMeuAtendimento(true);
+});
+
+let expDados = null;
+let expTimer = null;
+
+function expAutoAtualizar(ligar){
+  clearInterval(expTimer);
+  // A expedição precisa ver pedido novo sem ficar recarregando; 20s é curto o
+  // suficiente pra não deixar motoboy esperando na porta.
+  expTimer = ligar ? setInterval(() => carregarExpedicao(true), 20000) : null;
+}
+
+function expBadge(n){
+  const item = document.querySelector('.nav-item[data-nav="expedicao"]');
+  if(!item) return;
+  item.querySelector('.atd-badge')?.remove();
+  if(!n) return;
+  const b = document.createElement('span');
+  b.className = 'atd-badge';
+  b.textContent = n;
+  item.appendChild(b);
+}
+
+async function carregarExpedicao(silencioso){
+  const el = document.getElementById('expCorpo');
+  if(!silencioso) el.innerHTML = '<div class="vazio">Carregando…</div>';
+  const res = await fetch('/api/expedicao/pedidos');
+  if(!res.ok){ el.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  const d = await res.json();
+  expDados = d;
+  expBadge(d.abertos);
+
+  const fmt = v => 'R$ ' + (Number(v) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2});
+  const hora = iso => {
+    if(!iso) return '';
+    const [dia, h] = iso.split('T');
+    const hoje = new Date().toISOString().slice(0, 10);
+    return dia === hoje ? h.slice(0, 5) : `${dia.slice(8, 10)}/${dia.slice(5, 7)} ${h.slice(0, 5)}`;
+  };
+
+  // Formulário só pra quem vende — a expedição não lança pedido, libera.
+  const form = d.sou_expedicao ? '' : `
+    <div class="card" style="margin-bottom:14px;">
+      <details class="dobra" id="expNovoDobra" open>
+        <summary><span class="card-titulo">Pedir à expedição</span></summary>
+        <div class="exp-form">
+          <div class="campo" style="flex:2;"><label class="campo-rotulo" for="expPeca">Peça *</label>
+            <input type="text" id="expPeca" placeholder="Farol direito Onix 2018"></div>
+          <div class="campo"><label class="campo-rotulo" for="expSku">SKU</label>
+            <input type="text" id="expSku" placeholder="opcional"></div>
+          <div class="campo"><label class="campo-rotulo" for="expCliente">Cliente</label>
+            <input type="text" id="expCliente" placeholder="nome do cliente"></div>
+          <div class="campo"><label class="campo-rotulo" for="expQuem">Quem retira *</label>
+            <input type="text" id="expQuem" placeholder="motoboy João / o próprio cliente"></div>
+          <div class="campo"><label class="campo-rotulo" for="expTel">Telefone de quem retira</label>
+            <input type="text" id="expTel" placeholder="opcional"></div>
+          <div class="campo"><label class="campo-rotulo" for="expValor">Valor</label>
+            <input type="number" id="expValor" step="0.01" min="0" placeholder="0,00"></div>
+          <div class="campo"><label class="campo-rotulo" for="expForma">Pagamento</label>
+            <select id="expForma">
+              <option value="">—</option>
+              ${d.opcoes.pagamento.map(f => `<option>${f}</option>`).join('')}
+            </select></div>
+          <label class="exp-pago"><input type="checkbox" id="expPago"> <b>Já está pago</b></label>
+          <div class="campo" style="flex:3;"><label class="campo-rotulo" for="expObs">Observação</label>
+            <input type="text" id="expObs" placeholder="ex.: separar com a nota, cliente confere na hora"></div>
+          <button class="btn btn-principal btn-pequeno" id="expEnviar">Enviar pra expedição</button>
+          <span class="status-msg" id="expStatus"></span>
+        </div>
+      </details>
+    </div>`;
+
+  const cartao = (p) => {
+    const trava = !p.pago && p.status !== 'liberado';
+    return `<div class="card exp-item ${p.status}">
+      <div class="exp-topo">
+        <div>
+          <b class="exp-peca">${(p.peca || '').replace(/</g, '&lt;')}</b>
+          ${p.sku ? `<span class="dp-var neutro">${p.sku}</span>` : ''}
+        </div>
+        <span class="exp-tag ${p.pago ? 'pago' : 'naopago'}">${p.pago ? 'PAGO' : 'NÃO PAGO'}</span>
+      </div>
+      <div class="exp-linhas">
+        <span><b>Retira:</b> ${p.quem_retira}${p.telefone_retira ? ' · ' + p.telefone_retira : ''}</span>
+        ${p.cliente ? `<span><b>Cliente:</b> ${p.cliente}</span>` : ''}
+        ${p.valor ? `<span><b>Valor:</b> ${fmt(p.valor)}${p.forma_pagamento ? ' · ' + p.forma_pagamento : ''}</span>`
+          : (p.forma_pagamento ? `<span><b>Pagamento:</b> ${p.forma_pagamento}</span>` : '')}
+        <span><b>Pedido por:</b> ${p.vendedor} às ${hora(p.criado_em)}</span>
+        ${p.obs ? `<span class="exp-obs">${p.obs.replace(/</g, '&lt;')}</span>` : ''}
+        ${p.status === 'liberado' ? `<span class="exp-saiu">Liberado ${hora(p.liberado_em)}
+          por ${p.liberado_por_nome}${p.liberado_sem_pagamento
+            ? ' · <b style="color:var(--bad)">saiu sem pagamento</b>' : ''}</span>` : ''}
+      </div>
+      <div class="exp-acoes">
+        ${d.sou_expedicao ? `
+          ${p.status === 'aguardando'
+            ? `<button class="btn btn-neutro btn-pequeno" data-exp="separado" data-id="${p.id}">Separei</button>` : ''}
+          ${p.status !== 'liberado'
+            ? `<button class="btn ${trava ? 'btn-neutro' : 'btn-principal'} btn-pequeno"
+                 data-exp="liberado" data-id="${p.id}"
+                 ${trava ? 'data-semp="1" title="Este pedido não está pago — vai ficar registrado que você liberou assim."' : ''}
+               >Liberar${trava ? ' sem pagamento' : ''}</button>` : ''}
+          ${!p.pago ? `<button class="btn btn-neutro btn-pequeno" data-exppago="${p.id}">Marcar pago</button>` : ''}
+        ` : `
+          ${!p.pago ? `<button class="btn btn-neutro btn-pequeno" data-exppago="${p.id}">Marcar pago</button>` : ''}
+          ${p.status !== 'liberado'
+            ? `<button class="btn btn-neutro btn-pequeno" data-expdel="${p.id}">Cancelar</button>` : ''}
+        `}
+        <span class="exp-status">${d.opcoes.status[p.status] || p.status}</span>
+      </div>
+    </div>`;
+  };
+
+  const abertos = d.pedidos.filter(p => ['aguardando', 'separado'].includes(p.status));
+  const fechados = d.pedidos.filter(p => !['aguardando', 'separado'].includes(p.status));
+
+  el.innerHTML = form + `
+    ${d.sou_expedicao ? `<div class="dp-kpis">
+      <div class="dp-kpi"><div class="rot">Esperando</div>
+        <div class="num valor-money" style="color:${abertos.length ? 'var(--warn)' : 'var(--good)'}">${abertos.length}</div>
+        <span class="dp-var neutro">pedidos na fila</span></div>
+      <div class="dp-kpi"><div class="rot">Não pagos na fila</div>
+        <div class="num valor-money" style="color:${d.nao_pagos_abertos ? 'var(--bad)' : 'var(--good)'}">${d.nao_pagos_abertos}</div>
+        <span class="dp-var neutro">confira antes de liberar</span></div>
+    </div>` : ''}
+    ${abertos.length ? abertos.map(cartao).join('')
+      : `<div class="card"><div class="vazio">${d.sou_expedicao
+          ? 'Nenhum pedido na fila. Tudo liberado 👏'
+          : 'Você não tem pedido aberto na expedição.'}</div></div>`}
+    ${fechados.length ? `<div class="mb-recentes-titulo">Fechados recentemente</div>`
+      + fechados.map(cartao).join('') : ''}
+    <div class="dp-aviso">A lista atualiza sozinha. Pedido fechado sai daqui depois de 3 dias.
+      Peça <b>não paga</b> pode ser liberada — mas fica registrado quem liberou.</div>`;
+}
+
+async function expEnviar(){
+  const st = document.getElementById('expStatus');
+  st.classList.remove('show', 'err');
+  const val = id => document.getElementById(id).value.trim();
+  const corpo = {
+    peca: val('expPeca'), sku: val('expSku'), cliente: val('expCliente'),
+    quem_retira: val('expQuem'), telefone_retira: val('expTel'),
+    valor: val('expValor'), forma_pagamento: val('expForma'),
+    pago: document.getElementById('expPago').checked, obs: val('expObs'),
+  };
+  const r = await fetch('/api/expedicao/pedidos', {method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify(corpo)});
+  const d = await r.json().catch(() => ({}));
+  if(!r.ok){
+    st.textContent = d.erro || 'Erro ao enviar.';
+    st.classList.add('show', 'err');
+    return;
+  }
+  ['expPeca','expSku','expCliente','expQuem','expTel','expValor','expObs']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('expPago').checked = false;
+  st.textContent = 'Enviado pra expedição.';
+  st.classList.add('show');
+  carregarExpedicao(true);
+}
+
+document.addEventListener('click', async ev => {
+  const acao = ev.target.closest('[data-exp]');
+  if(acao){
+    if(acao.dataset.semp &&
+       !confirm('Este pedido NÃO está pago. Liberar assim mesmo?\n\nVai ficar registrado que você autorizou.')) return;
+    acao.disabled = true;
+    await fetch(`/api/expedicao/pedidos/${acao.dataset.id}`, {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({status: acao.dataset.exp})});
+    carregarExpedicao(true);
+    return;
+  }
+  const pago = ev.target.closest('[data-exppago]');
+  if(pago){
+    pago.disabled = true;
+    await fetch(`/api/expedicao/pedidos/${pago.dataset.exppago}`, {method: 'POST',
+      headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pago: true})});
+    carregarExpedicao(true);
+    return;
+  }
+  const del = ev.target.closest('[data-expdel]');
+  if(del){
+    if(!confirm('Cancelar este pedido?')) return;
+    await fetch(`/api/expedicao/pedidos/${del.dataset.expdel}`, {method: 'DELETE'});
+    carregarExpedicao(true);
+    return;
+  }
+  if(ev.target.id === 'expEnviar'){ expEnviar(); return; }
+});
+
+async function carregarMeuAtendimento(silencioso){
+  const el = document.getElementById('atdVendedor');
+  if(!silencioso) el.innerHTML = '<div class="vazio">Carregando…</div>';
+  const res = await fetch('/api/meu-atendimento');
+  if(!res.ok){ el.innerHTML = '<div class="vazio">Não consegui carregar.</div>'; return; }
+  const d = await res.json();
+  if(d.sem_dados){
+    el.innerHTML = '<div class="card"><div class="vazio">O monitor ainda não rodou hoje.</div></div>';
+    atdBadge(0);
+    return;
+  }
+  atdBadge(d.total);
+  if(d.fora_do_horario){
+    const volta = d.volta_em ? new Date(d.volta_em) : null;
+    const rot = volta ? `${String(volta.getDate()).padStart(2,'0')}/${String(volta.getMonth()+1).padStart(2,'0')} às ${String(volta.getHours()).padStart(2,'0')}:${String(volta.getMinutes()).padStart(2,'0')}` : '';
+    el.innerHTML = `<div class="card"><div class="vazio">Fora do horário de atendimento 🌙</div>
+      <div class="dp-aviso">O alerta volta a rodar ${rot ? 'em ' + rot : 'na abertura'} —
+        seg a sex 08:30–17:30, sábado 09:00–12:00. Mensagens que chegarem até lá
+        aparecem aqui quando o expediente abrir, contando o tempo só a partir da abertura.</div></div>`;
+    return;
+  }
+  if(!d.total){
+    el.innerHTML = `<div class="card">
+      <div class="vazio">Ninguém esperando resposta sua. Tudo em dia 👏</div>
+      <div class="dp-aviso">Dados de ${(d.gerado_em || '').slice(11, 16)}.
+        Esta tela se atualiza sozinha — se chegar alguém, aparece aqui.</div></div>`;
+    return;
+  }
+  const COR = {critico: 'var(--bad)', urgente: 'var(--warn)', atencao: 'var(--muted)'};
+  const tempo = (m) => m >= 60 ? Math.floor(m / 60) + 'h' + String(m % 60).padStart(2, '0') : m + 'min';
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:14px;">
+      <p class="card-titulo">Esperando você responder</p>
+      <div class="atd-resumo">
+        <span class="atd-num" style="color:${d.critico ? 'var(--bad)' : 'var(--warn)'}">${d.total}</span>
+        <span class="atd-txt">cliente${d.total > 1 ? 's' : ''} sem resposta
+          ${d.critico ? `· <b style="color:var(--bad)">${d.critico} há mais de 1 hora</b>` : ''}</span>
+      </div>
+    </div>
+    ${d.conversas.map(c => {
+      const [dia, hora] = c.desde.split('T');
+      const quando = dia === hoje ? hora.slice(0, 5)
+        : `${dia.slice(8, 10)}/${dia.slice(5, 7)} ${hora.slice(0, 5)}`;
+      return `<div class="card atd-item" style="border-left:3px solid ${COR[c.nivel]}">
+        <div class="atd-linha">
+          <b class="atd-nome">${c.cliente || '?'}</b>
+          <span class="atd-tempo" style="color:${COR[c.nivel]}">${tempo(c.minutos)} esperando</span>
+          <span class="atd-uteis" title="Conta só o horário de atendimento: seg a sex 08:30–17:30, sábado 09:00–12:00.">⏱ úteis</span>
+        </div>
+        <div class="atd-msg">${(c.ultima_msg || '(sem texto — pode ser áudio ou imagem)')
+          .replace(/</g, '&lt;')}</div>
+        <div class="atd-pe">última mensagem dele às ${quando}${
+          c.nunca_respondida ? ' · <b>nunca respondida</b>' : ''}</div>
+        <div class="atd-acoes">
+          ${c.url ? `<a class="btn btn-principal btn-pequeno" href="${c.url}"
+             target="_blank" rel="noopener">Abrir conversa</a>` : ''}
+          <button class="btn btn-neutro btn-pequeno" data-resolver="${c.id}"
+            data-ultima="${c.ultima_em || ''}"
+            title="Some da lista hoje. Volta amanhã se continuar sem resposta, ou na hora se o cliente falar de novo.">Já resolvi</button>
+        </div>
+      </div>`;
+    }).join('')}
+    <div class="dp-aviso">Atualiza sozinho a cada 2 minutos, direto do servidor. Quem aparece aqui mandou
+      mensagem e ainda não teve resposta — não depende da bolinha de "não lida" do Totalk,
+      que some sozinha quando o bot atende primeiro.<br>
+      <b>"Já resolvi" vale só para hoje:</b> se amanhecer e o cliente continuar sem
+      resposta, ele volta para esta lista. E volta na hora se ele mandar mensagem nova.</div>`;
+  const rodape = document.createElement('div');
+  rodape.className = 'atd-rodape';
+  rodape.innerHTML = `<span>Dados de ${(d.gerado_em || '').slice(11, 16)} ·
+    a tela se atualiza sozinha</span>
+    <button class="btn btn-neutro btn-pequeno" id="atdAgora">Atualizar agora</button>`;
+  el.appendChild(rodape);
+  document.getElementById('atdAgora').addEventListener('click', () => carregarMeuAtendimento());
+}
+
+async function carregarPerformance(){
+  // Usa o seletor de mes do topo, o mesmo do painel e das vendas: dois campos
+  // de mes na tela sao duas fontes de verdade pra mesma pergunta.
+  const mes = document.getElementById('mesInput').value || todayStr().slice(0, 7);
+  const corpo = document.getElementById('dpCorpo');
+  corpo.innerHTML = '<div class="vazio">Carregando…</div>';
+  const res = await fetch('/api/desempenho?mes=' + mes);
+  if(res.status === 401){ logout(); return; }
+  if(!res.ok){
+    // Mostra o codigo: "nao apareceu nada" nao diz se foi sessao, servidor ou
+    // banco, e sem isso a mesma investigacao comeca do zero toda vez.
+    corpo.innerHTML = '<div class="vazio">Não consegui carregar seus números '
+      + '(erro ' + res.status + '). Tente de novo em instantes; se continuar, avise o gestor.</div>';
+    return;
+  }
+  const d = await res.json();
+  // Sem participação no time, o subtítulo do painel compartilhado precisa de
+  // outro texto — o resto do desenho é idêntico.
+  renderDesempenho(d);
+  document.getElementById('dpSub').textContent =
+    d.time && d.time.posicao ? `${d.time.posicao}º lugar entre ${d.time.de} no mês` : '';
+}
+
+// Trocar o mes no topo tem que refazer a Performance tambem, se ela e a
+// secao aberta.
+document.getElementById('mesInput').addEventListener('change', () => {
+  if(secaoAtual === 'performance') carregarPerformance();
+});
+
+/* ---------- troca de seção ---------- */
+const TITULOS = {painel: 'Painel', vendas: 'Minhas vendas', performance: 'Performance',
+                 expedicao: 'Expedição',
+                 atendimento: 'Esperando você'};
+const SECOES_VENDEDOR = {painel: 'secaoPainel', vendas: 'secaoVendas',
+                         expedicao: 'secaoExpedicao',
+                         performance: 'secaoPerformance',
+                         atendimento: 'secaoAtendimento'};
+
+// Roda assim que SECOES_VENDEDOR existe: se a URL trouxe um hash que nao e
+// secao, cai no painel — mas '#performance' agora e reconhecido.
+if(!SECOES_VENDEDOR[secaoAtual]) secaoAtual = 'painel';
+
+// O badge acompanha mesmo com o vendedor em outra tela — e o que avisa que
+// chegou gente nova sem ele precisar entrar na secao. A cada 60s basta: o
+// monitor roda de 2 em 2 minutos.
+function atdConferirBadge(){
+  fetch('/api/meu-atendimento')
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if(d && !d.sem_dados) atdBadge(d.total); })
+    .catch(() => {});
+}
+atdConferirBadge();
+fetch('/api/expedicao/pedidos').then(r => r.ok ? r.json() : null)
+  .then(d => { if(d) expBadge(d.abertos); }).catch(() => {});
+setInterval(() => { if(secaoAtual !== 'atendimento') atdConferirBadge(); }, 60000);
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden && secaoAtual !== 'atendimento') atdConferirBadge();
+});
+
+function irParaSecao(chave){
+  secaoAtual = SECOES_VENDEDOR[chave] ? chave : 'painel';
+  Object.entries(SECOES_VENDEDOR).forEach(([k, el]) => {
+    document.getElementById(el).classList.toggle('oculto', k !== secaoAtual);
+  });
+  if(secaoAtual === 'performance') carregarPerformance();
+  if(secaoAtual === 'atendimento') carregarMeuAtendimento();
+  if(secaoAtual === 'expedicao') carregarExpedicao();
+  expAutoAtualizar(secaoAtual === 'expedicao');
+  atdAutoAtualizar(secaoAtual === 'atendimento');
+  document.getElementById('tituloSecao').textContent = TITULOS[secaoAtual];
+  document.querySelectorAll('.nav-item[data-nav]').forEach(a => {
+    a.classList.toggle('ativo', a.dataset.nav === secaoAtual);
+  });
+  if(location.hash !== '#' + secaoAtual) history.replaceState({}, '', '#' + secaoAtual);
+  fecharMenu();
+}
+
+window.addEventListener('hashchange', () => {
+  const alvo = (location.hash || '#painel').replace('#','');
+  if(SECOES_VENDEDOR[alvo]) irParaSecao(alvo);
+});
+
+// Redesenha o gráfico ao trocar de tema — o SVG usa as cores do tema.
+window.aoTrocarTema = () => { if(dadosPainel) renderPainel(); };
+
+document.getElementById('menuAbrirBtn').innerHTML = ICONES.menu;
+document.getElementById('menuAbrirBtn').addEventListener('click', abrirMenu);
+
+(async function init(){
+  await carregarVendedores();
+  await tentarSessao();
+})();

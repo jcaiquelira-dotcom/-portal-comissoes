@@ -27,7 +27,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 import nevada_comum as C  # biblioteca comum — ver app/nevada_comum.py
 
 RAIZ = Path(__file__).resolve().parent.parent
+# Desde 03/09/2026 (Fase 4) o JS das telas mora em admin.js e index.js; os
+# .html continuam na lista pra pegar qualquer <script> embutido que voltem a por.
 TELAS = ["app/static/admin.html", "app/static/index.html",
+         "app/static/admin.js", "app/static/index.js",
          "app/static/portal-nav.js", "app/static/desempenho.js",
          "app/static/dre.js"]
 
@@ -140,9 +143,9 @@ def checar_balanceamento(codigo: str):
 # eles — coisa que a checagem arquivo-a-arquivo nao ve.
 PAGINAS = {
     "admin.html": ["app/static/portal-nav.js", "app/static/desempenho.js",
-                   "app/static/dre.js", "app/static/admin.html"],
+                   "app/static/dre.js", "app/static/admin.js", "app/static/admin.html"],
     "index.html": ["app/static/portal-nav.js", "app/static/desempenho.js",
-                   "app/static/index.html"],
+                   "app/static/index.js", "app/static/index.html"],
 }
 
 # Declaracao no nivel de cima: sem indentacao nenhuma antes da palavra-chave.

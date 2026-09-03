@@ -109,10 +109,31 @@ relativos. Exige trocar o *root directory* do serviço no Render — passo do Ca
   aponta pro repo antigo. Repontar pra `-portal-comissoes` com *Root Directory*
   `pipeline` (build e start iguais). Até lá o repo antigo continua servindo, sem risco.
 
-### Fase 4 — quebrar os gigantes
-`server.py` em blueprints do Flask, um por seção já existente (`portal/areas/
-marketing.py`, `retomada.py`, ...). `admin.html` em um `.js` por área — o
-`checar_js.py` já valida vários arquivos. Sem mudar uma rota, sem mudar uma tela.
+### Fase 4 — quebrar os gigantes — CONCLUÍDA em 03/09/2026
+`server.py` (6.578 linhas) virou `app/nucleo.py` (1.609: config, Flask, banco,
+autenticação e tudo que mais de uma área usa) + `app/areas/*.py` (dez áreas:
+simulador, contas, auditoria, rh, metas_bonus, expedicao, carros, marketing,
+retomada, nuvem) + um `server.py` de 79 linhas que só importa tudo na ordem de
+sempre e sobe. O corte foi por camada CALCULADA no AST (nome usado por outra
+seção vai pro núcleo, com fecho transitivo), não pelos cabeçalhos de comentário —
+eles não batiam com as dependências reais. Texto de cada função idêntico ao
+original. Sem blueprints, de propósito: blueprint prefixa o nome do endpoint e
+isso mudaria `url_for` e qualquer coisa chaveada por endpoint; módulos comuns
+registrando no mesmo `app` preservam as 105 rotas com os mesmos nomes.
+
+Nomes que o núcleo só define num dos modos (`_db_*`, `_PgJson`, `ler_json`…,
+dentro de `if DATABASE_URL:`) são ligados nas áreas um a um por `hasattr`, como
+no original: o que não existe no modo atual fica sem ligar, igual antes.
+
+`admin.html` → `admin.css` (794 linhas) + `admin.js` (5.045); `index.html` →
+`index.css` + `index.js`. Recompor o HTML a partir dos arquivos novos devolve o
+original byte a byte. `checar_js.py` passou a validar os `.js` novos.
+
+Provas: mapa de rotas idêntico (105/105); 15 endpoints com o mesmo status e hash
+de antes; zero nome global sem definição em qualquer módulo (symtable); sobe em
+modo Postgres como no Render; as duas telas abrem no navegador sem erro de
+console. Único ajuste fora do `app/`: `importar_comissao_lucas.py` passou a
+importar `montar_venda` de `areas.contas` (não é mais atributo de `server`).
 
 ### Fase 5 — o banco de conversas
 `mensagens.raw` sai pra um `vendas_raw.db` de arquivo, só leitura. O `vendas.db`

@@ -134,7 +134,13 @@ sem precisar subir pro GitHub.
 ### 5.5 Plano de simplificação — ver `SIMPLIFICACAO.md`
 Diagnóstico medido em 03/09 e plano em 6 fases (arrumar a casa → biblioteca
 comum → um dono por chave → um repositório → quebrar server.py/admin.html →
-banco de conversas). Cada fase é uma sessão. **Fase 3 concluída em 03/09** — um repositório: `vendas-insights` virou `pipeline/`
+banco de conversas). Cada fase é uma sessão. **Fase 4 concluída em 03/09** — `server.py` virou `nucleo.py` + `areas/*.py` (dez
+áreas) + um `server.py` de 79 linhas; `admin.html`/`index.html` perderam o script e
+o CSS embutidos (`admin.js/.css`, `index.js/.css`). 105 rotas iguais, 15 endpoints
+com o mesmo hash, telas abrindo sem erro. **Conferir:** o deploy do Render subir
+com o `server.py` novo (`/api/ambiente` e `/admin.js` respondendo 200 no site).
+
+**Fase 3 concluída em 03/09** — um repositório: `vendas-insights` virou `pipeline/`
 aqui dentro (histórico preservado); dados continuam na pasta antiga do Desktop,
 fora do Drive. **Conferir amanhã** a rodada das 07:30 a partir de `pipeline/`.
 **Pendência sua (2.6):** repontar o webhook no Render → repo `-portal-comissoes`,

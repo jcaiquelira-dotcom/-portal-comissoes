@@ -96,6 +96,7 @@ def main() -> int:
         desde = sys.argv[sys.argv.index("--desde") + 1]
 
     import server
+    from areas.contas import montar_venda  # desde a Fase 4 mora na area de contas
 
     linhas, ignoradas = ler_planilha(server.hoje_br())
     if desde:
@@ -121,7 +122,7 @@ def main() -> int:
     total = 0.0
     print()
     for l in novas:
-        venda = server.montar_venda(VENDEDOR, {
+        venda = montar_venda(VENDEDOR, {
             "data": l["data"], "produto": l["produto"],
             "valor": l["valor"], "canal": l["canal"]},
             ignorar_limite_retroativo=True)
