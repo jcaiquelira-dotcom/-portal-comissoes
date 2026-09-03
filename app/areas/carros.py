@@ -369,6 +369,10 @@ PASSO_BONUS = 50.0
 def _mb_saldos(dados: dict, mes: str) -> list:
     base = dados["saldos"].get("base") or {}
     pagos = dados["saldos"].get("pagamentos") or {}
+    # Mes de partida: tudo ate ele esta acertado (a planilha antiga era a
+    # verdade ate agosto/26). Sem isso, quem nao tinha credito na planilha
+    # aparecia com excedente de 2025 como "a pagar".
+    inicio_geral = dados["saldos"].get("inicio") or "0000-00"
     producao = {}
     for setor, tipo in TIPO_META.items():
         for l in (dados["lancamentos"].get(tipo) or {}).values():
@@ -381,7 +385,7 @@ def _mb_saldos(dados: dict, mes: str) -> list:
         for pid, p in gente.items():
             meta = float(p.get("meta") or 0)
             b = base.get(f"{setor}:{pid}") or {}
-            inicio = b.get("mes") or "0000-00"
+            inicio = b.get("mes") or inicio_geral
             carry = float(b.get("unidades") or 0)
             meses = sorted({m for (s, pp, m) in producao if s == setor and pp == pid and inicio < m <= mes})
             if mes not in meses and (mes > inicio):
