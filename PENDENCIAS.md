@@ -57,14 +57,13 @@ em 2025 fica como está: antes de junho não conta.)
   do Meta Bônus ("Ficha no RH"), senão o bônus dele não chega ao dia 10 da folha.
 - **Pedro** (cadastrador) não sei qual ficha é: no RH só há Pedro Paulo e Pedro
   Henrique, os dois em Anúncios. Vincular no lápis.
-- A comissão digitada na planilha antiga difere do cálculo do portal (agosto: Brenda
-  3.289 x 3.859; Matheus 843 x 1.604; Gustavo 804 x 803). De setembro em diante a
-  folha sugere o valor do portal; se a regra da planilha era outra, me diga qual.
-- Com a regra "dia 10 paga o mês anterior" (03/09), a aba **Agosto** da planilha trazia a
-  comissão calculada de agosto (Gustavo 804 x 803 do portal) — ou seja, as abas eram
-  nomeadas pelo mês de referência, não pelo mês do pagamento. O histórico importado
-  segue esse nome de aba. Se preferir a folha pelo mês do pagamento, é deslocar tudo
-  um mês pra frente; me diga.
+- **Regra sem exceção (03/09):** tudo que a planilha e a folha trazem em meta bônus e
+  comissões é do mês anterior. A aba "Agosto" é a folha de agosto e a comissão nela é
+  de julho. O histórico importado está alinhado a isso; a folha sugere M-1.
+- A comissão digitada na planilha difere do cálculo do portal para o mesmo mês de
+  referência (folha de agosto = julho: Brenda 3.289 x 4.633; Gustavo 804 x 1.077;
+  Matheus 843 x 992). De setembro em diante vale a sugestão do portal, salvo regra
+  que eu não conheça.
 
 ### 2.7 Meta Bônus: planilha acaba em outubro — última importação no fim de setembro
 Decidido em 03/09: a partir de 10/2026 tudo é lançado direto no painel e a
