@@ -39,30 +39,6 @@ Ponto de partida oficial: https://developers.google.com/my-business/content/prer
 
 ## 2. Decisões do Caique
 
-### 2.8 Saldo de bônus do Otávio: 15 pela regra, 35 na planilha
-Pela regra dos três meses (junho a agosto, pagando os múltiplos de 50 a cada mês)
-Marcella, Lucas e Vinícius batem com a planilha (12, 25, 3). O Otávio dá 15 e a
-planilha dizia 35 — número digitado à mão e repetido igual em julho, agosto e
-setembro. Ficou 15. Se o certo é 35, é um ajuste de saldo inicial (rota
-`saldos/base`), me pede.
-
-### 2.10 Código V845 em dois carros diferentes
-Onix 1.0 de 08/04/2026 e Golf Highline 1.4 de 30/07/2026 estão os dois como V845.
-Um deles tem o código errado — o painel agora recusa código repetido, mas esses dois
-já estavam lá. Corrigir pela canetinha quando souber qual é o certo. (V738 repetido
-em 2025 fica como está: antes de junho não conta.)
-
-### 2.11 Folha: dois vínculos que faltam e uma diferença de comissão
-- ~~Levi~~ — é o Pedro Henrique; vinculado em 03/09 e apelido "Levi" na ficha.
-- ~~Pedro (cadastrador)~~ — vinculado ao Pedro Paulo em 03/09, a pedido.
-- **Regra sem exceção (03/09):** tudo que a planilha e a folha trazem em meta bônus e
-  comissões é do mês anterior. A aba "Agosto" é a folha de agosto e a comissão nela é
-  de julho. O histórico importado está alinhado a isso; a folha sugere M-1.
-- A comissão digitada na planilha difere do cálculo do portal para o mesmo mês de
-  referência (folha de agosto = julho: Brenda 3.289 x 4.633; Gustavo 804 x 1.077;
-  Matheus 843 x 992). De setembro em diante vale a sugestão do portal, salvo regra
-  que eu não conheça.
-
 ### 2.7 Meta Bônus: planilha acaba em outubro — última importação no fim de setembro
 Decidido em 03/09: a partir de 10/2026 tudo é lançado direto no painel e a
 "Gestão de Processos.xlsx" deixa de existir. Setembro ainda pode ser preenchido
