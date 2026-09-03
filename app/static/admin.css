@@ -795,3 +795,7 @@
   .sim-status-box{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 13px;}
   .sim-status-box .rotulo{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
   .sim-status-box .numero{font-family:'Oswald',sans-serif;font-weight:600;font-size:16px;}
+
+/* Peças editáveis na lista de veículos (03/09/2026): o carro entra "a contar" e o número vem depois. */
+.mb-pecas{width:72px;padding:3px 6px;font:inherit;font-size:12.5px;text-align:right;background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:5px;}
+.mb-pecas:placeholder-shown{border-color:var(--accent);}

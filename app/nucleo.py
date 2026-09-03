@@ -1303,17 +1303,19 @@ def _mb_agregar(dados: dict) -> dict:
             if linhas:
                 setores[setor] = linhas
 
-        do_mes = [v for v in dados["veiculos"].values() if (v.get("data") or "")[:7] == mes]
+        do_mes = {vid: v for vid, v in dados["veiculos"].items() if (v.get("data") or "")[:7] == mes}
         por_mes[mes] = {
             "setores": setores,
             "veiculos": {
                 "carros": len(do_mes),
-                "pecas": round(sum(float(v.get("pecas") or 0) for v in do_mes), 2),
+                "pecas": round(sum(float(v.get("pecas") or 0) for v in do_mes.values()), 2),
                 "meta": float(meta_veic.get("meta") or 0),
                 "meta_bonus": float(meta_veic.get("meta_bonus") or 0),
-                "lista": sorted(({"data": v.get("data"), "carro": v.get("carro"),
+                # `id` vai junto pra tela deixar a contagem de pecas editavel
+                # na lista do mes — o carro entra "a contar" e o numero vem depois.
+                "lista": sorted(({"id": vid, "data": v.get("data"), "carro": v.get("carro"),
                                   "codigo": v.get("codigo"), "pecas": v.get("pecas") or 0}
-                                 for v in do_mes), key=lambda v: v["data"] or ""),
+                                 for vid, v in do_mes.items()), key=lambda v: v["data"] or ""),
             },
         }
     return por_mes

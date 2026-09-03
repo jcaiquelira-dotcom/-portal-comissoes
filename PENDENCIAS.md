@@ -187,6 +187,12 @@ roda desacompanhado.
 
 ## Resolvido em 02–03/09/2026
 
+- [x] **Meta Bônus pronto pra rodar na empresa** (03/09): a grade "Lançar produção do
+      dia" já recebia anunciantes e cadastradores; faltava o fluxo real dos carros.
+      Agora o carro entra no dia em que chega, com peças "a contar", e a contagem é
+      preenchida na própria lista (do dia ou do mês) quando a desmontagem termina.
+      Meta de peças do mês (o "Pç Grande" da planilha) ganhou campo ao lado dos carros.
+      "Pedro / Alison" de julho entrou como pessoa conjunta, regra do Caique.
 - [x] **Meta Bônus alinhado à planilha "Gestão de Processos.xlsx"** (Drive, 03/09): nova
       `ferramentas/importar_gestao_processos.py` compara aba por aba com o painel e
       grava só o que falta (70 dias de anúncio, 3 cadastros de agosto, 3 carros, 2

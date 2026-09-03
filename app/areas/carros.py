@@ -284,12 +284,17 @@ def api_mb_veiculo():
         parse_dt_tolerante(data)
     except Exception:
         return jsonify({"erro": "Data inválida."}), 400
+    # Pecas pode ficar em branco: o carro chega hoje e a contagem sai dias
+    # depois, quando termina a desmontagem. Zero = "a contar"; preenche-se
+    # depois na propria lista (PUT abaixo). Antes a tela exigia o numero na
+    # hora, e o carro so era lancado quando ja estava tudo contado — ou nunca.
+    bruto = str(corpo.get("pecas") or "").strip().replace(",", ".")
     try:
-        pecas = float(str(corpo.get("pecas")).replace(",", "."))
-    except (TypeError, ValueError):
+        pecas = float(bruto) if bruto else 0.0
+    except ValueError:
         return jsonify({"erro": "Quantidade de peças inválida."}), 400
-    if pecas <= 0:
-        return jsonify({"erro": "Peças deve ser maior que zero."}), 400
+    if pecas < 0:
+        return jsonify({"erro": "Peças não pode ser negativo."}), 400
 
     dados = _mb_bruto()
     dados["veiculos"][uuid.uuid4().hex[:12]] = {
@@ -299,6 +304,52 @@ def api_mb_veiculo():
     }
     _mb_gravar(dados)
     return jsonify({"ok": True})
+
+@app.route("/api/admin/metas-bonus/veiculos/<vid>", methods=["PUT"])
+def api_mb_veiculo_editar(vid):
+    """Atualiza a contagem de pecas (e, se vier, carro/codigo) de um veiculo
+    ja lancado — e assim que o "a contar" vira numero."""
+    if not exigir_area("metabonus"):
+        return jsonify({"erro": "Não autenticado."}), 401
+    dados = _mb_bruto()
+    v = dados["veiculos"].get(vid)
+    if not v:
+        return jsonify({"erro": "Veículo não encontrado."}), 404
+    corpo = request.get_json(silent=True) or {}
+    if "pecas" in corpo:
+        bruto = str(corpo.get("pecas") or "").strip().replace(",", ".")
+        try:
+            pecas = float(bruto) if bruto else 0.0
+        except ValueError:
+            return jsonify({"erro": "Quantidade de peças inválida."}), 400
+        if pecas < 0:
+            return jsonify({"erro": "Peças não pode ser negativo."}), 400
+        v["pecas"] = pecas
+    if (corpo.get("carro") or "").strip():
+        v["carro"] = corpo["carro"].strip()[:80]
+    if "codigo" in corpo:
+        v["codigo"] = (corpo.get("codigo") or "").strip()[:20]
+    v["editado_em"] = agora_br().isoformat(timespec="seconds")
+    _mb_gravar(dados)
+    return jsonify({"ok": True, "pecas": v["pecas"]})
+
+@app.route("/api/admin/metas-bonus/meta-veiculos", methods=["POST"])
+def api_mb_meta_veiculos():
+    """Meta e bonus de pecas desmontadas no mes (na planilha, "Pç Grande")."""
+    if not exigir_area("metabonus"):
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    novo = {}
+    for campo in ("meta", "meta_bonus"):
+        bruto = str(corpo.get(campo) or "").strip().replace(",", ".")
+        try:
+            novo[campo] = float(bruto) if bruto else 0.0
+        except ValueError:
+            return jsonify({"erro": f"Valor inválido em {campo}."}), 400
+    dados = _mb_bruto()
+    dados["meta_veiculos"] = novo
+    _mb_gravar(dados)
+    return jsonify({"ok": True, **novo})
 
 @app.route("/api/admin/metas-bonus/veiculos/<vid>", methods=["DELETE"])
 def api_mb_veiculo_apagar(vid):

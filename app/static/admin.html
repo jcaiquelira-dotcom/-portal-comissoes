@@ -456,8 +456,15 @@
             <div class="mb-veic-form">
               <input type="text" id="mbCarro" placeholder="Carro (ex.: Land Rover Defender)">
               <input type="text" id="mbCodigo" placeholder="Código (V638)">
-              <input type="number" id="mbPecas" min="0" step="1" placeholder="Peças">
+              <input type="number" id="mbPecas" min="0" step="1" placeholder="Peças (pode deixar pra depois)">
               <button class="btn btn-neutro btn-pequeno" id="mbAddVeiculo">Adicionar</button>
+            </div>
+            <!-- Meta de pecas desmontadas no mes — na planilha antiga era o
+                 "Pc Grande". Fica aqui, ao lado dos carros, porque e deles. -->
+            <div class="mb-veic-form" style="margin-top:8px;">
+              <input type="number" id="mbMetaVeic" min="0" step="1" placeholder="Meta de peças no mês">
+              <input type="number" id="mbMetaVeicBonus" min="0" step="1" placeholder="Bônus de peças">
+              <button class="btn btn-neutro btn-pequeno" id="mbSalvarMetaVeic">Salvar meta de peças</button>
             </div>
           </div>
         </details>

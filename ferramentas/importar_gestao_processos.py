@@ -85,10 +85,10 @@ def ler_aba(ws, ano, mes):
                     break   # dali em diante e o bloco CADASTRO / carros, na mesma linha
                 if not isinstance(nome, str) or not nome.strip():
                     continue
-                if "/" in nome:
-                    avisos.append(f"coluna '{nome.strip()}' tem duas pessoas — ignorada")
-                    continue
-                cab[j] = nome.strip()
+                # "Pedro/Alison": os dois trabalharam juntos naquele periodo e a
+                # planilha contou junto. Regra do gestor (03/09/2026): conta junto
+                # mesmo — vira uma pessoa conjunta com esse nome no painel.
+                cab[j] = " / ".join(p.strip() for p in nome.split("/")) if "/" in nome else nome.strip()
             continue
         if cab and numero(a) is not None and 1 <= numero(a) <= 31:
             dia = int(numero(a))
