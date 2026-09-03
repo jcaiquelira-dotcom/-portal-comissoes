@@ -39,7 +39,7 @@ def taxa_resposta_humana(conn):
     total = conn.execute("SELECT COUNT(*) FROM sessoes").fetchone()[0]
     com_humano = conn.execute(
         "SELECT COUNT(DISTINCT session_id) FROM mensagens "
-        "WHERE direction='TO_HUB' AND json_extract(raw, '$.userId') IS NOT NULL"
+        "WHERE direction='TO_HUB' AND user_id IS NOT NULL"
     ).fetchone()[0]
     return total, com_humano
 
@@ -50,7 +50,7 @@ def tempo_primeira_resposta_humana(conn):
     for session_id, created_at in sessoes:
         row = conn.execute(
             "SELECT created_at FROM mensagens WHERE session_id=? AND direction='TO_HUB' "
-            "AND json_extract(raw, '$.userId') IS NOT NULL ORDER BY created_at ASC LIMIT 1",
+            "AND user_id IS NOT NULL ORDER BY created_at ASC LIMIT 1",
             (session_id,),
         ).fetchone()
         if row and created_at:
@@ -90,7 +90,7 @@ def pecas_mais_pedidas(conn, top_n=30):
 def loops_de_chatbot(conn, limiar=3):
     suspeitos = conn.execute(
         "SELECT session_id, text, COUNT(*) as n FROM mensagens "
-        "WHERE direction='TO_HUB' AND json_extract(raw, '$.origin')='BOT' AND text IS NOT NULL "
+        "WHERE direction='TO_HUB' AND origin='BOT' AND text IS NOT NULL "
         "GROUP BY session_id, text HAVING n >= ? ORDER BY n DESC",
         (limiar,),
     ).fetchall()
@@ -98,6 +98,8 @@ def loops_de_chatbot(conn, limiar=3):
 
 
 if __name__ == "__main__":
+    # console do Windows e cp1252: emoji nas mensagens derrubava o relatorio
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     conn = _conectar()
 
     total, com_humano = taxa_resposta_humana(conn)

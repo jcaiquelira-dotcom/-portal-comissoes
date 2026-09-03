@@ -134,7 +134,14 @@ sem precisar subir pro GitHub.
 ### 5.5 Plano de simplificação — ver `SIMPLIFICACAO.md`
 Diagnóstico medido em 03/09 e plano em 6 fases (arrumar a casa → biblioteca
 comum → um dono por chave → um repositório → quebrar server.py/admin.html →
-banco de conversas). Cada fase é uma sessão. **Fase 4 concluída em 03/09** — `server.py` virou `nucleo.py` + `areas/*.py` (dez
+banco de conversas). Cada fase é uma sessão. **Fase 5 concluída em 03/09** — `mensagens.raw` foi pro `vendas_raw.db`; o
+`vendas.db` caiu de 406 MB pra 104 MB, com `user_id` como coluna. **Decisão sua:**
+apagar `vendas_backup_2026-09-03_12h52_antes_fase5.db` (406 MB) e o
+`vendas_backup_2026-08-27_11h15.db` (276 MB) da pasta de dados quando estiver
+tranquilo — nenhum script usa os dois. **Conferir amanhã:** no log das 07:30, o
+sync do Totalk gravando normalmente (linha "mensagens: X -> Y").
+
+**Fase 4 concluída em 03/09** — `server.py` virou `nucleo.py` + `areas/*.py` (dez
 áreas) + um `server.py` de 79 linhas; `admin.html`/`index.html` perderam o script e
 o CSS embutidos (`admin.js/.css`, `index.js/.css`). 105 rotas iguais, 15 endpoints
 com o mesmo hash, telas abrindo sem erro. **Conferir:** o deploy do Render subir

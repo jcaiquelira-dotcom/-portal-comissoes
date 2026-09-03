@@ -175,8 +175,11 @@ def main():
     ultima_direcao = {}
     ultima_msg = {}
 
-    for sid, direction, tipo, texto, created_at, origin_json in conn.execute(
-        "SELECT session_id, direction, type, text, created_at, raw FROM mensagens ORDER BY created_at ASC"
+    # user_id e origin sao colunas desde a Fase 5 (03/09/2026); antes vinham do
+    # JSON bruto, parseado linha a linha — 233 MB toda manha por um campo.
+    for sid, direction, tipo, texto, created_at, origin, user_id in conn.execute(
+        "SELECT session_id, direction, type, text, created_at, origin, user_id "
+        "FROM mensagens ORDER BY created_at ASC"
     ):
         if texto:
             textos_por_sessao[sid].append(texto.lower())
@@ -185,10 +188,9 @@ def main():
         ultima_direcao[sid] = direction
         ultima_msg[sid] = (direction, tipo, texto)
         if direction == "TO_HUB":
-            d = json.loads(origin_json)
-            if d.get("origin") == "BOT" and texto:
+            if origin == "BOT" and texto:
                 bot_textos[sid][texto] += 1
-            if d.get("userId"):
+            if user_id:
                 if sid not in primeira_resposta_humana:
                     primeira_resposta_humana[sid] = created_at
                 msgs_vendedor[sid] += 1

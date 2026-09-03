@@ -56,8 +56,17 @@ def _requisitar(path: str, params: dict) -> dict:
             time.sleep(espera)
 
 
+# O JSON bruto de cada mensagem mora em vendas_raw.db desde 03/09/2026 (Fase 5):
+# era 57% do vendas.db e ninguem lia — so o userId, que virou coluna. Continua
+# sendo gravado, num arquivo a parte, pra quando alguem precisar de um campo
+# que nao previmos. Ver pipeline/ferramentas/separar_raw.py.
+RAW_PATH = SQLITE_PATH.with_name("vendas_raw.db")
+
+
 def _conectar_db() -> sqlite3.Connection:
     conn = sqlite3.connect(SQLITE_PATH)
+    conn.execute("ATTACH DATABASE ? AS bruto", (str(RAW_PATH),))
+    conn.execute("CREATE TABLE IF NOT EXISTS bruto.mensagens_raw (id TEXT PRIMARY KEY, raw TEXT)")
     conn.execute(
         "CREATE TABLE IF NOT EXISTS sessoes ("
         "id TEXT PRIMARY KEY, created_at TEXT, ended_at TEXT, status TEXT, "
@@ -71,7 +80,7 @@ def _conectar_db() -> sqlite3.Connection:
         "CREATE TABLE IF NOT EXISTS mensagens ("
         "id TEXT PRIMARY KEY, session_id TEXT, created_at TEXT, "
         "type TEXT, direction TEXT, status TEXT, origin TEXT, text TEXT, "
-        "raw TEXT)"
+        "user_id TEXT)"
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_msg_session ON mensagens(session_id)")
     return conn
@@ -94,12 +103,18 @@ def _salvar_sessao(conn: sqlite3.Connection, s: dict) -> None:
 
 def _salvar_mensagem(conn: sqlite3.Connection, session_id: str, m: dict) -> None:
     conn.execute(
-        "INSERT OR REPLACE INTO mensagens VALUES (?,?,?,?,?,?,?,?,?)",
+        "INSERT OR REPLACE INTO mensagens "
+        "(id, session_id, created_at, type, direction, status, origin, text, user_id) "
+        "VALUES (?,?,?,?,?,?,?,?,?)",
         (
             m.get("id"), session_id, m.get("createdAt"), m.get("type"),
             m.get("direction"), m.get("status"), m.get("origin"), m.get("text"),
-            json.dumps(m, ensure_ascii=False),
+            m.get("userId"),
         ),
+    )
+    conn.execute(
+        "INSERT OR REPLACE INTO bruto.mensagens_raw (id, raw) VALUES (?, ?)",
+        (m.get("id"), json.dumps(m, ensure_ascii=False)),
     )
 
 

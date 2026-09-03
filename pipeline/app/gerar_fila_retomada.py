@@ -244,14 +244,14 @@ def main():
     # conversa sem abrir o Totalk, e um deque com teto evita carregar 156 mil
     # mensagens na memória pra jogar quase todas fora depois.
     ultimas = defaultdict(lambda: deque(maxlen=3))
-    for sid, direcao, tipo, txt, raw in conn.execute(
-        "SELECT session_id, direction, type, text, raw FROM mensagens ORDER BY created_at ASC"
+    for sid, direcao, tipo, txt, user_id in conn.execute(
+        "SELECT session_id, direction, type, text, user_id FROM mensagens ORDER BY created_at ASC"
     ):
         if sid not in ia:
             continue
         tl = limpa(txt) if txt else ""
         if direcao == "TO_HUB":
-            if txt and json.loads(raw).get("userId") and RE_PRECO.search(txt):
+            if txt and user_id and RE_PRECO.search(txt):
                 tem_preco.add(sid)
         else:
             if tipo in ("IMAGE", "VIDEO"):

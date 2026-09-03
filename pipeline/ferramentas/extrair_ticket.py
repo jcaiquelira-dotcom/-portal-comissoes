@@ -57,7 +57,7 @@ def main():
     for sid in convertidas:
         msgs = conn.execute(
             "SELECT text, created_at FROM mensagens WHERE session_id=? AND direction='TO_HUB' "
-            "AND text IS NOT NULL AND json_extract(raw,'$.userId') IS NOT NULL ORDER BY created_at ASC",
+            "AND text IS NOT NULL AND user_id IS NOT NULL ORDER BY created_at ASC",
             (sid,),
         ).fetchall()
 

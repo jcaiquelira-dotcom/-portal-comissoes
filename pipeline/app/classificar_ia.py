@@ -103,11 +103,11 @@ Responda sempre no formato estruturado pedido."""
 
 def montar_conversa(conn, sid):
     msgs = conn.execute(
-        "SELECT direction, type, text, raw FROM mensagens WHERE session_id=? "
+        "SELECT direction, type, text FROM mensagens WHERE session_id=? "
         "ORDER BY created_at ASC", (sid,)
     ).fetchall()
     linhas = []
-    for direcao, tipo, texto, raw in msgs:
+    for direcao, tipo, texto in msgs:
         if tipo in ("TRACK", "NOTE"):
             continue
         quem = "CLIENTE" if direcao == "FROM_HUB" else "LOJA"

@@ -135,9 +135,26 @@ modo Postgres como no Render; as duas telas abrem no navegador sem erro de
 console. Único ajuste fora do `app/`: `importar_comissao_lucas.py` passou a
 importar `montar_venda` de `areas.contas` (não é mais atributo de `server`).
 
-### Fase 5 — o banco de conversas
-`mensagens.raw` sai pra um `vendas_raw.db` de arquivo, só leitura. O `vendas.db`
-cai pra ~160 MB, o backup diário fica 2x mais leve e o sync mais rápido.
+### Fase 5 — o banco de conversas — CONCLUÍDA em 03/09/2026
+`mensagens.raw` (233 MB, 57% do banco) saiu pra `vendas_raw.db` (tabela
+`mensagens_raw`: id, raw). O `vendas.db` caiu de **406 MB para 104 MB** — mais do
+que os ~160 previstos, porque o VACUUM devolveu espaço solto além do raw.
+Ferramenta: `pipeline/ferramentas/separar_raw.py` (backup inteiro → copia com
+prova linha a linha → coluna `user_id` a partir do JSON → DROP COLUMN → VACUUM).
+O Caique rodou; o backup `vendas_backup_2026-09-03_12h52_antes_fase5.db` (406 MB)
+fica na pasta de dados até ele decidir apagar.
+
+O que se descobriu no caminho: dos três leitores do raw, um não usava nada
+(`classificar_ia`) e os outros dois só tiravam `userId` — que virou coluna
+(`mensagens.user_id`) — e `origin`, que já era coluna. `sessoes.raw` (17 MB) ficou:
+a fila usa o `previewUrl`. O `sync.py` continua gravando o JSON bruto de cada
+mensagem nova, mas no `vendas_raw.db` (ATTACH); ninguém lê esse arquivo, é
+arquivo morto pra campo que ninguém previu. Seis scripts mudaram de SQL.
+
+Provas: sync real de 2 dias gravou 745 mensagens nos dois arquivos, nenhuma sem
+par; `export_dataset` gerou item idêntico ao de antes para as 11.191 sessões que
+o sync não tocou; a fila idem (as 3 diferenças são o campo `dias`, que anda com
+o relógio); `insights.py` e `extrair_ticket.py` rodam com o SQL novo.
 
 ### Fase 6 — git nos dois que faltam
 `painel-metas` e `portal-pecas` ganham repo local (dois minutos cada).
