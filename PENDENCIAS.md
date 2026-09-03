@@ -208,6 +208,11 @@ roda desacompanhado.
 
 ## Resolvido em 02–03/09/2026
 
+- [x] **Gestão de pessoas ganhou a aba "Folha de pagamento"** (03/09): três pagamentos
+      por mês, editáveis — dia 05 vale, dia 10 meta bônus + comissões, dia 20 restante
+      do salário — ativos sempre na lista, desligado só no mês em que recebeu. Janeiro
+      a agosto/26 vieram da planilha "Colaboradores 2026.xlsx" (`ferramentas/
+      importar_folha.py`, só pra análise); setembro em diante nasce em branco.
 - [x] **Meta Bônus pronto pra rodar na empresa** (03/09): a grade "Lançar produção do
       dia" já recebia anunciantes e cadastradores; faltava o fluxo real dos carros.
       Agora o carro entra no dia em que chega, com peças "a contar", e a contagem é

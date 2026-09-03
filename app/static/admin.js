@@ -1662,6 +1662,12 @@ document.addEventListener('change', ev => {
   if(ev.target.dataset && ev.target.dataset.mbpecas){
     mbSalvarPecas(ev.target.dataset.mbpecas, ev.target.value);
   }
+  if(ev.target.id === 'rhFolhaMes' && ev.target.value){
+    rhFolhaMes = ev.target.value; rhCarregarFolha(rhFolhaMes);
+  }
+});
+document.addEventListener('input', ev => {
+  if(ev.target.classList && ev.target.classList.contains('rh-folha-valor')) rhFolhaRecalcular(ev.target.dataset.rhfolha);
 });
 
 /* ---------- Meta Bônus ----------
@@ -2206,7 +2212,8 @@ let rhEditando = null;
 let rhOrdem = {coluna: null, desc: false};
 
 const RH_ABAS = {equipe: 'Equipe', ausencias: 'Ausências',
-                 documentos: 'Documentos', ocorrencias: 'Ocorrências'};
+                 documentos: 'Documentos', ocorrencias: 'Ocorrências',
+                 folha: 'Folha de pagamento'};
 
 async function carregarRh(){
   const corpo = document.getElementById('rhCorpo');
@@ -2265,8 +2272,9 @@ function renderRh(){
   document.getElementById('rhCorpo').innerHTML =
     `<div class="dp-kpis">${kpis}</div>` + ({
       equipe: rhEquipe, ausencias: rhAusencias,
-      documentos: rhDocumentos, ocorrencias: rhOcorrencias,
+      documentos: rhDocumentos, ocorrencias: rhOcorrencias, folha: rhFolha,
     }[rhAba])(d);
+  if(rhAba === 'folha') rhCarregarFolha(rhFolhaMes);
 }
 
 /* ---------- equipe ---------- */
@@ -2507,6 +2515,98 @@ function rhBotaoApagar(colecao, id){
   return `<td><button class="pend-x" data-rhapagar="${colecao}:${id}" title="Remover">&times;</button></td>`;
 }
 
+/* ---------- Folha de pagamento ----------
+   Três pagamentos por mês, editáveis: dia 05 (vale), dia 10 (meta bônus +
+   comissões) e dia 20 (restante do salário). Ativos sempre na lista;
+   desligado só no mês em que recebeu. Mês sem dado vem em branco — a
+   referência (salário, VT, bonificação da ficha) fica ao lado pra digitar. */
+let rhFolhaMes = todayStr().slice(0, 7);
+let rhFolhaDados = null;
+
+function rhFolha(d){
+  return `<div class="card">
+    <div class="aud-cabecalho">
+      <p class="card-titulo" style="margin:0;">Folha de pagamento</p>
+      <input type="month" id="rhFolhaMes" value="${rhFolhaMes}" style="margin-left:12px;">
+      <button class="btn btn-principal btn-pequeno" id="rhFolhaSalvar" style="margin-left:8px;">Salvar mês</button>
+      <span class="status-msg" id="rhFolhaStatus"></span>
+    </div>
+    <div id="rhFolhaCorpo"><div class="vazio">Carregando…</div></div>
+  </div>`;
+}
+
+async function rhCarregarFolha(mes){
+  const alvo = document.getElementById('rhFolhaCorpo');
+  if(!alvo) return;
+  const res = await fetch('/api/admin/rh/folha?mes=' + mes);
+  if(!res.ok){ alvo.innerHTML = '<div class="vazio">Não consegui carregar a folha.</div>'; return; }
+  const d = await res.json();
+  rhFolhaDados = d;
+  const n = v => (Number(v) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const campo = (l, k) => `<td class="n"><input type="number" min="0" step="0.01" inputmode="decimal"
+      class="rh-folha-valor" data-rhfolha="${l.id}" data-campo="${k}" value="${l[k] ? l[k] : ''}" placeholder="—"></td>`;
+  const texto = (l, k, ph) => `<td><input type="text" class="rh-folha-texto" data-rhfolha="${l.id}" data-campo="${k}"
+      value="${rhEsc(l[k])}" placeholder="${ph}"></td>`;
+  const t = d.totais;
+  const kpi = (rot, num, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
+    <div class="num valor-money">${rhMoeda(num)}</div>${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+  const linhas = d.linhas.map(l => `<tr${l.situacao !== 'ativo' ? ' style="color:var(--muted)"' : ''}>
+      <td><b>${rhEsc(l.apelido || l.nome)}</b>${l.apelido ? ` <small>${rhEsc(l.nome)}</small>` : ''}
+        ${l.situacao !== 'ativo' ? ` <small>(${l.situacao})</small>` : ''}<br><small>${rhEsc(l.setor || '—')}</small></td>
+      <td class="n" style="color:var(--muted)">${l.salario_ref ? n(l.salario_ref) : '—'}<br><small>VT ${n(l.vt_ref)} · bonif. ${n(l.bonificacao_ref)}</small></td>
+      ${campo(l, 'vale')}${campo(l, 'bonus')}${campo(l, 'comissao')}${campo(l, 'salario')}
+      ${texto(l, 'descontos', 'descontos')}${texto(l, 'obs', 'observação')}
+      <td class="n"><b data-rhtotal="${l.id}">${l.total ? n(l.total) : '—'}</b></td>
+    </tr>`).join('');
+  alvo.innerHTML = `
+    <div class="dp-kpis" style="margin:10px 0 12px;">
+      ${kpi('Dia 05 · vale', t.dia05)}
+      ${kpi('Dia 10 · meta bônus + comissões', t.dia10, `bônus ${rhMoeda(t.bonus)} · comissões ${rhMoeda(t.comissao)}`)}
+      ${kpi('Dia 20 · restante do salário', t.dia20)}
+      ${kpi('Total do mês', t.mes, `${d.preenchidos} de ${d.linhas.length} pessoas com valor`)}
+    </div>
+    <div class="tabela-rolante"><table class="rh-folha">
+      <thead><tr><th>Pessoa</th><th class="n">Salário na ficha</th>
+        <th class="n">Dia 05<br><small>vale</small></th>
+        <th class="n">Dia 10<br><small>meta bônus</small></th>
+        <th class="n">Dia 10<br><small>comissão</small></th>
+        <th class="n">Dia 20<br><small>restante</small></th>
+        <th>Descontos</th><th>Observações</th><th class="n">Total</th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>
+    <div class="dp-aviso">${d.preenchidos ? '' : '<b>Mês em branco.</b> '}Digite e clique em <b>Salvar mês</b>.
+      Zero ou vazio em todos os valores apaga a linha do mês. Meses com dados:
+      ${d.meses_com_dados.length ? d.meses_com_dados.map(m => `<a href="#" data-rhfolhames="${m}">${m.slice(5)}/${m.slice(2,4)}</a>`).join(' · ') : 'nenhum ainda'}.
+      Janeiro a agosto de 2026 vieram da planilha "Colaboradores 2026", só pra análise.</div>`;
+}
+
+function rhFolhaRecalcular(cid){
+  const vals = [...document.querySelectorAll(`.rh-folha-valor[data-rhfolha="${cid}"]`)]
+    .reduce((s, i) => s + (Number(i.value) || 0), 0);
+  const alvo = document.querySelector(`[data-rhtotal="${cid}"]`);
+  if(alvo) alvo.textContent = vals ? vals.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '—';
+}
+
+async function rhSalvarFolha(){
+  const status = document.getElementById('rhFolhaStatus');
+  status.classList.remove('show', 'err');
+  const porPessoa = {};
+  document.querySelectorAll('[data-rhfolha]').forEach(i => {
+    (porPessoa[i.dataset.rhfolha] ||= {id: i.dataset.rhfolha})[i.dataset.campo] = i.value;
+  });
+  const res = await fetch('/api/admin/rh/folha', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mes: rhFolhaMes, itens: Object.values(porPessoa)})});
+  const d = await res.json().catch(() => ({}));
+  if(!res.ok){
+    status.textContent = d.erro || 'Erro ao salvar a folha.';
+    status.classList.add('show', 'err');
+    return;
+  }
+  status.textContent = `Folha de ${rhFolhaMes.slice(5)}/${rhFolhaMes.slice(0,4)} salva: ${d.gravados} pessoa(s), ${rhMoeda(d.totais.mes)}.`;
+  status.classList.add('show');
+  rhCarregarFolha(rhFolhaMes);
+}
+
 function rhAusencias(d){
   const linhas = d.ausencias.map(a => `<tr>
     <td>${rhEsc(a.colaborador)}</td>
@@ -2552,6 +2652,15 @@ function rhOcorrencias(d){
 document.addEventListener('click', async ev => {
   const aba = ev.target.closest('[data-rhaba]');
   if(aba){ rhAba = aba.dataset.rhaba; renderRh(); return; }
+  if(ev.target.id === 'rhFolhaSalvar'){ rhSalvarFolha(); return; }
+  const irMes = ev.target.closest('[data-rhfolhames]');
+  if(irMes){
+    ev.preventDefault();
+    rhFolhaMes = irMes.dataset.rhfolhames;
+    const inp = document.getElementById('rhFolhaMes');
+    if(inp) inp.value = rhFolhaMes;
+    rhCarregarFolha(rhFolhaMes); return;
+  }
 
   if(ev.target.id === 'rhOrdemPadrao'){
     ev.preventDefault(); rhOrdem = {coluna: null, desc: false}; renderRh(); return;

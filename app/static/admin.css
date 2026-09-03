@@ -804,3 +804,9 @@
 .mb-cmp td.n,.mb-cmp th.n{text-align:right;font-variant-numeric:tabular-nums;}
 .mb-cmp tr.mb-cmp-setor td{font-family:"Oswald",sans-serif;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:11px;color:var(--muted);padding-top:10px;border-bottom:none;}
 .mb-cmp tr.mb-cmp-total td{font-weight:600;border-top:1px solid var(--line);}
+
+/* Folha de pagamento (03/09/2026) */
+.rh-folha td.n,.rh-folha th.n{text-align:right;font-variant-numeric:tabular-nums;}
+.rh-folha input.rh-folha-valor{width:92px;padding:4px 6px;font:inherit;font-size:12.5px;text-align:right;background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:5px;}
+.rh-folha input.rh-folha-texto{width:150px;padding:4px 6px;font:inherit;font-size:12px;background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:5px;}
+.rh-folha th small{font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;}

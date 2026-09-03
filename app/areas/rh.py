@@ -225,6 +225,110 @@ def api_admin_rh():
         },
     })
 
+# ---- Folha de pagamento -------------------------------------------------
+# Pedido do gestor (03/09/2026): tres pagamentos por mes, editaveis —
+#   dia 05 = vale; dia 10 = meta bonus + comissoes; dia 20 = restante do salario.
+# Chave rh_folha: {mes: {colaborador_id: {vale, bonus, comissao, salario,
+# descontos, obs}}}. Mes sem dado fica em branco; o historico (jan-ago/26)
+# veio da planilha "Colaboradores 2026.xlsx" via ferramentas/importar_folha.py.
+CAMPOS_FOLHA_VALOR = ("vale", "bonus", "comissao", "salario")
+CAMPOS_FOLHA_TEXTO = ("descontos", "obs")
+
+
+def _folha_linhas(mes: str) -> dict:
+    colaboradores = _rh_ler("colaboradores")
+    folha = _rh_ler("folha")
+    do_mes = folha.get(mes) or {}
+    linhas = []
+    for cid, c in colaboradores.items():
+        reg = do_mes.get(cid) or {}
+        ativo = (c.get("situacao") or "ativo") == "ativo"
+        tem_valor = any(float(reg.get(k) or 0) for k in CAMPOS_FOLHA_VALOR) or any(reg.get(k) for k in CAMPOS_FOLHA_TEXTO)
+        # Ativo sempre aparece (e a folha do mes); desligado so se tiver valor
+        # naquele mes — o historico dele continua legivel, sem poluir o atual.
+        if not ativo and not tem_valor:
+            continue
+        vals = {k: float(reg.get(k) or 0) for k in CAMPOS_FOLHA_VALOR}
+        linhas.append({
+            "id": cid, "nome": c.get("nome") or "?", "apelido": c.get("apelido") or "",
+            "setor": c.get("setor") or "", "situacao": c.get("situacao") or "ativo",
+            "salario_ref": float(c.get("salario") or 0), "vt_ref": float(c.get("vt") or 0),
+            "bonificacao_ref": float(c.get("bonificacao") or 0),
+            **vals, "descontos": reg.get("descontos") or "", "obs": reg.get("obs") or "",
+            "total": round(sum(vals.values()), 2),
+            "preenchido": tem_valor,
+        })
+    linhas.sort(key=lambda x: (x["situacao"] != "ativo", (x["apelido"] or x["nome"]).lower()))
+    totais = {k: round(sum(l[k] for l in linhas), 2) for k in CAMPOS_FOLHA_VALOR}
+    totais["dia05"] = totais["vale"]
+    totais["dia10"] = round(totais["bonus"] + totais["comissao"], 2)
+    totais["dia20"] = totais["salario"]
+    totais["mes"] = round(sum(l["total"] for l in linhas), 2)
+    meses = sorted(m for m, regs in folha.items()
+                   if any(any(float(r.get(k) or 0) for k in CAMPOS_FOLHA_VALOR) for r in regs.values()))
+    return {"mes": mes, "linhas": linhas, "totais": totais, "meses_com_dados": meses,
+            "preenchidos": sum(1 for l in linhas if l["preenchido"])}
+
+
+@app.route("/api/admin/rh/folha")
+def api_rh_folha():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    mes = (request.args.get("mes") or hoje_br().isoformat()[:7]).strip()
+    if not re.fullmatch(r"\d{4}-\d{2}", mes):
+        return jsonify({"erro": "Mês inválido."}), 400
+    return jsonify(_folha_linhas(mes))
+
+
+@app.route("/api/admin/rh/folha", methods=["POST"])
+def api_rh_folha_salvar():
+    """Grava o mes inteiro de uma vez (upsert por colaborador). Campo vazio
+    ou zero em todos os valores apaga a linha do mes."""
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    mes = (corpo.get("mes") or "").strip()
+    if not re.fullmatch(r"\d{4}-\d{2}", mes):
+        return jsonify({"erro": "Mês inválido."}), 400
+    itens = corpo.get("itens")
+    if not isinstance(itens, list):
+        return jsonify({"erro": "Nada para salvar."}), 400
+    colaboradores = _rh_ler("colaboradores")
+    folha = _rh_ler("folha")
+    do_mes = dict(folha.get(mes) or {})
+    carimbo = agora_br().isoformat(timespec="seconds")
+    gravados = 0
+    for item in itens:
+        cid = (item.get("id") or "").strip()
+        if cid not in colaboradores:
+            return jsonify({"erro": "Colaborador desconhecido."}), 400
+        reg = {}
+        for k in CAMPOS_FOLHA_VALOR:
+            bruto = str(item.get(k) if item.get(k) is not None else "").strip().replace(".", "").replace(",", ".") \
+                if isinstance(item.get(k), str) else item.get(k)
+            try:
+                v = float(bruto) if bruto not in (None, "") else 0.0
+            except (TypeError, ValueError):
+                return jsonify({"erro": f"Valor inválido em {k} de {colaboradores[cid].get('nome')}."}), 400
+            if v < 0:
+                return jsonify({"erro": f"Valor negativo em {k} de {colaboradores[cid].get('nome')}."}), 400
+            reg[k] = v
+        for k in CAMPOS_FOLHA_TEXTO:
+            reg[k] = _rh_texto(item.get(k), 200)
+        if any(reg[k] for k in CAMPOS_FOLHA_VALOR) or any(reg[k] for k in CAMPOS_FOLHA_TEXTO):
+            reg["editado_em"] = carimbo
+            do_mes[cid] = reg
+            gravados += 1
+        else:
+            do_mes.pop(cid, None)
+    if do_mes:
+        folha[mes] = do_mes
+    else:
+        folha.pop(mes, None)
+    _rh_gravar("folha", folha)
+    return jsonify({"ok": True, "gravados": gravados, **{"totais": _folha_linhas(mes)["totais"]}})
+
+
 @app.route("/api/admin/rh/colaboradores", methods=["POST"])
 def api_admin_rh_salvar():
     if not exigir_admin():
