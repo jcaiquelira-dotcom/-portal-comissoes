@@ -44,11 +44,10 @@ CSV_META = ROOT.parent / "META-ADS-CSV-AGOSTO.csv"
 # Meta Ads dia a dia pelo Windsor; substitui o CSV desde 28/08/2026.
 META_JSON = ROOT / "_meta_ads.json"
 
-ATENDENTES = {
-    "75f20108-887e-47c1-b245-b1c12565e484": "flavia",
-    "1d6778d5-d482-43bc-9d5b-dcbb4ed0528d": "matheus",
-    "26ccb5d3-df37-429b-b509-7a122a2deb2d": "gustavo",
-}
+# O mapa de atendentes mora em `agentes.py`. Ele tinha copia aqui e no
+# sincronizar_desempenho, e as duas ignoravam a transferencia de assento — o
+# painel dizia Gustavo em setembro pras conversas que ja eram do Lucas.
+from agentes import slug as _slug_agente
 
 
 def coletar_leads():
@@ -73,7 +72,7 @@ def coletar_leads():
         if not r["created_at"]:
             continue
         chave = (r["created_at"][:10],
-                 ATENDENTES.get(r["user_id"], ""),      # "" = sem atendente
+                 _slug_agente(r["user_id"], r["created_at"], ""),  # "" = sem atendente
                  r["canal"] or "Sem origem")
         agrupado[chave]["leads"] += 1
         if r["classe"] in ("provavel", "parcial"):

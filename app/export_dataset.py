@@ -11,29 +11,8 @@ SQLITE_PATH = ROOT / "vendas.db"
 OUT_PATH = ROOT / "dataset.json"
 IDS_PATH = ROOT / "session_ids.json"
 
-AGENTES = {
-    "75f20108-887e-47c1-b245-b1c12565e484": "Flávia",
-    "1d6778d5-d482-43bc-9d5b-dcbb4ed0528d": "Matheus",
-    "26ccb5d3-df37-429b-b509-7a122a2deb2d": "Gustavo",
-    "edac79e2-5f58-443a-af8f-ad6c3fbdc148": "Comercial",
-}
-
-# O assento do Totalk sobrevive a quem senta nele. O Gustavo saiu em 31/08/2026
-# e o Lucas assumiu o MESMO usuario — sem isto, o Lucas atenderia o dia inteiro
-# e o credito (fila, conversao, insights) iria pro nome de quem ja saiu, e o
-# followup dos clientes dele cairia numa fila que ninguem mais trabalha.
-# A data decide: sessao criada antes do corte e do Gustavo (o historico e
-# dele); dali em diante, e do Lucas. Regra do gestor, dita em 31/08.
-ASSENTO_TRANSFERIDO = {
-    "26ccb5d3-df37-429b-b509-7a122a2deb2d": ("2026-08-31", "Lucas"),
-}
-
-
-def agente_da_sessao(user_id, created_at):
-    corte = ASSENTO_TRANSFERIDO.get(user_id)
-    if corte and str(created_at or "") >= corte[0]:
-        return corte[1]
-    return AGENTES.get(user_id, "N/A" if not user_id else "Outro")
+# Mapa unico em `agentes.py` desde 03/09/2026 — ver la o porque.
+from agentes import nome as agente_da_sessao
 
 PAGAMENTO = [
     "pix", "comprovante", "paguei", " pago", "pago.", "pago!", "pago,",

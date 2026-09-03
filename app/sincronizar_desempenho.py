@@ -31,11 +31,9 @@ BANCO = ROOT / "vendas.db"
 
 # user_id do Totalk -> id do vendedor no portal. Mesma tabela do
 # export_dataset.py; Brenda não atende pelo Totalk, então não aparece aqui.
-ATENDENTES = {
-    "75f20108-887e-47c1-b245-b1c12565e484": "flavia",
-    "1d6778d5-d482-43bc-9d5b-dcbb4ed0528d": "matheus",
-    "26ccb5d3-df37-429b-b509-7a122a2deb2d": "gustavo",
-}
+# Mesmo mapa do resto do projeto, em `agentes.py` — ver o comentario de la
+# sobre por que a copia local virou bug.
+from agentes import slug as _slug_agente
 
 
 def _minutos(inicio: str, fim: str):
@@ -71,7 +69,7 @@ def coletar():
 
     por_vendedor = {}
     for r in linhas:
-        vid = ATENDENTES.get(r["user_id"])
+        vid = _slug_agente(r["user_id"], r["created_at"], None)
         if not vid or not r["created_at"]:
             continue
         mes = r["created_at"][:7]
