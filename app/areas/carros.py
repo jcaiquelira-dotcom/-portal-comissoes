@@ -271,6 +271,24 @@ def api_mb_apagar(tipo, lid):
     _mb_gravar(dados)
     return jsonify({"ok": True})
 
+def _mb_codigo_repetido(dados: dict, codigo, ignorar: str | None = None):
+    """O codigo V e unico por carro. Carro que comeca no fim de um mes e
+    termina no inicio do outro tende a ser lancado duas vezes (V848 estava em
+    29/06 e 01/07/2026, mesmo carro, mesmas pecas) — e dai conta em dobro no
+    bonus da desmontagem. Aqui o painel recusa e diz onde o carro ja esta.
+    So vale pra codigo de verdade (Vnnn): "V8--" e apelido nao contam."""
+    cod = re.sub(r"\s+", "", str(codigo or "").upper())
+    if not re.fullmatch(r"V\d{3,}", cod):
+        return None
+    for vid, v in dados["veiculos"].items():
+        if vid != ignorar and re.sub(r"\s+", "", (v.get("codigo") or "").upper()) == cod:
+            dt = (v.get("data") or "")
+            return (f"O código {cod} já está lançado em {dt[8:10]}/{dt[5:7]}/{dt[:4]} "
+                    f"({v.get('carro') or 'sem nome'}). Cada carro conta uma vez — "
+                    "edite aquele lançamento em vez de lançar de novo.")
+    return None
+
+
 @app.route("/api/admin/metas-bonus/veiculos", methods=["POST"])
 def api_mb_veiculo():
     if not exigir_area("metabonus"):
@@ -297,6 +315,9 @@ def api_mb_veiculo():
         return jsonify({"erro": "Peças não pode ser negativo."}), 400
 
     dados = _mb_bruto()
+    repetido = _mb_codigo_repetido(dados, corpo.get("codigo"))
+    if repetido:
+        return jsonify({"erro": repetido}), 409
     dados["veiculos"][uuid.uuid4().hex[:12]] = {
         "data": data, "carro": carro[:80],
         "codigo": (corpo.get("codigo") or "").strip()[:20], "pecas": pecas,
@@ -328,6 +349,9 @@ def api_mb_veiculo_editar(vid):
     if (corpo.get("carro") or "").strip():
         v["carro"] = corpo["carro"].strip()[:80]
     if "codigo" in corpo:
+        repetido = _mb_codigo_repetido(dados, corpo.get("codigo"), ignorar=vid)
+        if repetido:
+            return jsonify({"erro": repetido}), 409
         v["codigo"] = (corpo.get("codigo") or "").strip()[:20]
     if (corpo.get("data") or "").strip():
         data = corpo["data"].strip()

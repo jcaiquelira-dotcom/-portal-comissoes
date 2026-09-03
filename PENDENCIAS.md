@@ -46,6 +46,12 @@ planilha dizia 35 — número digitado à mão e repetido igual em julho, agosto
 setembro. Ficou 15. Se o certo é 35, é um ajuste de saldo inicial (rota
 `saldos/base`), me pede.
 
+### 2.10 Código V845 em dois carros diferentes
+Onix 1.0 de 08/04/2026 e Golf Highline 1.4 de 30/07/2026 estão os dois como V845.
+Um deles tem o código errado — o painel agora recusa código repetido, mas esses dois
+já estavam lá. Corrigir pela canetinha quando souber qual é o certo. (V738 repetido
+em 2025 fica como está: antes de junho não conta.)
+
 ### 2.7 Meta Bônus: planilha acaba em outubro — última importação no fim de setembro
 Decidido em 03/09: a partir de 10/2026 tudo é lançado direto no painel e a
 "Gestão de Processos.xlsx" deixa de existir. Setembro ainda pode ser preenchido
