@@ -5238,6 +5238,20 @@ function renderMarketing(d){
       conversas que a IA ainda não leu</b> — por isso não têm canal nem sinal. Não é que
       ninguém demonstrou interesse: é que ninguém olhou ainda. Elas contam no total de leads,
       então a conversão geral sai <b>subestimada</b> enquanto essa fila não for lida.</div>` : ''}
+    ${d.por_canal.some(c => c.canal === 'Site — Google Ads') ? `
+    <div class="dp-aviso" style="margin-top:10px;">
+      <b>O site vem separado entre Google Ads e orgânico.</b> O Totalk sabe que a
+      conversa nasceu de um link de produto, mas não sabe como a pessoa chegou ao
+      site — quem sabe é o Google Analytics, que registra cada lead com o canal da
+      sessão. A divisão usa a proporção real de leads pagos <b>de cada dia</b>, não
+      a proporção de visitas: são números diferentes, e ratear por visita inventaria
+      uma atribuição que o Analytics já entrega medida.
+      ${d.por_canal.some(c => c.canal === 'Site (produto)') ? `Os leads que sobraram
+      em <b>"Site (produto)"</b> são de dias sem medição no Analytics — ficam sem
+      dividir de propósito, em vez de entrar num dos lados por chute.` : ''}
+      Anúncio pago de Meta levando ao site conta como orgânico aqui: é menos de 1%
+      dos leads e não é verba do Google.
+    </div>` : ''}
     <details class="dp-recolhivel">
       <summary>O que significam estas colunas</summary>
       <div class="dp-aviso" style="margin-top:6px;"><b>Sinal de compra</b> é a conversa em que o

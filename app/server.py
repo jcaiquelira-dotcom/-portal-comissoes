@@ -4477,9 +4477,74 @@ def api_admin_carros():
 # Vendedor vê só as linhas dele. Gestor vê tudo, incluindo investimento — que é
 # de conta, não de pessoa, e por isso nunca aparece na tela do vendedor.
 
+# Canais do GA4 que sao Google Ads pago. "Cross-network" e o Performance Max /
+# Demand Gen, que tambem e verba do Google. "Paid Social" NAO entra: e anuncio
+# de Meta levando pro site, dinheiro pago mas nao do Google — e representa menos
+# de 1% dos leads, entao cai no balde organico com aviso na tela em vez de
+# ganhar uma terceira coluna que ninguem usaria.
+CANAIS_GOOGLE_ADS = {"Paid Search", "Paid Shopping", "Paid Video",
+                     "Cross-network", "Paid Other"}
+SITE_PAGO = "Site — Google Ads"
+SITE_ORGANICO = "Site — orgânico"
+
+
+def _dividir_site(linhas):
+    """Quebra o canal "Site (produto)" em pago e organico, dia a dia.
+
+    O lead do site chega pelo Totalk, que sabe que a conversa veio de um link de
+    produto mas NAO sabe como a pessoa chegou no site. Quem sabe e o GA4, que
+    registra o evento de lead com o canal da sessao. Entao a divisao usa a
+    proporcao REAL de leads pagos daquele dia (`leads_origem_dia`), nao a
+    proporcao de sessoes — sao numeros bem diferentes, e ratear por sessao
+    inventaria uma atribuicao que o Analytics ja da de graca.
+
+    Dia sem medicao no GA4 fica como "Site (produto)" mesmo: melhor uma linha
+    honestamente nao dividida do que duas divididas por chute.
+    """
+    ga = ler_json(resolver_pasta_dados() / "analytics_site.json", None) or {}
+    por_dia = ga.get("leads_origem_dia") or {}
+    if not por_dia:
+        return linhas
+
+    saida = []
+    for l in linhas:
+        canais = por_dia.get(l["data"])
+        if not str(l.get("canal") or "").startswith("Site") or not canais:
+            saida.append(l)
+            continue
+        pago = sum(n for c, n in canais.items() if c in CANAIS_GOOGLE_ADS)
+        tudo = sum(canais.values())
+        if not tudo:
+            saida.append(l)
+            continue
+        fatia = pago / tudo
+
+        # Arredonda uma parte e tira a outra por diferenca: as duas SEMPRE somam
+        # o original, entao o total de leads do painel nao muda por causa desta
+        # divisao — e o gestor nao ve o numero do topo discordar da tabela.
+        def parte(v):
+            if isinstance(v, float):
+                a_ = round(v * fatia, 2)
+                return a_, round(v - a_, 2)
+            a_ = int(round(v * fatia))
+            return a_, v - a_
+
+        lead_p, lead_o = parte(l["leads"])
+        sinal_p, sinal_o = parte(l["sinal"])
+        prov_p, prov_o = parte(l.get("provavel", 0))
+        for canal, ld, sn, pv in ((SITE_PAGO, lead_p, sinal_p, prov_p),
+                                  (SITE_ORGANICO, lead_o, sinal_o, prov_o)):
+            if ld or sn or pv:
+                saida.append({**l, "canal": canal, "leads": ld,
+                              "sinal": sn, "provavel": pv})
+    return saida
+
+
 def _marketing_bruto():
     leads = ler_json(resolver_pasta_dados() / "marketing_leads.json", None) or {}
     gasto = ler_json(resolver_pasta_dados() / "marketing_gasto.json", None) or {}
+    if leads.get("linhas"):
+        leads = {**leads, "linhas": _dividir_site(leads["linhas"])}
     return leads, gasto
 
 
