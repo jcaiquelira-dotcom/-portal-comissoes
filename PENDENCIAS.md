@@ -129,6 +129,11 @@ sem precisar subir pro GitHub.
 
 ### 5.4 ~~Mudanças não commitadas~~ — commitadas em 03/09 junto com o passo do pipeline
 
+### 5.5 Plano de simplificação — ver `SIMPLIFICACAO.md`
+Diagnóstico medido em 03/09 e plano em 6 fases (arrumar a casa → biblioteca
+comum → um dono por chave → um repositório → quebrar server.py/admin.html →
+banco de conversas). Cada fase é uma sessão. Começar pela Fase 0, risco zero.
+
 ---
 
 ## 6. Ideias que ficaram no ar
