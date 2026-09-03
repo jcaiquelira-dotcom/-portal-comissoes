@@ -58,11 +58,17 @@ rem quando o pipeline chega ao FIM; quem impede dois pipelines juntos e a
 rem trava, que perde a validade sozinha (2h) se um deles morrer no meio.
 set "TRAVA=%~dp0rodando.txt"
 set "IDADE="
-if exist "%TRAVA%" for /f %%t in ('powershell -NoProfile -Command "[int]((Get-Date) - (Get-Item ''%TRAVA%'').LastWriteTime).TotalMinutes"') do set "IDADE=%%t"
-if defined IDADE if %IDADE% LSS 120 (
+if not exist "%TRAVA%" goto rodar
+rem idade da trava em minutos, via arquivo: `for /f` com aspas do PowerShell
+rem dentro de parenteses ja derrubou este .bat uma vez (03/09/2026).
+powershell -NoProfile -Command "[int]((Get-Date) - (Get-Item '%TRAVA%').LastWriteTime).TotalMinutes | Set-Content -Encoding ASCII '%~dp0idade.txt'"
+if exist "%~dp0idade.txt" set /p IDADE=<"%~dp0idade.txt"
+if not defined IDADE goto rodar
+if %IDADE% LSS 120 (
   echo ja tem pipeline rodando ha %IDADE% min - pulando ^(%time%^) >> "%LOG%"
   goto fim
 )
+:rodar
 echo %date% %time%>"%TRAVA%"
 call "%ALVO%"
 del "%TRAVA%" >nul 2>&1
