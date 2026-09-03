@@ -4314,10 +4314,11 @@ function pintarSiteConta(){
 
   el.innerHTML = `<div class="card" style="margin-bottom:14px;">${cab}
     <div class="dp-kpis conta-linha" style="margin-bottom:0;">
-      ${tile('Vendas pagas', fmtMoeda(mkt.total), `${mkt.qtd} pedidos no período`)}
+      ${tile('Vendas pagas', fmtMoeda(mkt.total), `${mkt.qtd} pedidos no período` +
+             (mkt.descontado_comercial?.qtd ? ` · ${mkt.descontado_comercial.qtd} do time já no comercial` : ''))}
       ${tile('Ticket médio', fmtMoeda(mkt.qtd ? mkt.total / mkt.qtd : 0), 'por pedido pago')}
-      ${melhor ? tile('Melhor dia', fmtMoeda(serie[melhor].total),
-             `${dData(melhor)} · ${serie[melhor].qtd} pedidos`) : ''}
+      ${melhor ? tile('Melhor dia no site', fmtMoeda(serie[melhor].total),
+             `${dData(melhor)} · ${serie[melhor].qtd} pedidos, antes do desconto`) : ''}
       ${tile('Dias com venda', dias.length, `de ${dData(de)} a ${dData(ate)}`)}
     </div>
     ${painelPerdasSite(d.analise)}

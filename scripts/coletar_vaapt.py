@@ -306,6 +306,14 @@ def coletar(opener, base: str, desde: str | None):
         if not p.linhas:
             print(f"  pagina {n}: sem linhas — fim da lista")
             break
+        # Detalhes vem nos modais da mesma pagina (forma de pagamento, frete,
+        # UF). A serie diaria nao usa; a analise de perdas
+        # (ferramentas/analisar_perdas_site.py) depende deles.
+        det = DetalhesModais()
+        det.feed(html)
+        det.close()
+        for x in p.linhas:
+            x.update(det.det.get(x["pedido"], {"pagamento": "", "frete": "", "uf": ""}))
 
         # Fim de paginacao sem erro: alguns paineis repetem a ultima pagina em
         # vez de devolver vazio. Se nenhum pedido e novo, chegamos ao fim.
@@ -340,23 +348,37 @@ def agregar(pedidos, desde: str | None):
     return dict(serie), dict(fora)
 
 
-def gravar(serie: dict, fonte: str):
+def atualizar_site_conta(mudar):
+    """Le a chave `site_conta` travada, aplica `mudar(antigo) -> novo` e grava.
+
+    A chave tem mais de um dono: o coletor escreve `vendas`, a analise de perdas
+    escreve `analise`. Em 03/09/2026 o coletor gravava o dicionario inteiro do
+    zero e apagou a analise na primeira rodada do dia. Quem grava aqui recebe
+    o que ja existe e devolve o todo — apagar passa a ser decisao explicita.
+    """
     from psycopg2.extras import Json
     conn = C.conexao()   # sem DATABASE_URL ela mesma para, com a mensagem de sempre
     with conn, conn.cursor() as cur:
         cur.execute("SELECT valor FROM dados_json WHERE chave='site_conta' FOR UPDATE")
         linha = cur.fetchone()
-        antiga = ((linha[0].get("vendas") or {}).get("serie_dia") or {}) if linha else {}
-        juntas = {**antiga, **serie}
+        novo = mudar(dict(linha[0]) if linha and linha[0] else {})
         cur.execute("INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
                     "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
-                    ("site_conta", Json({
-                        "gerado_em": datetime.now(FUSO).isoformat(timespec="seconds"),
-                        "fonte": fonte,
-                        "vendas": {"serie_dia": juntas, "serie_desde": min(juntas)},
-                    })))
+                    ("site_conta", Json(novo)))
     conn.close()
-    return len(juntas)
+    return novo
+
+
+def gravar(serie: dict, fonte: str):
+    def mudar(antigo):
+        antiga = ((antigo.get("vendas") or {}).get("serie_dia") or {})
+        juntas = {**antiga, **serie}
+        return {**antigo,
+                "gerado_em": datetime.now(FUSO).isoformat(timespec="seconds"),
+                "fonte": fonte,
+                "vendas": {"serie_dia": juntas, "serie_desde": min(juntas)}}
+    novo = atualizar_site_conta(mudar)
+    return len(novo["vendas"]["serie_dia"])
 
 
 def main():

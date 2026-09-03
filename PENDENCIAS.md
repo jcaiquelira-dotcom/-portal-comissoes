@@ -187,6 +187,13 @@ roda desacompanhado.
 
 ## Resolvido em 02–03/09/2026
 
+- [x] **Painel de perdas do site tinha sumido** (checkup de 03/09): a análise de 02/09
+      foi gravada por um trecho avulso da sessão, e o coletor diário regravava a
+      chave `site_conta` inteira — na rodada das 11:21 ela foi embora. Agora é a
+      `ferramentas/analisar_perdas_site.py` (mesmo parser do coletor, histórico
+      inteiro, ataque de 12/09/2025 fora) e o coletor grava por
+      `atualizar_site_conta()`, que preserva o que não é dele. Provado: análise
+      gravada, coletor rodado em seguida, análise continua lá.
 - [x] **Painel Geral do gestor caía em setembro** ("day is out of range for month"):
       o fim de mês é escrito como "-31" e o rateio por dia da Shopee, que entrou em
       02/09, convertia esse texto em data. Setembro foi o primeiro mês de 30 dias
