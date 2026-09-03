@@ -235,10 +235,44 @@ CAMPOS_FOLHA_VALOR = ("vale", "bonus", "comissao", "salario")
 CAMPOS_FOLHA_TEXTO = ("descontos", "obs")
 
 
+def _folha_sugestoes(mes: str, colaboradores: dict) -> dict:
+    """O que o portal ja sabe sobre o dia 10 do mes de referencia: a comissao
+    calculada na aba Comissoes (ficha com vendedor_id) e o bonus marcado como
+    Pago no Meta Bonus (pessoa com ficha no RH vinculada). E sugestao: a
+    folha so preenche quando o gestor manda, e nunca por cima de valor digitado.
+    A aba de agosto da planilha antiga trazia a comissao de agosto (Gustavo
+    804 x 803,35 calculado) — o mes da folha e o mes de referencia."""
+    import nucleo as N   # o alias do topo da area e apagado depois de ligar os nomes
+    de, ate = N.mes_para_intervalo(mes)
+    vendedores = N.carregar_vendedores()
+    sug = {}
+    for cid, c in colaboradores.items():
+        vid = (c.get("vendedor_id") or "").strip()
+        if vid and vid in vendedores:
+            try:
+                vendas = N.carregar_vendas_para_comissao(vid, vendedores)
+                sug.setdefault(cid, {})["comissao"] = round(
+                    float(N.calcular_comissao(vid, de, ate, vendedores, vendas).get("comissao") or 0), 2)
+            except Exception:
+                pass
+    mb = N._mb_bruto()
+    por_pessoa = {(setor, pid): p.get("colaborador_id") for setor, gente in mb["pessoas"].items()
+                  for pid, p in gente.items() if p.get("colaborador_id")}
+    for pg in (mb.get("saldos") or {}).get("pagamentos", {}).values():
+        if pg.get("mes") != mes:
+            continue
+        cid = por_pessoa.get((pg.get("setor"), pg.get("pessoa_id")))
+        if cid:
+            s = sug.setdefault(cid, {})
+            s["bonus"] = round(s.get("bonus", 0.0) + float(pg.get("valor") or 0), 2)
+    return sug
+
+
 def _folha_linhas(mes: str) -> dict:
     colaboradores = _rh_ler("colaboradores")
     folha = _rh_ler("folha")
     do_mes = folha.get(mes) or {}
+    sugestoes = _folha_sugestoes(mes, colaboradores)
     linhas = []
     for cid, c in colaboradores.items():
         reg = do_mes.get(cid) or {}
@@ -257,6 +291,7 @@ def _folha_linhas(mes: str) -> dict:
             **vals, "descontos": reg.get("descontos") or "", "obs": reg.get("obs") or "",
             "total": round(sum(vals.values()), 2),
             "preenchido": tem_valor,
+            "sugestao": sugestoes.get(cid) or {},
         })
     linhas.sort(key=lambda x: (x["situacao"] != "ativo", (x["apelido"] or x["nome"]).lower()))
     totais = {k: round(sum(l[k] for l in linhas), 2) for k in CAMPOS_FOLHA_VALOR}

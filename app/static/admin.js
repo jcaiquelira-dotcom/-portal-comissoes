@@ -1782,7 +1782,9 @@ async function mbSalvarDia(){
 let mbDiaDados = null;
 let mbPessoaEditando = null;   // {setor, id} ou {setor} pra nova
 
-function mbAbrirPessoa(setor, pid){
+let mbRhLista = null;   // fichas do RH, pro vínculo pessoa -> folha (carrega uma vez)
+
+async function mbAbrirPessoa(setor, pid){
   const p = pid ? (mbDiaDados?.setores?.[setor] || []).find(x => x.id === pid) : null;
   mbPessoaEditando = {setor, id: pid || null};
   document.getElementById('mbPessoaTitulo').textContent = p ? p.nome : 'Nova pessoa';
@@ -1790,6 +1792,19 @@ function mbAbrirPessoa(setor, pid){
   document.getElementById('mbPSetor').value = setor;
   document.getElementById('mbPMeta').value = p ? p.meta : '';
   document.getElementById('mbPBonus').value = p ? p.meta_bonus : '';
+  // Ficha no RH: liga o bônus pago aqui ao dia 10 da folha de pagamento.
+  const sel = document.getElementById('mbPColab');
+  if(sel){
+    if(!mbRhLista){
+      const r = await fetch('/api/admin/rh').catch(() => null);
+      const d = r && r.ok ? await r.json() : {colaboradores: []};
+      mbRhLista = (d.colaboradores || []).filter(c => c.situacao !== 'desligado')
+        .sort((a, b) => (a.apelido || a.nome).localeCompare(b.apelido || b.nome));
+    }
+    sel.innerHTML = '<option value="">— sem vínculo —</option>' + mbRhLista.map(c =>
+      `<option value="${c.id}">${c.apelido ? c.apelido + ' · ' : ''}${c.nome}${c.setor ? ' (' + c.setor + ')' : ''}</option>`).join('');
+    sel.value = (p && p.colaborador_id) || '';
+  }
   document.getElementById('mbPessoaRemover').classList.toggle('oculto', !pid);
   const st = document.getElementById('mbPessoaStatus');
   st.classList.remove('show', 'err');
@@ -1811,7 +1826,8 @@ async function mbSalvarPessoa(){
       nome: document.getElementById('mbPNome').value,
       setor: document.getElementById('mbPSetor').value,
       meta: document.getElementById('mbPMeta').value,
-      meta_bonus: document.getElementById('mbPBonus').value})});
+      meta_bonus: document.getElementById('mbPBonus').value,
+      colaborador_id: (document.getElementById('mbPColab') || {}).value || ''})});
   const d = await res.json().catch(() => ({}));
   if(!res.ok){
     st.textContent = d.erro || 'Erro ao salvar.';
@@ -2543,8 +2559,13 @@ async function rhCarregarFolha(mes){
   const d = await res.json();
   rhFolhaDados = d;
   const n = v => (Number(v) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  const campo = (l, k) => `<td class="n"><input type="number" min="0" step="0.01" inputmode="decimal"
-      class="rh-folha-valor" data-rhfolha="${l.id}" data-campo="${k}" value="${l[k] ? l[k] : ''}" placeholder="—"></td>`;
+  // bonus e comissao trazem a sugestao do portal como placeholder (Meta Bônus
+  // pago e aba Comissões); o botão "Preencher dia 10" só ocupa campo vazio.
+  const campo = (l, k) => { const s = l.sugestao && l.sugestao[k];
+    return `<td class="n"><input type="number" min="0" step="0.01" inputmode="decimal"
+      class="rh-folha-valor" data-rhfolha="${l.id}" data-campo="${k}" value="${l[k] ? l[k] : ''}"
+      placeholder="${s ? n(s) : '—'}"${s ? ` data-sugestao="${s}" title="Sugestão do portal: ${rhMoeda(s)}"` : ''}></td>`; };
+  const temSugestao = d.linhas.some(l => l.sugestao && (l.sugestao.bonus || l.sugestao.comissao));
   const texto = (l, k, ph) => `<td><input type="text" class="rh-folha-texto" data-rhfolha="${l.id}" data-campo="${k}"
       value="${rhEsc(l[k])}" placeholder="${ph}"></td>`;
   const t = d.totais;
@@ -2573,6 +2594,8 @@ async function rhCarregarFolha(mes){
         <th class="n">Dia 20<br><small>restante</small></th>
         <th>Descontos</th><th>Observações</th><th class="n">Total</th></tr></thead>
       <tbody>${linhas}</tbody></table></div>
+    ${temSugestao ? `<div style="margin:8px 0;"><button class="btn btn-neutro btn-pequeno" id="rhFolhaSugerir">Preencher dia 10 com o portal</button>
+      <small style="color:var(--muted);margin-left:8px;">bônus = pagamentos marcados como Pago no Meta Bônus deste mês; comissão = aba Comissões. Só entra em campo vazio; depois é só salvar.</small></div>` : ''}
     <div class="dp-aviso">${d.preenchidos ? '' : '<b>Mês em branco.</b> '}Digite e clique em <b>Salvar mês</b>.
       Zero ou vazio em todos os valores apaga a linha do mês. Meses com dados:
       ${d.meses_com_dados.length ? d.meses_com_dados.map(m => `<a href="#" data-rhfolhames="${m}">${m.slice(5)}/${m.slice(2,4)}</a>`).join(' · ') : 'nenhum ainda'}.
@@ -2653,6 +2676,16 @@ document.addEventListener('click', async ev => {
   const aba = ev.target.closest('[data-rhaba]');
   if(aba){ rhAba = aba.dataset.rhaba; renderRh(); return; }
   if(ev.target.id === 'rhFolhaSalvar'){ rhSalvarFolha(); return; }
+  if(ev.target.id === 'rhFolhaSugerir'){
+    let n = 0;
+    document.querySelectorAll('.rh-folha-valor[data-sugestao]').forEach(i => {
+      if(!i.value){ i.value = i.dataset.sugestao; rhFolhaRecalcular(i.dataset.rhfolha); n++; }
+    });
+    const st = document.getElementById('rhFolhaStatus');
+    st.textContent = n ? `${n} campo(s) preenchido(s) com o portal — confira e clique em Salvar mês.` : 'Nenhum campo vazio pra preencher.';
+    st.classList.remove('err'); st.classList.add('show');
+    return;
+  }
   const irMes = ev.target.closest('[data-rhfolhames]');
   if(irMes){
     ev.preventDefault();

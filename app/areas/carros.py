@@ -83,6 +83,7 @@ def api_mb_dia():
         setores[setor] = sorted((
             {"id": pid, "nome": p.get("nome") or "?",
              "meta": p.get("meta") or 0, "meta_bonus": p.get("meta_bonus") or 0,
+             "colaborador_id": p.get("colaborador_id") or "",
              "quantidade": do_dia.get(pid) or ""}
             # Inativo (desligado ou de funcao trocada) sai da chamada, mas
             # continua no dicionario: o historico dele segue agregando.
@@ -117,6 +118,11 @@ def api_mb_pessoa_salvar():
         except ValueError:
             return 0.0
     meta, bonus = num(corpo.get("meta")), num(corpo.get("meta_bonus"))
+    # Ficha no RH (opcional): e o que liga o bonus pago aqui a folha de
+    # pagamento da pessoa (dia 10). Sem o vinculo, a folha nao sugere nada.
+    colab = (corpo.get("colaborador_id") or "").strip()
+    if colab and colab not in _rh_ler("colaboradores"):
+        return jsonify({"erro": "Ficha do RH não encontrada."}), 400
 
     dados = _mb_bruto()
     pid = (corpo.get("id") or "").strip()
@@ -131,12 +137,12 @@ def api_mb_pessoa_salvar():
                      None)
         if igual:
             dados["pessoas"][setor][igual].update(
-                nome=nome, meta=meta, meta_bonus=bonus, inativo=False)
+                nome=nome, meta=meta, meta_bonus=bonus, inativo=False, colaborador_id=colab)
         else:
             dados["pessoas"].setdefault(setor, {})[uuid.uuid4().hex[:12]] = {
-                "nome": nome, "meta": meta, "meta_bonus": bonus}
+                "nome": nome, "meta": meta, "meta_bonus": bonus, "colaborador_id": colab}
     elif setor_atual == setor:
-        dados["pessoas"][setor][pid].update(nome=nome, meta=meta, meta_bonus=bonus)
+        dados["pessoas"][setor][pid].update(nome=nome, meta=meta, meta_bonus=bonus, colaborador_id=colab)
     else:
         antigo = dados["pessoas"][setor_atual][pid]
         tipo_antigo = TIPO_META[setor_atual]
@@ -148,7 +154,7 @@ def api_mb_pessoa_salvar():
         else:
             dados["pessoas"][setor_atual].pop(pid)
         dados["pessoas"].setdefault(setor, {})[pid] = {
-            "nome": nome, "meta": meta, "meta_bonus": bonus}
+            "nome": nome, "meta": meta, "meta_bonus": bonus, "colaborador_id": colab}
     _mb_gravar(dados)
     return jsonify({"ok": True})
 

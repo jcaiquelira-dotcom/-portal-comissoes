@@ -52,6 +52,15 @@ Um deles tem o código errado — o painel agora recusa código repetido, mas es
 já estavam lá. Corrigir pela canetinha quando souber qual é o certo. (V738 repetido
 em 2025 fica como está: antes de junho não conta.)
 
+### 2.11 Folha: dois vínculos que faltam e uma diferença de comissão
+- **Levi** (anunciante) não tem ficha no RH — cadastrar em Equipe e vincular no lápis
+  do Meta Bônus ("Ficha no RH"), senão o bônus dele não chega ao dia 10 da folha.
+- **Pedro** (cadastrador) não sei qual ficha é: no RH só há Pedro Paulo e Pedro
+  Henrique, os dois em Anúncios. Vincular no lápis.
+- A comissão digitada na planilha antiga difere do cálculo do portal (agosto: Brenda
+  3.289 x 3.859; Matheus 843 x 1.604; Gustavo 804 x 803). De setembro em diante a
+  folha sugere o valor do portal; se a regra da planilha era outra, me diga qual.
+
 ### 2.7 Meta Bônus: planilha acaba em outubro — última importação no fim de setembro
 Decidido em 03/09: a partir de 10/2026 tudo é lançado direto no painel e a
 "Gestão de Processos.xlsx" deixa de existir. Setembro ainda pode ser preenchido
