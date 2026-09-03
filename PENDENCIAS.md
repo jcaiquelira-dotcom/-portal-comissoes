@@ -132,7 +132,9 @@ sem precisar subir pro GitHub.
 ### 5.5 Plano de simplificação — ver `SIMPLIFICACAO.md`
 Diagnóstico medido em 03/09 e plano em 6 fases (arrumar a casa → biblioteca
 comum → um dono por chave → um repositório → quebrar server.py/admin.html →
-banco de conversas). Cada fase é uma sessão. Começar pela Fase 0, risco zero.
+banco de conversas). Cada fase é uma sessão. **Fase 0 em andamento (03/09):** órfãos movidos pra `ferramentas/` e `_arquivo/`
+nos dois repos. Falta a parte que toca scripts vivos — `config/caminhos.json` e
+segredos num lugar só — que espera a rodada do pipeline terminar.
 
 ---
 
