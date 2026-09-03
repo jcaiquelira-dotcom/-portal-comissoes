@@ -48,6 +48,9 @@ META_JSON = ROOT / "_meta_ads.json"
 # sincronizar_desempenho, e as duas ignoravam a transferencia de assento — o
 # painel dizia Gustavo em setembro pras conversas que ja eram do Lucas.
 from agentes import slug as _slug_agente
+from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
+sys.path.insert(0, str(portal("app")))
+import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
 
 def coletar_leads():
@@ -290,5 +293,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    C.saida_utf8()
     main()

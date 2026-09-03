@@ -32,6 +32,8 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
+sys.path.insert(0, str(portal("app")))
+import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
 DESTINO = portal("segredos", "google_ads.json")
 # Dois escopos numa autorizacao so. Sao APIs diferentes mas o mesmo cliente
@@ -207,5 +209,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    C.saida_utf8()
     main()

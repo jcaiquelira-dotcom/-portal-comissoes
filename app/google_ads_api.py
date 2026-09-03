@@ -42,6 +42,8 @@ import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
+sys.path.insert(0, str(portal("app")))
+import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
 ROOT = Path(__file__).resolve().parent.parent
 CRED = portal("segredos", "google_ads.json")
@@ -57,34 +59,16 @@ VERSAO = "v22"
 BASE = f"https://googleads.googleapis.com/{VERSAO}"
 
 
+
+
+
+
+# Atalhos pra biblioteca comum: os nomes ficam pra nenhum chamador mudar.
 def _cred() -> dict:
-    if not CRED.exists():
-        sys.exit(f"Credenciais nao encontradas em {CRED}\n"
-                 "Rode scripts/autorizar_google_ads.py primeiro.")
-    d = json.loads(CRED.read_text(encoding="utf-8"))
-    faltando = [k for k in ("client_id", "client_secret", "refresh_token",
-                            "developer_token", "customer_id") if not d.get(k)]
-    if faltando:
-        sys.exit(f"Faltam campos em {CRED.name}: {', '.join(faltando)}")
-    return d
+    return C.cred_google("developer_token", "customer_id", dica="Rode scripts/autorizar_google_ads.py primeiro.")
 
 
-def token_de_acesso(cred: dict) -> str:
-    """Troca o refresh_token por um access_token (vale ~1h).
-
-    Diferente do Mercado Livre, o refresh_token do Google NAO rotaciona: o
-    mesmo vale pra sempre, ate ser revogado na mao. Por isso aqui nao tem a
-    dansa de regravar credencial a cada chamada.
-    """
-    corpo = urllib.parse.urlencode({
-        "client_id": cred["client_id"],
-        "client_secret": cred["client_secret"],
-        "refresh_token": cred["refresh_token"],
-        "grant_type": "refresh_token",
-    }).encode()
-    req = urllib.request.Request("https://oauth2.googleapis.com/token", corpo)
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.loads(r.read().decode())["access_token"]
+token_de_acesso = C.token_google
 
 
 def consultar(cred: dict, access: str, gaql: str) -> list:
@@ -292,5 +276,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    C.saida_utf8()
     main()

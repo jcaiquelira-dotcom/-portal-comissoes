@@ -28,6 +28,8 @@ import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
+sys.path.insert(0, str(portal("app")))
+import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
 ROOT = Path(__file__).resolve().parent.parent
 CRED = portal("segredos", "google_ads.json")
@@ -35,35 +37,22 @@ SAIDA = ROOT / "_ga4.json"
 BASE = "https://analyticsdata.googleapis.com/v1beta"
 
 
-def _cred() -> dict:
-    if not CRED.exists():
-        sys.exit("Credenciais nao encontradas em {}".format(CRED))
-    d = json.loads(CRED.read_text(encoding="utf-8"))
-    faltando = [k for k in ("client_id", "client_secret", "refresh_token",
-                            "ga4_property_id") if not d.get(k)]
-    if faltando:
-        sys.exit("Faltam campos em {}: {}\n"
-                 "O refresh_token sai de scripts/autorizar_google_ads.py."
-                 .format(CRED.name, ", ".join(faltando)))
-    return d
 
 
-def token_de_acesso(cred: dict) -> str:
-    corpo = urllib.parse.urlencode({
-        "client_id": cred["client_id"],
-        "client_secret": cred["client_secret"],
-        "refresh_token": cred["refresh_token"],
-        "grant_type": "refresh_token",
-    }).encode()
-    req = urllib.request.Request("https://oauth2.googleapis.com/token", corpo)
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.loads(r.read().decode())["access_token"]
 
 
 # O que conta como lead no site: o clique que manda a pessoa pro WhatsApp.
 # `generate_lead` e o evento atual; `start_contact` aparece no historico ate
 # o inicio de 2026 e fica na lista pra serie antiga nao virar zero.
 EVENTOS_DE_LEAD = ["generate_lead", "start_contact"]
+
+
+# Atalhos pra biblioteca comum: os nomes ficam pra nenhum chamador mudar.
+def _cred() -> dict:
+    return C.cred_google("ga4_property_id")
+
+
+token_de_acesso = C.token_google
 
 
 def relatorio(cred, access, dimensoes, metricas, de, ate, limite=10000,
@@ -190,6 +179,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                                  errors="replace")
+    C.saida_utf8()
     main()

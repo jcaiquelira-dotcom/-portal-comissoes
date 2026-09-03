@@ -38,6 +38,8 @@ import urllib.request
 from datetime import date
 from pathlib import Path
 from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
+sys.path.insert(0, str(portal("app")))
+import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
 ROOT = Path(__file__).resolve().parent.parent
 CRED = portal("segredos", "meta_ads.json")
@@ -211,6 +213,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8",
-                                  errors="replace")
+    C.saida_utf8()
     main()

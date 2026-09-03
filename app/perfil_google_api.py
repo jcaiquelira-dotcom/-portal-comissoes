@@ -40,6 +40,8 @@ import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 from caminhos import caminho, portal  # config/caminhos.json — ver app/caminhos.py
+sys.path.insert(0, str(portal("app")))
+import nevada_comum as C  # biblioteca comum do portal — ver la app/nevada_comum.py
 
 ROOT = Path(__file__).resolve().parent.parent
 CRED = portal("segredos", "google_ads.json")
@@ -73,23 +75,16 @@ NOME_NA_SERIE = {
 }
 
 
+
+
+
+
+# Atalhos pra biblioteca comum: os nomes ficam pra nenhum chamador mudar.
 def _cred() -> dict:
-    if not CRED.exists():
-        sys.exit(f"Credenciais nao encontradas em {CRED}")
-    return json.loads(CRED.read_text(encoding="utf-8"))
+    return C.cred_google()
 
 
-def token_de_acesso(cred: dict) -> str:
-    """Troca o refresh_token por um access_token. O do Google nao rotaciona."""
-    corpo = urllib.parse.urlencode({
-        "client_id": cred["client_id"],
-        "client_secret": cred["client_secret"],
-        "refresh_token": cred["refresh_token"],
-        "grant_type": "refresh_token",
-    }).encode()
-    req = urllib.request.Request("https://oauth2.googleapis.com/token", corpo)
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.loads(r.read().decode())["access_token"]
+token_de_acesso = C.token_google
 
 
 def _get(url: str, access: str, params: dict = None) -> dict:
