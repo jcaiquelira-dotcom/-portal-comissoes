@@ -59,8 +59,14 @@ def token_de_acesso(cred: dict) -> str:
         return json.loads(r.read().decode())["access_token"]
 
 
+# O que conta como lead no site: o clique que manda a pessoa pro WhatsApp.
+# `generate_lead` e o evento atual; `start_contact` aparece no historico ate
+# o inicio de 2026 e fica na lista pra serie antiga nao virar zero.
+EVENTOS_DE_LEAD = ["generate_lead", "start_contact"]
+
+
 def relatorio(cred, access, dimensoes, metricas, de, ate, limite=10000,
-              ordem=None):
+              ordem=None, filtro=None):
     """Um runReport. Devolve [{dim: valor, ..., met: numero, ...}]."""
     corpo = {
         "dateRanges": [{"startDate": de, "endDate": ate}],
@@ -70,6 +76,8 @@ def relatorio(cred, access, dimensoes, metricas, de, ate, limite=10000,
     }
     if ordem:
         corpo["orderBys"] = ordem
+    if filtro:
+        corpo["dimensionFilter"] = filtro
     url = "{}/properties/{}:runReport".format(BASE, cred["ga4_property_id"])
     req = urllib.request.Request(
         url, json.dumps(corpo).encode(),
@@ -129,8 +137,26 @@ def coletar(cred, access, de, ate) -> dict:
         limite=20000,
         ordem=[{"dimension": {"dimensionName": "date"}}])
 
+    # Lead POR CANAL. Ate 02/09/2026 o painel sabia quantos leads vieram do
+    # site e, em outra tabela, quantas SESSOES eram Paid Search — mas nunca
+    # quantos LEADS eram pagos. Ratear leads pela proporcao de sessoes seria
+    # estimativa; pedir canal e evento na mesma consulta e atribuicao, e a
+    # diferenca importa: no periodo de teste o Paid Search fazia 65% dos leads
+    # com uma fatia de sessoes bem diferente disso.
+    #
+    # O filtro por eventName e obrigatorio aqui: sem ele a consulta devolve
+    # TODOS os eventos vezes TODOS os canais vezes todos os dias, que estoura
+    # o limite e traz 90% de linha que ninguem le (scroll, page_view).
+    leads_origem = relatorio(
+        cred, access, ["date", "sessionDefaultChannelGroup", "eventName"],
+        ["eventCount"], de, ate, limite=50000,
+        ordem=[{"dimension": {"dimensionName": "date"}}],
+        filtro={"filter": {"fieldName": "eventName",
+                           "inListFilter": {"values": EVENTOS_DE_LEAD}}})
+
     return {"de": de, "ate": ate, "por_dia": por_dia, "por_origem": por_origem,
-            "paginas": paginas, "eventos": eventos}
+            "paginas": paginas, "eventos": eventos,
+            "leads_origem": leads_origem}
 
 
 def main():

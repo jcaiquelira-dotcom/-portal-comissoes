@@ -59,6 +59,15 @@ def montar() -> dict:
     for x in d["eventos"]:
         eventos.setdefault(_iso(x["date"]), {})[x["eventName"]] = x["eventCount"]
 
+    # Leads por canal, por dia. Soma os eventos de lead do mesmo canal: sao dois
+    # nomes de evento pra mesma acao (o atual e o antigo), e separa-los na tela
+    # inventaria uma distincao que nao existe pro gestor.
+    leads_origem = {}
+    for x in d.get("leads_origem") or []:
+        dia = leads_origem.setdefault(_iso(x["date"]), {})
+        canal = x["sessionDefaultChannelGroup"] or "(sem origem)"
+        dia[canal] = dia.get(canal, 0) + x["eventCount"]
+
     # Paginas nao tem data (o GA4 cobraria uma linha por pagina POR DIA, que
     # estoura o limite). Vem do periodo inteiro, e por isso viaja com o
     # periodo junto — o painel avisa que essa lista nao acompanha o filtro.
@@ -74,6 +83,7 @@ def montar() -> dict:
         "serie_dia": por_dia,
         "origem_dia": origem,
         "eventos_dia": eventos,
+        "leads_origem_dia": leads_origem,
         "paginas": paginas,
         "paginas_periodo": {"de": d["de"], "ate": d["ate"]},
     }
