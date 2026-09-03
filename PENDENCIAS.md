@@ -60,6 +60,11 @@ em 2025 fica como está: antes de junho não conta.)
 - A comissão digitada na planilha antiga difere do cálculo do portal (agosto: Brenda
   3.289 x 3.859; Matheus 843 x 1.604; Gustavo 804 x 803). De setembro em diante a
   folha sugere o valor do portal; se a regra da planilha era outra, me diga qual.
+- Com a regra "dia 10 paga o mês anterior" (03/09), a aba **Agosto** da planilha trazia a
+  comissão calculada de agosto (Gustavo 804 x 803 do portal) — ou seja, as abas eram
+  nomeadas pelo mês de referência, não pelo mês do pagamento. O histórico importado
+  segue esse nome de aba. Se preferir a folha pelo mês do pagamento, é deslocar tudo
+  um mês pra frente; me diga.
 
 ### 2.7 Meta Bônus: planilha acaba em outubro — última importação no fim de setembro
 Decidido em 03/09: a partir de 10/2026 tudo é lançado direto no painel e a

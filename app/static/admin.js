@@ -2582,7 +2582,7 @@ async function rhCarregarFolha(mes){
   alvo.innerHTML = `
     <div class="dp-kpis" style="margin:10px 0 12px;">
       ${kpi('Dia 05 · vale', t.dia05)}
-      ${kpi('Dia 10 · meta bônus + comissões', t.dia10, `bônus ${rhMoeda(t.bonus)} · comissões ${rhMoeda(t.comissao)}`)}
+      ${kpi(`Dia 10 · meta bônus + comissões${d.referencia_dia10 ? ` de ${MB_MESES[Number(d.referencia_dia10.slice(5,7)) - 1].slice(0,3)}/${d.referencia_dia10.slice(2,4)}` : ''}`, t.dia10, `bônus ${rhMoeda(t.bonus)} · comissões ${rhMoeda(t.comissao)}`)}
       ${kpi('Dia 20 · restante do salário', t.dia20)}
       ${kpi('Total do mês', t.mes, `${d.preenchidos} de ${d.linhas.length} pessoas com valor`)}
     </div>
@@ -2595,7 +2595,7 @@ async function rhCarregarFolha(mes){
         <th>Descontos</th><th>Observações</th><th class="n">Total</th></tr></thead>
       <tbody>${linhas}</tbody></table></div>
     ${temSugestao ? `<div style="margin:8px 0;"><button class="btn btn-neutro btn-pequeno" id="rhFolhaSugerir">Preencher dia 10 com o portal</button>
-      <small style="color:var(--muted);margin-left:8px;">bônus = pagamentos marcados como Pago no Meta Bônus deste mês; comissão = aba Comissões. Só entra em campo vazio; depois é só salvar.</small></div>` : ''}
+      <small style="color:var(--muted);margin-left:8px;">O dia 10 paga o <b>mês anterior</b>: bônus = pagamentos marcados como Pago no Meta Bônus de ${d.referencia_dia10 ? d.referencia_dia10.slice(5) + '/' + d.referencia_dia10.slice(2,4) : 'mês anterior'}; comissão = aba Comissões do mesmo mês. Só entra em campo vazio; depois é só salvar.</small></div>` : ''}
     <div class="dp-aviso">${d.preenchidos ? '' : '<b>Mês em branco.</b> '}Digite e clique em <b>Salvar mês</b>.
       Zero ou vazio em todos os valores apaga a linha do mês. Meses com dados:
       ${d.meses_com_dados.length ? d.meses_com_dados.map(m => `<a href="#" data-rhfolhames="${m}">${m.slice(5)}/${m.slice(2,4)}</a>`).join(' · ') : 'nenhum ainda'}.

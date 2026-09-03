@@ -243,7 +243,11 @@ def _folha_sugestoes(mes: str, colaboradores: dict) -> dict:
     A aba de agosto da planilha antiga trazia a comissao de agosto (Gustavo
     804 x 803,35 calculado) — o mes da folha e o mes de referencia."""
     import nucleo as N   # o alias do topo da area e apagado depois de ligar os nomes
-    de, ate = N.mes_para_intervalo(mes)
+    # Regra do gestor (03/09/2026): o dia 10 do mes M paga o bonus e a comissao
+    # do mes M-1. A folha de setembro traz a comissao do que se vendeu em agosto.
+    ano, mn = int(mes[:4]), int(mes[5:7])
+    ref = f"{ano - 1}-12" if mn == 1 else f"{ano}-{mn - 1:02d}"
+    de, ate = N.mes_para_intervalo(ref)
     vendedores = N.carregar_vendedores()
     sug = {}
     for cid, c in colaboradores.items():
@@ -259,12 +263,13 @@ def _folha_sugestoes(mes: str, colaboradores: dict) -> dict:
     por_pessoa = {(setor, pid): p.get("colaborador_id") for setor, gente in mb["pessoas"].items()
                   for pid, p in gente.items() if p.get("colaborador_id")}
     for pg in (mb.get("saldos") or {}).get("pagamentos", {}).values():
-        if pg.get("mes") != mes:
+        if pg.get("mes") != ref:
             continue
         cid = por_pessoa.get((pg.get("setor"), pg.get("pessoa_id")))
         if cid:
             s = sug.setdefault(cid, {})
             s["bonus"] = round(s.get("bonus", 0.0) + float(pg.get("valor") or 0), 2)
+    sug["_referencia"] = ref
     return sug
 
 
@@ -302,7 +307,8 @@ def _folha_linhas(mes: str) -> dict:
     meses = sorted(m for m, regs in folha.items()
                    if any(any(float(r.get(k) or 0) for k in CAMPOS_FOLHA_VALOR) for r in regs.values()))
     return {"mes": mes, "linhas": linhas, "totais": totais, "meses_com_dados": meses,
-            "preenchidos": sum(1 for l in linhas if l["preenchido"])}
+            "preenchidos": sum(1 for l in linhas if l["preenchido"]),
+            "referencia_dia10": sugestoes.get("_referencia")}
 
 
 @app.route("/api/admin/rh/folha")
