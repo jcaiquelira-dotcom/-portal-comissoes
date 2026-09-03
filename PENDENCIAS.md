@@ -39,6 +39,13 @@ Ponto de partida oficial: https://developers.google.com/my-business/content/prer
 
 ## 2. Decisões do Caique
 
+### 2.8 Saldo de bônus do Otávio: 15 pela regra, 35 na planilha
+Pela regra dos três meses (junho a agosto, pagando os múltiplos de 50 a cada mês)
+Marcella, Lucas e Vinícius batem com a planilha (12, 25, 3). O Otávio dá 15 e a
+planilha dizia 35 — número digitado à mão e repetido igual em julho, agosto e
+setembro. Ficou 15. Se o certo é 35, é um ajuste de saldo inicial (rota
+`saldos/base`), me pede.
+
 ### 2.7 Meta Bônus: planilha acaba em outubro — última importação no fim de setembro
 Decidido em 03/09: a partir de 10/2026 tudo é lançado direto no painel e a
 "Gestão de Processos.xlsx" deixa de existir. Setembro ainda pode ser preenchido
