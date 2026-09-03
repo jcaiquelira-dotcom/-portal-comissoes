@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))  # movido pra ferramentas/ em 03/09/2026
 from sync import (BASE_URL, PAGE_SIZE, PAUSA_ENTRE_REQUISICOES, TOKEN, _conectar_db,
                   _requisitar, _salvar_mensagem, _salvar_sessao)
 
