@@ -454,10 +454,12 @@
             <div class="mb-recentes-titulo">Veículos desmontados no dia</div>
             <div id="mbVeicLista"></div>
             <div class="mb-veic-form">
+              <input type="date" id="mbVeicData" title="Data em que a desmontagem começou">
               <input type="text" id="mbCarro" placeholder="Carro (ex.: Land Rover Defender)">
               <input type="text" id="mbCodigo" placeholder="Código (V638)">
               <input type="number" id="mbPecas" min="0" step="1" placeholder="Peças (pode deixar pra depois)">
               <button class="btn btn-neutro btn-pequeno" id="mbAddVeiculo">Adicionar</button>
+              <button class="btn btn-neutro btn-pequeno oculto" id="mbVeicCancelar">Cancelar edição</button>
             </div>
             <!-- Meta de pecas desmontadas no mes — na planilha antiga era o
                  "Pc Grande". Fica aqui, ao lado dos carros, porque e deles. -->

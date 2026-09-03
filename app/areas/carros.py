@@ -329,6 +329,13 @@ def api_mb_veiculo_editar(vid):
         v["carro"] = corpo["carro"].strip()[:80]
     if "codigo" in corpo:
         v["codigo"] = (corpo.get("codigo") or "").strip()[:20]
+    if (corpo.get("data") or "").strip():
+        data = corpo["data"].strip()
+        try:
+            parse_dt_tolerante(data)
+        except Exception:
+            return jsonify({"erro": "Data inválida."}), 400
+        v["data"] = data
     v["editado_em"] = agora_br().isoformat(timespec="seconds")
     _mb_gravar(dados)
     return jsonify({"ok": True, "pecas": v["pecas"]})
@@ -350,6 +357,136 @@ def api_mb_meta_veiculos():
     dados["meta_veiculos"] = novo
     _mb_gravar(dados)
     return jsonify({"ok": True, **novo})
+
+# ---- Saldo de bonus ----------------------------------------------------
+# Regra do gestor (03/09/2026): a cada 50 unidades ACIMA DA META (anuncios ou
+# cadastros) a pessoa recebe R$ 50. O pagamento do mes leva os multiplos de
+# 50; o que sobra (ex.: 55 acima -> paga 50, sobram 5) fica de credito, em
+# unidades, pro mes seguinte. E acumulativo: mes nao pago continua somando.
+PASSO_BONUS = 50.0
+
+
+def _mb_saldos(dados: dict, mes: str) -> list:
+    base = dados["saldos"].get("base") or {}
+    pagos = dados["saldos"].get("pagamentos") or {}
+    producao = {}
+    for setor, tipo in TIPO_META.items():
+        for l in (dados["lancamentos"].get(tipo) or {}).values():
+            k = (setor, l.get("pessoa_id"), (l.get("data") or "")[:7])
+            producao[k] = producao.get(k, 0.0) + float(l.get("quantidade") or 0)
+    pago_de = {(p["setor"], p["pessoa_id"], p["mes"]): (pgid, p) for pgid, p in pagos.items()}
+
+    linhas = []
+    for setor, gente in dados["pessoas"].items():
+        for pid, p in gente.items():
+            meta = float(p.get("meta") or 0)
+            b = base.get(f"{setor}:{pid}") or {}
+            inicio = b.get("mes") or "0000-00"
+            carry = float(b.get("unidades") or 0)
+            meses = sorted({m for (s, pp, m) in producao if s == setor and pp == pid and inicio < m <= mes})
+            if mes not in meses and (mes > inicio):
+                meses.append(mes)   # mes sem producao ainda: mostra o credito que ja tem
+            anterior = producao_mes = acima = acumulado = 0.0
+            pago = None
+            for m in meses:
+                total = producao.get((setor, pid, m), 0.0)
+                acima_m = max(0.0, total - meta) if meta else 0.0
+                anterior = carry
+                acumulado = carry + acima_m
+                pg = pago_de.get((setor, pid, m))
+                if pg:
+                    carry = max(0.0, acumulado - float(pg[1].get("unidades") or 0))
+                else:
+                    carry = acumulado   # nao pago: segue acumulando inteiro
+                if m == mes:
+                    producao_mes, acima, pago = total, acima_m, (pg and {"id": pg[0], **pg[1]})
+            if not meses or (producao_mes <= 0 and acumulado <= 0):
+                continue
+            a_pagar = (float(pago["valor"]) if pago
+                       else int(acumulado // PASSO_BONUS) * PASSO_BONUS)
+            linhas.append({
+                "setor": setor, "pessoa_id": pid, "nome": p.get("nome") or "?",
+                "inativo": bool(p.get("inativo")), "meta": meta,
+                "saldo_anterior": anterior, "producao": producao_mes, "acima": acima,
+                "acumulado": acumulado, "a_pagar": a_pagar,
+                "sobra": (acumulado - float(pago["unidades"])) if pago else acumulado - a_pagar,
+                "pago": pago,
+            })
+    linhas.sort(key=lambda x: (x["setor"], -x["acumulado"], x["nome"]))
+    return linhas
+
+
+@app.route("/api/admin/metas-bonus/saldos")
+def api_mb_saldos():
+    if not exigir_area("metabonus"):
+        return jsonify({"erro": "Não autenticado."}), 401
+    mes = (request.args.get("mes") or hoje_br().isoformat()[:7]).strip()
+    dados = _mb_bruto()
+    return jsonify({"mes": mes, "passo": PASSO_BONUS, "linhas": _mb_saldos(dados, mes)})
+
+
+@app.route("/api/admin/metas-bonus/saldos/pagar", methods=["POST"])
+def api_mb_saldo_pagar():
+    """Marca o mes da pessoa como pago: leva os multiplos de 50 acumulados;
+    a sobra vira credito do mes seguinte."""
+    if not exigir_area("metabonus"):
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    setor, pid, mes = corpo.get("setor"), corpo.get("pessoa_id"), (corpo.get("mes") or "").strip()
+    dados = _mb_bruto()
+    if setor not in dados["pessoas"] or pid not in dados["pessoas"][setor]:
+        return jsonify({"erro": "Pessoa desconhecida."}), 400
+    if not re.fullmatch(r"\d{4}-\d{2}", mes):
+        return jsonify({"erro": "Mês inválido."}), 400
+    linha = next((x for x in _mb_saldos(dados, mes) if x["setor"] == setor and x["pessoa_id"] == pid), None)
+    if not linha:
+        return jsonify({"erro": "Nada acumulado para essa pessoa neste mês."}), 400
+    if linha["pago"]:
+        return jsonify({"erro": "Este mês já está marcado como pago."}), 400
+    valor = int(linha["acumulado"] // PASSO_BONUS) * PASSO_BONUS
+    if valor <= 0:
+        return jsonify({"erro": "Ainda não chegou a 50 acima da meta — nada a pagar."}), 400
+    dados["saldos"].setdefault("pagamentos", {})[uuid.uuid4().hex[:12]] = {
+        "setor": setor, "pessoa_id": pid, "mes": mes, "valor": valor, "unidades": valor,
+        "pago_em": agora_br().isoformat(timespec="seconds"),
+    }
+    _mb_gravar(dados)
+    return jsonify({"ok": True, "valor": valor, "sobra": linha["acumulado"] - valor})
+
+
+@app.route("/api/admin/metas-bonus/saldos/pagar/<pgid>", methods=["DELETE"])
+def api_mb_saldo_desfazer(pgid):
+    if not exigir_area("metabonus"):
+        return jsonify({"erro": "Não autenticado."}), 401
+    dados = _mb_bruto()
+    if pgid not in (dados["saldos"].get("pagamentos") or {}):
+        return jsonify({"erro": "Pagamento não encontrado."}), 404
+    dados["saldos"]["pagamentos"].pop(pgid)
+    _mb_gravar(dados)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/admin/metas-bonus/saldos/base", methods=["POST"])
+def api_mb_saldo_base():
+    """Credito inicial (unidades) que a pessoa trazia quando o painel assumiu
+    — o "Saldo individual" da planilha antiga. `mes` = ultimo mes ja acertado."""
+    if not exigir_area("metabonus"):
+        return jsonify({"erro": "Não autenticado."}), 401
+    corpo = request.get_json(silent=True) or {}
+    setor, pid, mes = corpo.get("setor"), corpo.get("pessoa_id"), (corpo.get("mes") or "").strip()
+    dados = _mb_bruto()
+    if setor not in dados["pessoas"] or pid not in dados["pessoas"][setor]:
+        return jsonify({"erro": "Pessoa desconhecida."}), 400
+    if not re.fullmatch(r"\d{4}-\d{2}", mes):
+        return jsonify({"erro": "Mês inválido."}), 400
+    try:
+        unidades = float(str(corpo.get("unidades") or "0").replace(",", "."))
+    except ValueError:
+        return jsonify({"erro": "Unidades inválidas."}), 400
+    dados["saldos"].setdefault("base", {})[f"{setor}:{pid}"] = {"mes": mes, "unidades": max(0.0, unidades)}
+    _mb_gravar(dados)
+    return jsonify({"ok": True})
+
 
 @app.route("/api/admin/metas-bonus/veiculos/<vid>", methods=["DELETE"])
 def api_mb_veiculo_apagar(vid):

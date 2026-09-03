@@ -1710,6 +1710,10 @@ async function mbCarregarDia(data){
   // de ninguem.
   if(!campo.value) campo.value = todayStr();
   mbDiaAtual = campo.value;
+  // Data de inicio da desmontagem: por padrao o dia da grade, mas o carro
+  // pode ter comecado noutro dia — por isso tem campo proprio.
+  const vd = document.getElementById('mbVeicData');
+  if(vd && !vd.value) vd.value = mbDiaAtual;
 
   const res = await fetch('/api/admin/metas-bonus/dia?data=' + mbDiaAtual);
   if(!res.ok) return;
@@ -1738,6 +1742,7 @@ async function mbCarregarDia(data){
       <span class="q"><input type="number" min="0" step="1" inputmode="numeric" class="mb-pecas"
         data-mbpecas="${v.id}" value="${v.pecas || ''}" placeholder="a contar"
         title="Peças desmontadas — pode preencher depois"> peças</span>
+      <button type="button" class="mb-edit" data-mbveicedit="${v.id}" title="Editar este carro">✎</button>
       <button class="mb-apagar" data-mbveic="${v.id}" title="Apagar">×</button>
     </div>`).join('') || '<div class="mb-veic-vazio">Nenhum veículo lançado neste dia.</div>';
 
@@ -1824,24 +1829,57 @@ async function mbRemoverPessoa(){
   }
 }
 
-async function mbAddVeiculo(){
-  const status = document.getElementById('mbStatus');
-  status.classList.remove('show', 'err');
-  const res = await fetch('/api/admin/metas-bonus/veiculos', {method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({data: mbDiaAtual,
-      carro: document.getElementById('mbCarro').value,
-      codigo: document.getElementById('mbCodigo').value,
-      pecas: document.getElementById('mbPecas').value})});
-  const d = await res.json().catch(() => ({}));
-  if(!res.ok){
-    status.textContent = d.erro || 'Erro ao lançar veículo.';
-    status.classList.add('show', 'err');
-    return;
-  }
+let mbVeiculosMes = [];      // lista do mês desenhado (com id) — pra canetinha
+let mbVeicEditando = null;   // id do carro em edição no formulário, ou null
+
+/* A canetinha: carrega o carro no mesmo formulário de cima e troca o botão
+   pra "Salvar alterações". Carro de dia passado se edita daqui, sem precisar
+   voltar a grade pra aquela data. */
+function mbEditarVeiculo(id){
+  const c = mbVeiculosMes.find(x => x.id === id)
+    || (mbDiaDados?.veiculos || []).map(x => ({...x, data: mbDiaAtual})).find(x => x.id === id);
+  if(!c) return;
+  mbVeicEditando = id;
+  document.getElementById('mbVeicData').value = c.data || mbDiaAtual;
+  document.getElementById('mbCarro').value = c.carro || '';
+  document.getElementById('mbCodigo').value = c.codigo || '';
+  document.getElementById('mbPecas').value = c.pecas || '';
+  document.getElementById('mbAddVeiculo').textContent = 'Salvar alterações';
+  document.getElementById('mbVeicCancelar').classList.remove('oculto');
+  document.getElementById('mbLancarDobra').open = true;
+  document.getElementById('mbCarro').focus();
+}
+
+function mbCancelarEdicaoVeiculo(){
+  mbVeicEditando = null;
   document.getElementById('mbCarro').value = '';
   document.getElementById('mbCodigo').value = '';
   document.getElementById('mbPecas').value = '';
+  document.getElementById('mbVeicData').value = mbDiaAtual;
+  document.getElementById('mbAddVeiculo').textContent = 'Adicionar';
+  document.getElementById('mbVeicCancelar').classList.add('oculto');
+}
+
+async function mbAddVeiculo(){
+  const status = document.getElementById('mbStatus');
+  status.classList.remove('show', 'err');
+  const corpo = {data: document.getElementById('mbVeicData').value || mbDiaAtual,
+    carro: document.getElementById('mbCarro').value,
+    codigo: document.getElementById('mbCodigo').value,
+    pecas: document.getElementById('mbPecas').value};
+  const editando = mbVeicEditando;
+  const res = await fetch(editando ? `/api/admin/metas-bonus/veiculos/${editando}` : '/api/admin/metas-bonus/veiculos',
+    {method: editando ? 'PUT' : 'POST', headers: {'Content-Type': 'application/json'},
+     body: JSON.stringify(corpo)});
+  const d = await res.json().catch(() => ({}));
+  if(!res.ok){
+    status.textContent = d.erro || (editando ? 'Erro ao salvar o carro.' : 'Erro ao lançar veículo.');
+    status.classList.add('show', 'err');
+    return;
+  }
+  status.textContent = editando ? 'Carro atualizado.' : 'Carro lançado.';
+  status.classList.add('show');
+  mbCancelarEdicaoVeiculo();
   mbCarregarDia(mbDiaAtual);
   carregarMetaBonus(document.getElementById('mbMes').value);
 }
@@ -1879,6 +1917,70 @@ async function mbSalvarMetaVeic(){
   status.textContent = 'Meta de peças salva.';
   status.classList.add('show');
   carregarMetaBonus(document.getElementById('mbMes').value);
+}
+
+/* Saldo de bônus. Regra do gestor (03/09/2026): a cada 50 acima da meta,
+   R$ 50. O pagamento do mês leva os múltiplos de 50; a sobra fica de crédito,
+   em unidades, pro mês seguinte. Mês não pago continua acumulando. */
+async function mbCarregarSaldos(mes){
+  const alvo = document.getElementById('mbSaldos');
+  if(!alvo) return;
+  const res = await fetch('/api/admin/metas-bonus/saldos?mes=' + mes);
+  if(!res.ok){ alvo.innerHTML = ''; return; }
+  const d = await res.json();
+  const n = x => (x || 0).toLocaleString('pt-BR', {maximumFractionDigits: 0});
+  const dData = s => s ? s.slice(8,10) + '/' + s.slice(5,7) : '';
+  const totalPagar = d.linhas.filter(l => !l.pago).reduce((s, l) => s + l.a_pagar, 0);
+  const linhas = d.linhas.map(l => `<tr${l.inativo ? ' style="color:var(--muted)"' : ''}>
+      <td>${l.nome}${l.inativo ? ' <small>(inativo)</small>' : ''}</td>
+      <td>${l.setor === 'anunciante' ? 'Anúncios' : 'Cadastros'}</td>
+      <td class="n">${n(l.saldo_anterior)}</td>
+      <td class="n">${n(l.producao)}</td>
+      <td class="n">${n(l.acima)}</td>
+      <td class="n"><b>${n(l.acumulado)}</b></td>
+      <td class="n" style="color:${l.a_pagar ? 'var(--good)' : 'var(--muted)'}">${fmtMoeda(l.a_pagar)}</td>
+      <td class="n">${n(l.sobra)}</td>
+      <td>${l.pago
+        ? `pago em ${dData(l.pago.pago_em)} <button class="mb-apagar" data-mbdesfazer="${l.pago.id}" title="Desfazer">×</button>`
+        : (l.a_pagar ? `<button class="btn btn-principal btn-pequeno" data-mbpagar="${l.setor}:${l.pessoa_id}:${d.mes}">Pago</button>` : '—')}</td>
+    </tr>`).join('');
+  alvo.innerHTML = `<div class="card" style="margin-top:14px;">
+    <p class="card-titulo">Saldo de bônus
+      ${totalPagar ? `<span class="aud-conta">${fmtMoeda(totalPagar)} a pagar</span>` : ''}</p>
+    ${d.linhas.length ? `<div class="tabela-rolante"><table>
+      <thead><tr><th>Pessoa</th><th>Setor</th><th>Saldo anterior</th><th>Produção</th>
+        <th>Acima da meta</th><th>Acumulado</th><th>A pagar</th><th>Sobra</th><th></th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>`
+      : '<div class="vazio">Ninguém com saldo ou produção neste mês.</div>'}
+    <div class="dp-aviso">A cada <b>50 acima da meta</b>, R$ 50. "Pago" leva os múltiplos de 50 do
+      acumulado; a <b>sobra</b> fica de crédito, em unidades, pro mês seguinte. Mês sem "Pago"
+      continua acumulando. Saldo anterior, acumulado e sobra são em anúncios ou cadastros;
+      só "A pagar" é em reais.</div>
+  </div>`;
+}
+
+async function mbPagarSaldo(chave){
+  const [setor, pessoa_id, mes] = chave.split(':');
+  const status = document.getElementById('mbStatus');
+  status.classList.remove('show', 'err');
+  const res = await fetch('/api/admin/metas-bonus/saldos/pagar', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({setor, pessoa_id, mes})});
+  const d = await res.json().catch(() => ({}));
+  if(!res.ok){
+    status.textContent = d.erro || 'Erro ao marcar como pago.';
+    status.classList.add('show', 'err');
+    return;
+  }
+  status.textContent = `Pago ${fmtMoeda(d.valor)} · sobra ${(d.sobra || 0).toLocaleString('pt-BR')} de crédito.`;
+  status.classList.add('show');
+  mbCarregarSaldos(mes);
+}
+
+async function mbDesfazerPagamento(id){
+  if(!confirm('Desfazer este pagamento? O valor volta a aparecer como "a pagar".')) return;
+  const res = await fetch(`/api/admin/metas-bonus/saldos/pagar/${id}`, {method: 'DELETE'});
+  if(res.ok) mbCarregarSaldos(document.getElementById('mbMes').value);
 }
 
 function mbMesNome(m){
@@ -1922,6 +2024,9 @@ function renderMetaBonus(d){
   const noBonus = todas.filter(p => p.bateu_bonus).length;
   const naMeta = todas.filter(p => p.bateu_meta).length;
   const v = d.veiculos;
+  // O saldo de bônus vem de outra chamada; entra no placeholder logo abaixo
+  // da lista de carros assim que o mês estiver desenhado.
+  setTimeout(() => mbCarregarSaldos(d.mes), 0);
 
   const kpi = (rot, num, sub, cor) => `<div class="dp-kpi"><div class="rot">${rot}</div>
     <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${num}</div>
@@ -1976,6 +2081,7 @@ function renderMetaBonus(d){
   // contar", e a contagem é preenchida quando a desmontagem termina — sem
   // precisar voltar à data do lançamento.
   const aContar = v.lista.filter(c => !c.pecas).length;
+  mbVeiculosMes = v.lista;   // a canetinha da tabela precisa dos dados do carro
   const cardVeiculos = `<div class="card">
     <p class="card-titulo">Veículos desmontados no mês
       ${aContar ? `<span class="aud-conta">${aContar} a contar</span>` : ''}</p>
@@ -1985,7 +2091,8 @@ function renderMetaBonus(d){
         <td>${c.data ? c.data.slice(8) + '/' + c.data.slice(5,7) : '—'}</td>
         <td>${c.carro || '—'}</td><td>${c.codigo || '—'}</td>
         <td><input type="number" min="0" step="1" inputmode="numeric" class="mb-pecas"
-          data-mbpecas="${c.id}" value="${c.pecas || ''}" placeholder="a contar"></td>
+          data-mbpecas="${c.id}" value="${c.pecas || ''}" placeholder="a contar">
+          <button type="button" class="mb-edit" data-mbveicedit="${c.id}" title="Editar este carro">✎</button></td>
       </tr>`).join('')}</tbody></table></div>`
       : '<div class="vazio">Nenhum veículo neste mês.</div>'}
   </div>`;
@@ -2001,6 +2108,7 @@ function renderMetaBonus(d){
         uma meta deixar de significar alguma coisa.</div>
     </div>
     ${cardVeiculos}
+    <div id="mbSaldos"></div>
     <div class="card" style="margin-top:14px;">
       <p class="card-titulo">De onde vêm estes números</p>
       <div class="dp-destaque"><span class="rot" style="margin:0">
@@ -2409,6 +2517,13 @@ document.addEventListener('click', async ev => {
   }
   if(ev.target.id === 'mbAddVeiculo'){ mbAddVeiculo(); return; }
   if(ev.target.id === 'mbSalvarMetaVeic'){ mbSalvarMetaVeic(); return; }
+  if(ev.target.id === 'mbVeicCancelar'){ mbCancelarEdicaoVeiculo(); return; }
+  const editarVeic = ev.target.closest('[data-mbveicedit]');
+  if(editarVeic){ mbEditarVeiculo(editarVeic.dataset.mbveicedit); return; }
+  const pagar = ev.target.closest('[data-mbpagar]');
+  if(pagar){ mbPagarSaldo(pagar.dataset.mbpagar); return; }
+  const desfazer = ev.target.closest('[data-mbdesfazer]');
+  if(desfazer){ mbDesfazerPagamento(desfazer.dataset.mbdesfazer); return; }
   const apagarVeic = ev.target.closest('[data-mbveic]');
   if(apagarVeic){
     fetch(`/api/admin/metas-bonus/veiculos/${apagarVeic.dataset.mbveic}`, {method: 'DELETE'})

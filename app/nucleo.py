@@ -1260,6 +1260,9 @@ def _mb_bruto() -> dict:
     d.setdefault("lancamentos", {})
     d.setdefault("veiculos", {})
     d.setdefault("meta_veiculos", {"meta": 0, "meta_bonus": 0})
+    # Saldo de bonus: `base` = credito (em unidades) que cada pessoa trazia
+    # quando o painel assumiu; `pagamentos` = meses ja pagos. Ver areas/carros.py.
+    d.setdefault("saldos", {"base": {}, "pagamentos": {}})
     return d
 
 def _mb_gravar(dados: dict) -> None:
