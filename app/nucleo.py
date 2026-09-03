@@ -1314,6 +1314,9 @@ def _mb_agregar(dados: dict) -> dict:
                 "pecas": round(sum(float(v.get("pecas") or 0) for v in do_mes.values()), 2),
                 "meta": float(meta_veic.get("meta") or 0),
                 "meta_bonus": float(meta_veic.get("meta_bonus") or 0),
+                # Desmontagem se mede por carros no mes; pecas e secundario.
+                "meta_carros": float(meta_veic.get("meta_carros") or 0),
+                "meta_carros_bonus": float(meta_veic.get("meta_carros_bonus") or 0),
                 # `id` vai junto pra tela deixar a contagem de pecas editavel
                 # na lista do mes — o carro entra "a contar" e o numero vem depois.
                 "lista": sorted(({"id": vid, "data": v.get("data"), "carro": v.get("carro"),

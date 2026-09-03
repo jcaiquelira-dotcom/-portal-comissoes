@@ -799,3 +799,8 @@
 /* Peças editáveis na lista de veículos (03/09/2026): o carro entra "a contar" e o número vem depois. */
 .mb-pecas{width:72px;padding:3px 6px;font:inherit;font-size:12.5px;text-align:right;background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:5px;}
 .mb-pecas:placeholder-shown{border-color:var(--accent);}
+
+/* Comparativo do Meta Bonus (03/09/2026) */
+.mb-cmp td.n,.mb-cmp th.n{text-align:right;font-variant-numeric:tabular-nums;}
+.mb-cmp tr.mb-cmp-setor td{font-family:"Oswald",sans-serif;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:11px;color:var(--muted);padding-top:10px;border-bottom:none;}
+.mb-cmp tr.mb-cmp-total td{font-weight:600;border-top:1px solid var(--line);}

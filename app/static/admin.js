@@ -1907,7 +1907,9 @@ async function mbSalvarMetaVeic(){
   const res = await fetch('/api/admin/metas-bonus/meta-veiculos', {method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({meta: document.getElementById('mbMetaVeic').value,
-      meta_bonus: document.getElementById('mbMetaVeicBonus').value})});
+      meta_bonus: document.getElementById('mbMetaVeicBonus').value,
+      meta_carros: document.getElementById('mbMetaCarros').value,
+      meta_carros_bonus: document.getElementById('mbMetaCarrosBonus').value})});
   const d = await res.json().catch(() => ({}));
   if(!res.ok){
     status.textContent = d.erro || 'Erro ao salvar a meta de peças.';
@@ -1917,6 +1919,63 @@ async function mbSalvarMetaVeic(){
   status.textContent = 'Meta de peças salva.';
   status.classList.add('show');
   carregarMetaBonus(document.getElementById('mbMes').value);
+}
+
+/* Comparativo dos últimos 6 meses: produção por pessoa e por setor, carros e
+   peças, com a variação contra o mês anterior. Cor da célula = onde ficou
+   contra a meta daquela pessoa. Mês em andamento é comparado pela projeção
+   (produção ÷ dias corridos × dias do mês), senão dia 3 sempre "caiu". */
+function mbComparativo(d){
+  const c = d.comparativo;
+  if(!c || !c.meses || !c.meses.length) return '';
+  const meses = c.meses, atual = d.mes, r = d.ritmo;
+  const n = x => (x || 0).toLocaleString('pt-BR', {maximumFractionDigits: 0});
+  const rot = m => MB_MESES[Number(m.slice(5,7)) - 1].slice(0,3) + '/' + m.slice(2,4);
+  const proj = (m, val) => (m === atual && r && r.dias_corridos) ? val / r.dias_corridos * r.dias_no_mes : val;
+  const delta = (serie) => {
+    const i = meses.indexOf(atual);
+    if(i < 1) return '';
+    const agora = proj(atual, serie[atual] || 0), antes = serie[meses[i-1]] || 0;
+    if(!antes) return agora ? '<span class="dp-var neutro">novo</span>' : '';
+    const pct = 100 * (agora - antes) / antes;
+    const cls = pct > 2 ? 'sobe' : (pct < -2 ? 'desce' : 'neutro');
+    const seta = pct > 2 ? '▲' : (pct < -2 ? '▼' : '=');
+    return `<span class="dp-var ${cls}" title="${r ? 'projeção do mês vs anterior' : 'vs mês anterior'}">${seta} ${Math.abs(pct).toFixed(0)}%</span>`;
+  };
+  const cor = (val, meta, bonus) => !val ? 'var(--muted)'
+    : (bonus && val >= bonus ? 'var(--good)' : (meta && val >= meta ? 'var(--accent)' : 'var(--bad)'));
+  const cel = (val, meta, bonus, m) => `<td class="n" style="color:${cor(val, meta, bonus)}${m === atual ? ';font-weight:600' : ''}">${val ? n(val) : '—'}</td>`;
+
+  const setores = [...new Set(c.pessoas.map(p => p.setor))];
+  const blocos = setores.map(setor => {
+    const gente = c.pessoas.filter(p => p.setor === setor);
+    const tot = c.setores[setor] || {};
+    return `<tr class="mb-cmp-setor"><td colspan="${meses.length + 2}">${d.rotulos[setor] || setor}</td></tr>
+      ${gente.map(p => `<tr><td>${p.nome}</td>
+        ${meses.map(m => cel(p.por_mes[m], p.meta, p.meta_bonus, m)).join('')}
+        <td>${delta(p.por_mes)}</td></tr>`).join('')}
+      <tr class="mb-cmp-total"><td>Total do setor</td>
+        ${meses.map(m => `<td class="n">${tot[m] ? n(tot[m]) : '—'}</td>`).join('')}
+        <td>${delta(tot)}</td></tr>`;
+  }).join('');
+  const carros = Object.fromEntries(meses.map(m => [m, (c.veiculos[m] || {}).carros || 0]));
+  const pecas = Object.fromEntries(meses.map(m => [m, (c.veiculos[m] || {}).pecas || 0]));
+
+  return `<div class="card" style="margin-bottom:14px;">
+    <p class="card-titulo">Comparativo dos últimos 6 meses</p>
+    <div class="tabela-rolante"><table class="mb-cmp">
+      <thead><tr><th></th>${meses.map(m => `<th class="n"${m === atual ? ' style="color:var(--text)"' : ''}>${rot(m)}</th>`).join('')}
+        <th>${r ? 'projeção vs anterior' : 'vs anterior'}</th></tr></thead>
+      <tbody>${blocos}
+        <tr class="mb-cmp-setor"><td colspan="${meses.length + 2}">Desmontagem</td></tr>
+        <tr><td>Carros</td>${meses.map(m => cel(carros[m], d.veiculos.meta_carros, d.veiculos.meta_carros_bonus, m)).join('')}<td>${delta(carros)}</td></tr>
+        <tr><td>Peças</td>${meses.map(m => cel(pecas[m], d.veiculos.meta, d.veiculos.meta_bonus, m)).join('')}<td>${delta(pecas)}</td></tr>
+      </tbody></table></div>
+    <div class="dp-aviso">Verde = bateu o bônus; laranja = bateu a meta; vermelho = abaixo.
+      ${r ? `<b>${rot(atual)} está em andamento</b> (dia ${r.dias_corridos} de ${r.dias_no_mes}): a seta compara a
+      <b>projeção</b> do mês, produção até agora dividida pelos dias corridos, com o mês anterior fechado.` :
+      'A seta compara com o mês anterior.'} Quem não produziu no mês fica com traço.</div>
+  </div>`;
 }
 
 /* Saldo de bônus. Regra do gestor (03/09/2026): a cada 50 acima da meta,
@@ -2035,7 +2094,10 @@ function renderMetaBonus(d){
   const kpis = [
     kpi('No bônus', noBonus, `de ${todas.length} pessoas`, noBonus ? 'var(--good)' : null),
     kpi('Na meta', naMeta, `de ${todas.length} pessoas`),
-    kpi('Carros desmontados', v.carros),
+    kpi('Carros desmontados', v.carros,
+        v.meta_carros ? `meta ${v.meta_carros.toLocaleString('pt-BR')} · bônus ${(v.meta_carros_bonus || 0).toLocaleString('pt-BR')}` : 'sem meta de carros',
+        !v.meta_carros ? null : (v.carros >= (v.meta_carros_bonus || Infinity) ? 'var(--good)'
+          : (v.carros >= v.meta_carros ? 'var(--accent)' : 'var(--bad)'))),
     kpi('Peças no mês', v.pecas.toLocaleString('pt-BR'),
         `meta ${v.meta.toLocaleString('pt-BR')} · bônus ${v.meta_bonus.toLocaleString('pt-BR')}`,
         v.pecas >= v.meta_bonus ? 'var(--good)' : (v.pecas >= v.meta ? 'var(--accent)' : 'var(--bad)')),
@@ -2072,14 +2134,17 @@ function renderMetaBonus(d){
 
   // Meta de peças do mês: os campos ficam no bloco de lançamento; aqui só
   // mostro o valor atual (sem pisar no que o gestor estiver digitando).
-  const mvMeta = document.getElementById('mbMetaVeic');
-  const mvBonus = document.getElementById('mbMetaVeicBonus');
-  if(mvMeta && document.activeElement !== mvMeta) mvMeta.value = v.meta || '';
-  if(mvBonus && document.activeElement !== mvBonus) mvBonus.value = v.meta_bonus || '';
+  for(const [id, val] of [['mbMetaVeic', v.meta], ['mbMetaVeicBonus', v.meta_bonus],
+                          ['mbMetaCarros', v.meta_carros], ['mbMetaCarrosBonus', v.meta_carros_bonus]]){
+    const el = document.getElementById(id);
+    if(el && document.activeElement !== el) el.value = val || '';
+  }
 
   // Peças editável na própria lista: o carro entra no dia em que chega, "a
   // contar", e a contagem é preenchida quando a desmontagem termina — sem
   // precisar voltar à data do lançamento.
+  const cardComparativo = mbComparativo(d);
+
   const aContar = v.lista.filter(c => !c.pecas).length;
   mbVeiculosMes = v.lista;   // a canetinha da tabela precisa dos dados do carro
   const cardVeiculos = `<div class="card">
@@ -2100,6 +2165,7 @@ function renderMetaBonus(d){
   document.getElementById('mbCorpo').innerHTML = `
     <div class="dp-kpis">${kpis}</div>
     ${setores}
+    ${cardComparativo}
     <div class="card" style="margin-bottom:14px;">
       <p class="card-titulo">Quem bateu o bônus, mês a mês</p>
       <div style="overflow-x:auto"><svg class="dp-svg" viewBox="0 0 ${larg} ${alt}" height="${alt}">${barras}</svg></div>
@@ -3133,7 +3199,9 @@ async function carregarMlResultado(){
 
 function pintarMlResultado(){
   const el = document.getElementById('mlResultado');
-  if(!el || !mlFatDados) return;
+  // resumoAtual ainda nao existe quando a pagina abre direto noutra aba
+  // (#metabonus): sem o guard, "Cannot read properties of null" no console.
+  if(!el || !mlFatDados || !resumoAtual) return;
   if(document.getElementById('vendedorFiltro').value){ el.innerHTML = ''; return; }
 
   /* Sem dado o card APARECE, dizendo em que pé está. Esconder era o que eu

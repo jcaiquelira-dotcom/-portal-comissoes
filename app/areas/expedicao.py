@@ -668,6 +668,38 @@ def api_admin_metas_bonus():
         ritmo = {"dias_no_mes": dias, "dias_corridos": hoje.day,
                  "pct_do_mes": round(100 * hoje.day / dias)}
 
+    # Comparativo dos ultimos 6 meses (calendario, terminando no mes escolhido):
+    # producao por pessoa e por setor, carros e pecas. Pedido do gestor em
+    # 03/09/2026: "so tem informacao atual, quero ver se caiu ou subiu".
+    ano, mn = int(mes[:4]), int(mes[5:7])
+    janela = []
+    for k in range(5, -1, -1):
+        a, m_ = ano, mn - k
+        while m_ <= 0:
+            a, m_ = a - 1, m_ + 12
+        janela.append(f"{a:04d}-{m_:02d}")
+    pessoas_cmp, setor_tot, veic_cmp = {}, {}, {}
+    for m in janela:
+        dm = meses.get(m)
+        veic_cmp[m] = {"carros": dm["veiculos"]["carros"] if dm else 0,
+                       "pecas": dm["veiculos"]["pecas"] if dm else 0}
+        if not dm:
+            continue
+        for setor, linhas in dm["setores"].items():
+            for p in linhas:
+                reg = pessoas_cmp.setdefault((setor, p["nome"]), {
+                    "setor": setor, "nome": p["nome"], "meta": p["meta"],
+                    "meta_bonus": p["meta_bonus"], "por_mes": {}})
+                reg["por_mes"][m] = p["total"]
+                setor_tot.setdefault(setor, {})[m] = setor_tot.get(setor, {}).get(m, 0) + p["total"]
+    comparativo = {
+        "meses": janela,
+        "pessoas": sorted(pessoas_cmp.values(),
+                          key=lambda x: (x["setor"], -x["por_mes"].get(mes, 0), x["nome"])),
+        "setores": setor_tot,
+        "veiculos": veic_cmp,
+    }
+
     return jsonify({
         "lancar": {
             "pessoas": {setor: sorted(({"id": pid, "nome": p.get("nome") or "?"}
@@ -683,4 +715,5 @@ def api_admin_metas_bonus():
         "veiculos": atual["veiculos"],
         "historico": historico,
         "ritmo": ritmo,
+        "comparativo": comparativo,
     })

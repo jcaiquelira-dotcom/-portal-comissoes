@@ -46,6 +46,11 @@ planilha dizia 35 — número digitado à mão e repetido igual em julho, agosto
 setembro. Ficou 15. Se o certo é 35, é um ajuste de saldo inicial (rota
 `saldos/base`), me pede.
 
+### 2.9 Meta de carros da desmontagem: qual é?
+Desmontagem passou a ser medida por carros no mês (03/09). O campo existe no painel
+("Meta de carros no mês" e "Bônus de carros", ao lado dos carros) mas está vazio —
+o KPI diz "sem meta de carros" até você preencher. Os últimos meses: 10, 7, 14, 11.
+
 ### 2.7 Meta Bônus: planilha acaba em outubro — última importação no fim de setembro
 Decidido em 03/09: a partir de 10/2026 tudo é lançado direto no painel e a
 "Gestão de Processos.xlsx" deixa de existir. Setembro ainda pode ser preenchido

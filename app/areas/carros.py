@@ -346,14 +346,19 @@ def api_mb_meta_veiculos():
     if not exigir_area("metabonus"):
         return jsonify({"erro": "Não autenticado."}), 401
     corpo = request.get_json(silent=True) or {}
-    novo = {}
-    for campo in ("meta", "meta_bonus"):
+    dados = _mb_bruto()
+    novo = dict(dados["meta_veiculos"])
+    # Desmontagem se mede por CARROS no mes (regra do gestor, 03/09/2026);
+    # pecas e a medida secundaria. Os quatro campos sao opcionais: o que nao
+    # vier no corpo fica como esta.
+    for campo in ("meta", "meta_bonus", "meta_carros", "meta_carros_bonus"):
+        if campo not in corpo:
+            continue
         bruto = str(corpo.get(campo) or "").strip().replace(",", ".")
         try:
             novo[campo] = float(bruto) if bruto else 0.0
         except ValueError:
             return jsonify({"erro": f"Valor inválido em {campo}."}), 400
-    dados = _mb_bruto()
     dados["meta_veiculos"] = novo
     _mb_gravar(dados)
     return jsonify({"ok": True, **novo})
