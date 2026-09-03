@@ -233,7 +233,10 @@ def api_admin_rh():
 # veio da planilha "Colaboradores 2026.xlsx" via ferramentas/importar_folha.py.
 # Descontos ao lado de cada pagamento (03/09/2026): vale/adiantamento, emprestimo,
 # falta... abatidos do dia 05, do dia 10 ou do dia 20, a escolha do gestor.
-CAMPOS_FOLHA_VALOR = ("vale", "desc05", "bonus", "comissao", "desc10", "salario", "desc20")
+# Bonificacao e VT sao pagos no dia 05 com o vale (planilha antiga: Total Dia 5 =
+# Dia 05 + Bonificacao + VT) e mudam mes a mes — por isso editaveis aqui, com o
+# valor da ficha como sugestao.
+CAMPOS_FOLHA_VALOR = ("vale", "bonificacao", "vt", "desc05", "bonus", "comissao", "desc10", "salario", "desc20")
 CAMPOS_FOLHA_TEXTO = ("tipo05", "tipo10", "tipo20", "obs")
 TIPOS_DESCONTO = {"": "", "adiantamento": "Vale / adiantamento", "emprestimo": "Empréstimo",
                   "falta": "Falta", "outro": "Outro"}
@@ -292,7 +295,7 @@ def _folha_linhas(mes: str) -> dict:
         if not ativo and not tem_valor:
             continue
         vals = {k: float(reg.get(k) or 0) for k in CAMPOS_FOLHA_VALOR}
-        liq05 = vals["vale"] - vals["desc05"]
+        liq05 = vals["vale"] + vals["bonificacao"] + vals["vt"] - vals["desc05"]
         liq10 = vals["bonus"] + vals["comissao"] - vals["desc10"]
         liq20 = vals["salario"] - vals["desc20"]
         linhas.append({
@@ -304,7 +307,8 @@ def _folha_linhas(mes: str) -> dict:
             "liq05": round(liq05, 2), "liq10": round(liq10, 2), "liq20": round(liq20, 2),
             "total": round(liq05 + liq10 + liq20, 2),
             "preenchido": tem_valor,
-            "sugestao": sugestoes.get(cid) or {},
+            "sugestao": {**{k: v for k, v in (("bonificacao", float(c.get("bonificacao") or 0)), ("vt", float(c.get("vt") or 0))) if v},
+                         **(sugestoes.get(cid) or {})},
         })
     linhas.sort(key=lambda x: (x["situacao"] != "ativo", (x["apelido"] or x["nome"]).lower()))
     totais = {k: round(sum(l[k] for l in linhas), 2) for k in CAMPOS_FOLHA_VALOR}

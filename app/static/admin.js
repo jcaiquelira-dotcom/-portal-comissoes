@@ -2565,7 +2565,7 @@ async function rhCarregarFolha(mes){
     return `<td class="n"><input type="number" min="0" step="0.01" inputmode="decimal"
       class="rh-folha-valor" data-rhfolha="${l.id}" data-campo="${k}" value="${l[k] ? l[k] : ''}"
       placeholder="${s ? n(s) : '—'}"${s ? ` data-sugestao="${s}" title="Sugestão do portal: ${rhMoeda(s)}"` : ''}></td>`; };
-  const temSugestao = d.linhas.some(l => l.sugestao && (l.sugestao.bonus || l.sugestao.comissao));
+  const temSugestao = d.linhas.some(l => l.sugestao && Object.values(l.sugestao).some(Boolean));
   const texto = (l, k, ph) => `<td><input type="text" class="rh-folha-texto" data-rhfolha="${l.id}" data-campo="${k}"
       value="${rhEsc(l[k])}" placeholder="${ph}"></td>`;
   // Desconto ao lado de cada pagamento: valor + o que é (vale/adiantamento,
@@ -2584,7 +2584,7 @@ async function rhCarregarFolha(mes){
       <td><b>${rhEsc(l.apelido || l.nome)}</b>${l.apelido ? ` <small>${rhEsc(l.nome)}</small>` : ''}
         ${l.situacao !== 'ativo' ? ` <small>(${l.situacao})</small>` : ''}<br><small>${rhEsc(l.setor || '—')}</small></td>
       <td class="n" style="color:var(--muted)">${l.salario_ref ? n(l.salario_ref) : '—'}<br><small>VT ${n(l.vt_ref)} · bonif. ${n(l.bonificacao_ref)}</small></td>
-      ${campo(l, 'vale')}${desconto(l, '05')}
+      ${campo(l, 'vale')}${campo(l, 'bonificacao')}${campo(l, 'vt')}${desconto(l, '05')}
       ${campo(l, 'bonus')}${campo(l, 'comissao')}${desconto(l, '10')}
       ${campo(l, 'salario')}${desconto(l, '20')}
       ${texto(l, 'obs', 'observação')}
@@ -2592,7 +2592,7 @@ async function rhCarregarFolha(mes){
     </tr>`).join('');
   alvo.innerHTML = `
     <div class="dp-kpis" style="margin:10px 0 12px;">
-      ${kpi('Dia 05 · vale', t.dia05, t.desc05 ? `líquido de ${rhMoeda(t.desc05)} em descontos` : '')}
+      ${kpi('Dia 05 · vale + bonificação + VT', t.dia05, `vale ${rhMoeda(t.vale)} · bonif. ${rhMoeda(t.bonificacao)} · VT ${rhMoeda(t.vt)}${t.desc05 ? ` · descontos ${rhMoeda(t.desc05)}` : ''}`)}
       ${kpi(`Dia 10 · meta bônus + comissões de ${refDia10}`, t.dia10, `bônus ${rhMoeda(t.bonus)} · comissões ${rhMoeda(t.comissao)}${t.desc10 ? ` · descontos ${rhMoeda(t.desc10)}` : ''}`)}
       ${kpi('Dia 20 · restante do salário', t.dia20, t.desc20 ? `líquido de ${rhMoeda(t.desc20)} em descontos` : '')}
       ${kpi('Total líquido do mês', t.mes, `${d.preenchidos} de ${d.linhas.length} pessoas com valor${t.descontos ? ` · ${rhMoeda(t.descontos)} descontados` : ''}`)}
@@ -2600,15 +2600,15 @@ async function rhCarregarFolha(mes){
     <div class="tabela-rolante"><table class="rh-folha">
       <thead>
         <tr><th rowspan="2">Pessoa</th><th rowspan="2" class="n">Salário na ficha</th>
-          <th colspan="2" class="rh-grupo">Dia 05</th><th colspan="3" class="rh-grupo">Dia 10 · ref. ${refDia10}</th>
+          <th colspan="4" class="rh-grupo">Dia 05</th><th colspan="3" class="rh-grupo">Dia 10 · ref. ${refDia10}</th>
           <th colspan="2" class="rh-grupo">Dia 20</th><th rowspan="2">Observações</th><th rowspan="2" class="n">Total líquido</th></tr>
-        <tr><th class="n">vale</th><th>desconto</th>
+        <tr><th class="n">vale</th><th class="n">bonificação</th><th class="n">VT</th><th>desconto</th>
           <th class="n">meta bônus</th><th class="n">comissão</th><th>desconto</th>
           <th class="n">restante</th><th>desconto</th></tr>
       </thead>
       <tbody>${linhas}</tbody></table></div>
-    ${temSugestao ? `<div style="margin:8px 0;"><button class="btn btn-neutro btn-pequeno" id="rhFolhaSugerir">Preencher dia 10 com o portal</button>
-      <small style="color:var(--muted);margin-left:8px;">O dia 10 paga o <b>mês anterior</b>: bônus = pagamentos marcados como Pago no Meta Bônus de ${d.referencia_dia10 ? d.referencia_dia10.slice(5) + '/' + d.referencia_dia10.slice(2,4) : 'mês anterior'}; comissão = aba Comissões do mesmo mês. Só entra em campo vazio; depois é só salvar.</small></div>` : ''}
+    ${temSugestao ? `<div style="margin:8px 0;"><button class="btn btn-neutro btn-pequeno" id="rhFolhaSugerir">Preencher com o portal</button>
+      <small style="color:var(--muted);margin-left:8px;">Bonificação e VT vêm da ficha da pessoa. O dia 10 paga o <b>mês anterior</b>: bônus = pagamentos marcados como Pago no Meta Bônus de ${d.referencia_dia10 ? d.referencia_dia10.slice(5) + '/' + d.referencia_dia10.slice(2,4) : 'mês anterior'}; comissão = aba Comissões do mesmo mês. Só entra em campo vazio; depois é só salvar.</small></div>` : ''}
     <div class="dp-aviso">${d.preenchidos ? '' : '<b>Mês em branco.</b> '}Tudo é editável, mês a mês — a folha muda
       com impostos e descontos. O desconto ao lado de cada dia (vale/adiantamento, empréstimo, falta, outro)
       é abatido daquele pagamento; o total da pessoa é líquido. Digite e clique em <b>Salvar mês</b>.
