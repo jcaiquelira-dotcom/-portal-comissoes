@@ -2568,35 +2568,50 @@ async function rhCarregarFolha(mes){
   const temSugestao = d.linhas.some(l => l.sugestao && (l.sugestao.bonus || l.sugestao.comissao));
   const texto = (l, k, ph) => `<td><input type="text" class="rh-folha-texto" data-rhfolha="${l.id}" data-campo="${k}"
       value="${rhEsc(l[k])}" placeholder="${ph}"></td>`;
+  // Desconto ao lado de cada pagamento: valor + o que é (vale/adiantamento,
+  // empréstimo, falta, outro). Abate daquele dia; o total da pessoa é líquido.
+  const tipos = d.tipos_desconto || {};
+  const desconto = (l, dia) => `<td class="n rh-desc"><input type="number" min="0" step="0.01" inputmode="decimal"
+      class="rh-folha-valor rh-folha-desc" data-rhfolha="${l.id}" data-campo="desc${dia}" value="${l['desc' + dia] ? l['desc' + dia] : ''}" placeholder="—" title="Desconto no dia ${dia}">
+      <select class="rh-folha-tipo" data-rhfolha="${l.id}" data-campo="tipo${dia}" title="O que é este desconto">
+        ${Object.entries(tipos).map(([v, r]) => `<option value="${v}"${l['tipo' + dia] === v ? ' selected' : ''}>${r || 'tipo…'}</option>`).join('')}
+      </select></td>`;
   const t = d.totais;
   const kpi = (rot, num, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
     <div class="num valor-money">${rhMoeda(num)}</div>${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+  const refDia10 = d.referencia_dia10 ? `${MB_MESES[Number(d.referencia_dia10.slice(5,7)) - 1].slice(0,3)}/${d.referencia_dia10.slice(2,4)}` : 'mês anterior';
   const linhas = d.linhas.map(l => `<tr${l.situacao !== 'ativo' ? ' style="color:var(--muted)"' : ''}>
       <td><b>${rhEsc(l.apelido || l.nome)}</b>${l.apelido ? ` <small>${rhEsc(l.nome)}</small>` : ''}
         ${l.situacao !== 'ativo' ? ` <small>(${l.situacao})</small>` : ''}<br><small>${rhEsc(l.setor || '—')}</small></td>
       <td class="n" style="color:var(--muted)">${l.salario_ref ? n(l.salario_ref) : '—'}<br><small>VT ${n(l.vt_ref)} · bonif. ${n(l.bonificacao_ref)}</small></td>
-      ${campo(l, 'vale')}${campo(l, 'bonus')}${campo(l, 'comissao')}${campo(l, 'salario')}
-      ${texto(l, 'descontos', 'descontos')}${texto(l, 'obs', 'observação')}
+      ${campo(l, 'vale')}${desconto(l, '05')}
+      ${campo(l, 'bonus')}${campo(l, 'comissao')}${desconto(l, '10')}
+      ${campo(l, 'salario')}${desconto(l, '20')}
+      ${texto(l, 'obs', 'observação')}
       <td class="n"><b data-rhtotal="${l.id}">${l.total ? n(l.total) : '—'}</b></td>
     </tr>`).join('');
   alvo.innerHTML = `
     <div class="dp-kpis" style="margin:10px 0 12px;">
-      ${kpi('Dia 05 · vale', t.dia05)}
-      ${kpi(`Dia 10 · meta bônus + comissões${d.referencia_dia10 ? ` de ${MB_MESES[Number(d.referencia_dia10.slice(5,7)) - 1].slice(0,3)}/${d.referencia_dia10.slice(2,4)}` : ''}`, t.dia10, `bônus ${rhMoeda(t.bonus)} · comissões ${rhMoeda(t.comissao)}`)}
-      ${kpi('Dia 20 · restante do salário', t.dia20)}
-      ${kpi('Total do mês', t.mes, `${d.preenchidos} de ${d.linhas.length} pessoas com valor`)}
+      ${kpi('Dia 05 · vale', t.dia05, t.desc05 ? `líquido de ${rhMoeda(t.desc05)} em descontos` : '')}
+      ${kpi(`Dia 10 · meta bônus + comissões de ${refDia10}`, t.dia10, `bônus ${rhMoeda(t.bonus)} · comissões ${rhMoeda(t.comissao)}${t.desc10 ? ` · descontos ${rhMoeda(t.desc10)}` : ''}`)}
+      ${kpi('Dia 20 · restante do salário', t.dia20, t.desc20 ? `líquido de ${rhMoeda(t.desc20)} em descontos` : '')}
+      ${kpi('Total líquido do mês', t.mes, `${d.preenchidos} de ${d.linhas.length} pessoas com valor${t.descontos ? ` · ${rhMoeda(t.descontos)} descontados` : ''}`)}
     </div>
     <div class="tabela-rolante"><table class="rh-folha">
-      <thead><tr><th>Pessoa</th><th class="n">Salário na ficha</th>
-        <th class="n">Dia 05<br><small>vale</small></th>
-        <th class="n">Dia 10<br><small>meta bônus</small></th>
-        <th class="n">Dia 10<br><small>comissão</small></th>
-        <th class="n">Dia 20<br><small>restante</small></th>
-        <th>Descontos</th><th>Observações</th><th class="n">Total</th></tr></thead>
+      <thead>
+        <tr><th rowspan="2">Pessoa</th><th rowspan="2" class="n">Salário na ficha</th>
+          <th colspan="2" class="rh-grupo">Dia 05</th><th colspan="3" class="rh-grupo">Dia 10 · ref. ${refDia10}</th>
+          <th colspan="2" class="rh-grupo">Dia 20</th><th rowspan="2">Observações</th><th rowspan="2" class="n">Total líquido</th></tr>
+        <tr><th class="n">vale</th><th>desconto</th>
+          <th class="n">meta bônus</th><th class="n">comissão</th><th>desconto</th>
+          <th class="n">restante</th><th>desconto</th></tr>
+      </thead>
       <tbody>${linhas}</tbody></table></div>
     ${temSugestao ? `<div style="margin:8px 0;"><button class="btn btn-neutro btn-pequeno" id="rhFolhaSugerir">Preencher dia 10 com o portal</button>
       <small style="color:var(--muted);margin-left:8px;">O dia 10 paga o <b>mês anterior</b>: bônus = pagamentos marcados como Pago no Meta Bônus de ${d.referencia_dia10 ? d.referencia_dia10.slice(5) + '/' + d.referencia_dia10.slice(2,4) : 'mês anterior'}; comissão = aba Comissões do mesmo mês. Só entra em campo vazio; depois é só salvar.</small></div>` : ''}
-    <div class="dp-aviso">${d.preenchidos ? '' : '<b>Mês em branco.</b> '}Digite e clique em <b>Salvar mês</b>.
+    <div class="dp-aviso">${d.preenchidos ? '' : '<b>Mês em branco.</b> '}Tudo é editável, mês a mês — a folha muda
+      com impostos e descontos. O desconto ao lado de cada dia (vale/adiantamento, empréstimo, falta, outro)
+      é abatido daquele pagamento; o total da pessoa é líquido. Digite e clique em <b>Salvar mês</b>.
       Zero ou vazio em todos os valores apaga a linha do mês. Meses com dados:
       ${d.meses_com_dados.length ? d.meses_com_dados.map(m => `<a href="#" data-rhfolhames="${m}">${m.slice(5)}/${m.slice(2,4)}</a>`).join(' · ') : 'nenhum ainda'}.
       Janeiro a agosto de 2026 vieram da planilha "Colaboradores 2026", só pra análise.</div>`;
@@ -2604,7 +2619,7 @@ async function rhCarregarFolha(mes){
 
 function rhFolhaRecalcular(cid){
   const vals = [...document.querySelectorAll(`.rh-folha-valor[data-rhfolha="${cid}"]`)]
-    .reduce((s, i) => s + (Number(i.value) || 0), 0);
+    .reduce((s, i) => s + (Number(i.value) || 0) * (i.dataset.campo.startsWith('desc') ? -1 : 1), 0);
   const alvo = document.querySelector(`[data-rhtotal="${cid}"]`);
   if(alvo) alvo.textContent = vals ? vals.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '—';
 }

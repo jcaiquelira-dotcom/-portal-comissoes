@@ -810,3 +810,8 @@
 .rh-folha input.rh-folha-valor{width:92px;padding:4px 6px;font:inherit;font-size:12.5px;text-align:right;background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:5px;}
 .rh-folha input.rh-folha-texto{width:150px;padding:4px 6px;font:inherit;font-size:12px;background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:5px;}
 .rh-folha th small{font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;}
+
+.rh-folha td.rh-desc{white-space:nowrap;}
+.rh-folha input.rh-folha-desc{width:78px;color:var(--bad);}
+.rh-folha select.rh-folha-tipo{margin-left:3px;padding:3px 4px;font:inherit;font-size:11.5px;background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:5px;max-width:120px;}
+.rh-folha th.rh-grupo{text-align:center;border-bottom:1px solid var(--line);}

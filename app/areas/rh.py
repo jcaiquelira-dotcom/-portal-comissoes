@@ -231,8 +231,12 @@ def api_admin_rh():
 # Chave rh_folha: {mes: {colaborador_id: {vale, bonus, comissao, salario,
 # descontos, obs}}}. Mes sem dado fica em branco; o historico (jan-ago/26)
 # veio da planilha "Colaboradores 2026.xlsx" via ferramentas/importar_folha.py.
-CAMPOS_FOLHA_VALOR = ("vale", "bonus", "comissao", "salario")
-CAMPOS_FOLHA_TEXTO = ("descontos", "obs")
+# Descontos ao lado de cada pagamento (03/09/2026): vale/adiantamento, emprestimo,
+# falta... abatidos do dia 05, do dia 10 ou do dia 20, a escolha do gestor.
+CAMPOS_FOLHA_VALOR = ("vale", "desc05", "bonus", "comissao", "desc10", "salario", "desc20")
+CAMPOS_FOLHA_TEXTO = ("tipo05", "tipo10", "tipo20", "obs")
+TIPOS_DESCONTO = {"": "", "adiantamento": "Vale / adiantamento", "emprestimo": "Empréstimo",
+                  "falta": "Falta", "outro": "Outro"}
 
 
 def _folha_sugestoes(mes: str, colaboradores: dict) -> dict:
@@ -288,25 +292,31 @@ def _folha_linhas(mes: str) -> dict:
         if not ativo and not tem_valor:
             continue
         vals = {k: float(reg.get(k) or 0) for k in CAMPOS_FOLHA_VALOR}
+        liq05 = vals["vale"] - vals["desc05"]
+        liq10 = vals["bonus"] + vals["comissao"] - vals["desc10"]
+        liq20 = vals["salario"] - vals["desc20"]
         linhas.append({
             "id": cid, "nome": c.get("nome") or "?", "apelido": c.get("apelido") or "",
             "setor": c.get("setor") or "", "situacao": c.get("situacao") or "ativo",
             "salario_ref": float(c.get("salario") or 0), "vt_ref": float(c.get("vt") or 0),
             "bonificacao_ref": float(c.get("bonificacao") or 0),
-            **vals, "descontos": reg.get("descontos") or "", "obs": reg.get("obs") or "",
-            "total": round(sum(vals.values()), 2),
+            **vals, **{k: reg.get(k) or "" for k in CAMPOS_FOLHA_TEXTO},
+            "liq05": round(liq05, 2), "liq10": round(liq10, 2), "liq20": round(liq20, 2),
+            "total": round(liq05 + liq10 + liq20, 2),
             "preenchido": tem_valor,
             "sugestao": sugestoes.get(cid) or {},
         })
     linhas.sort(key=lambda x: (x["situacao"] != "ativo", (x["apelido"] or x["nome"]).lower()))
     totais = {k: round(sum(l[k] for l in linhas), 2) for k in CAMPOS_FOLHA_VALOR}
-    totais["dia05"] = totais["vale"]
-    totais["dia10"] = round(totais["bonus"] + totais["comissao"], 2)
-    totais["dia20"] = totais["salario"]
+    totais["dia05"] = round(sum(l["liq05"] for l in linhas), 2)
+    totais["dia10"] = round(sum(l["liq10"] for l in linhas), 2)
+    totais["dia20"] = round(sum(l["liq20"] for l in linhas), 2)
+    totais["descontos"] = round(totais["desc05"] + totais["desc10"] + totais["desc20"], 2)
     totais["mes"] = round(sum(l["total"] for l in linhas), 2)
     meses = sorted(m for m, regs in folha.items()
                    if any(any(float(r.get(k) or 0) for k in CAMPOS_FOLHA_VALOR) for r in regs.values()))
     return {"mes": mes, "linhas": linhas, "totais": totais, "meses_com_dados": meses,
+            "tipos_desconto": TIPOS_DESCONTO,
             "preenchidos": sum(1 for l in linhas if l["preenchido"]),
             "referencia_dia10": sugestoes.get("_referencia")}
 
@@ -356,6 +366,8 @@ def api_rh_folha_salvar():
             reg[k] = v
         for k in CAMPOS_FOLHA_TEXTO:
             reg[k] = _rh_texto(item.get(k), 200)
+            if k.startswith("tipo") and reg[k] not in TIPOS_DESCONTO:
+                return jsonify({"erro": f"Tipo de desconto inválido: {reg[k]}."}), 400
         if any(reg[k] for k in CAMPOS_FOLHA_VALOR) or any(reg[k] for k in CAMPOS_FOLHA_TEXTO):
             reg["editado_em"] = carimbo
             do_mes[cid] = reg
