@@ -81,7 +81,11 @@ def api_admin_site_gravar():
     atual = ler_json(resolver_pasta_dados() / "site_conta.json", None) or {}
     antiga = (atual.get("vendas") or {}).get("serie_dia") or {}
     juntas = {**antiga, **limpa}
+    # `**atual` primeiro: a chave tem outras secoes (a `analise` de perdas, da
+    # ferramenta analisar_perdas_site.py) e regravar so estas tres apagava o
+    # resto — foi assim que o painel de perdas sumiu em 03/09/2026.
     escrever_json(resolver_pasta_dados() / "site_conta.json", {
+        **atual,
         "gerado_em": agora_br().isoformat(timespec="seconds"),
         "fonte": corpo.get("fonte") or "painel do site (pedidos pagos)",
         "vendas": {"serie_dia": juntas, "serie_desde": min(juntas)},
