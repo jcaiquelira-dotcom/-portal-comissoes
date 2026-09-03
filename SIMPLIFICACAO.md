@@ -69,6 +69,11 @@ regra do server), `AGORA/FUSO`, `cred_google()` + `token_google()`, `saida_utf8(
 Os 15+11+6+4+18 pontos passam a importar dela. É a fase que impede o próximo bug
 do tipo "três mapas de atendente".
 
+**Estado (03/09):** feita. `app/nevada_comum.py` no portal; os dois repos usam.
+Sobrou, de propósito: o `server.py` (tem o próprio `ler_json/escrever_json` com a
+regra banco-ou-arquivo do Flask — é assunto da Fase 4) e duas ferramentas de mão
+(`importar_colaboradores`, `etl_simulador`) que ainda abrem o banco sozinhas.
+
 ### Fase 2 — um dono por chave
 Decidir, chave a chave, quem grava: pipeline local ou thread da nuvem. Sugestão:
 - **local**: `marketing_gasto` (Ads já vem da API), `analytics_site`, `perfil_google`

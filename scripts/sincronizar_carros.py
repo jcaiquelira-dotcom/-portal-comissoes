@@ -160,20 +160,11 @@ def resumir(carros):
 
 
 def gravar(carros, url):
-    import psycopg2
-    from psycopg2.extras import Json
-
     corpo = {"gerado_em": datetime.now().astimezone().isoformat(timespec="seconds"),
              "carros": carros}
-    conn = psycopg2.connect(url)
-    with conn, conn.cursor() as cur:
-        cur.execute("CREATE TABLE IF NOT EXISTS dados_json ("
-                    "chave TEXT PRIMARY KEY, valor JSONB NOT NULL)")
-        cur.execute("INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
-                    "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
-                    ("carros_chegar", Json(corpo)))
-    conn.close()
-    print("\n  gravado carros_chegar")
+    C.gravar_chave("carros_chegar", corpo)
+    print()
+    print("  gravado carros_chegar")
 
 
 def main():

@@ -341,12 +341,8 @@ def agregar(pedidos, desde: str | None):
 
 
 def gravar(serie: dict, fonte: str):
-    url = os.environ.get("DATABASE_URL")
-    if not url:
-        raise SystemExit("DATABASE_URL nao definida.")
-    import psycopg2
     from psycopg2.extras import Json
-    conn = psycopg2.connect(url)
+    conn = C.conexao()   # sem DATABASE_URL ela mesma para, com a mensagem de sempre
     with conn, conn.cursor() as cur:
         cur.execute("SELECT valor FROM dados_json WHERE chave='site_conta' FOR UPDATE")
         linha = cur.fetchone()

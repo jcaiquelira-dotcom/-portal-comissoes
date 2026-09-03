@@ -69,8 +69,7 @@ def _cred_do_banco():
     url = os.environ.get("DATABASE_URL")
     if not url:
         return None, None
-    import psycopg2
-    conn = psycopg2.connect(url)
+    conn = C.conexao()
     cur = conn.cursor()
     cur.execute("SELECT valor FROM dados_json WHERE chave='segredo_ml'")
     linha = cur.fetchone()
@@ -295,9 +294,8 @@ def coletar_ads(token, user_id):
 
 
 def gravar(pacote, url):
-    import psycopg2
     from psycopg2.extras import Json
-    conn = psycopg2.connect(url)
+    conn = C.conexao()
     with conn, conn.cursor() as cur:
         # A serie diaria acumula entre execucoes: a rodada de hoje so cobre a
         # janela baixada, e os dias antigos ja gravados nao podem sumir. Dia

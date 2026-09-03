@@ -112,20 +112,11 @@ def resumir(dados):
 
 
 def gravar(dados, url):
-    import psycopg2
-    from psycopg2.extras import Json
-
-    conn = psycopg2.connect(url)
-    with conn, conn.cursor() as cur:
-        cur.execute("CREATE TABLE IF NOT EXISTS dados_json ("
-                    "chave TEXT PRIMARY KEY, valor JSONB NOT NULL)")
-        cur.execute("INSERT INTO dados_json (chave, valor) VALUES (%s, %s) "
-                    "ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor",
-                    ("metas_bonus", Json({
-                        "gerado_em": datetime.now().astimezone().isoformat(timespec="seconds"),
-                        "meses": dados})))
-    conn.close()
-    print("\n  gravado metas_bonus")
+    C.gravar_chave("metas_bonus", {
+        "gerado_em": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "meses": dados})
+    print()
+    print("  gravado metas_bonus")
 
 
 def main():

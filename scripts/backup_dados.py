@@ -39,8 +39,6 @@ def main() -> int:
         print("backup: sem DATABASE_URL — nada a fazer")
         return 1
 
-    import psycopg2
-
     hoje = datetime.now(FUSO).date().isoformat()
     PASTA.mkdir(parents=True, exist_ok=True)
     destino = PASTA / f"dados_json-{hoje}.json.gz"
@@ -48,7 +46,7 @@ def main() -> int:
         print(f"backup: {destino.name} já existe — um por dia basta")
         return 0
 
-    con = psycopg2.connect(url)
+    con = C.conexao()
     with con.cursor() as cur:
         cur.execute("SELECT chave, valor FROM dados_json ORDER BY chave")
         dados = {chave: valor for chave, valor in cur.fetchall()}

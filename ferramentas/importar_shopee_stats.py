@@ -117,12 +117,8 @@ def main():
     formato, serie = ler(caminho)
     resumir(formato, serie)
 
-    url = os.environ.get("DATABASE_URL")
-    if not url:
-        raise SystemExit("DATABASE_URL não definida.")
-    import psycopg2
     from psycopg2.extras import Json
-    conn = psycopg2.connect(url)
+    conn = C.conexao()
     with conn, conn.cursor() as cur:
         cur.execute("SELECT valor FROM dados_json WHERE chave=%s FOR UPDATE", (chave,))
         linha = cur.fetchone()

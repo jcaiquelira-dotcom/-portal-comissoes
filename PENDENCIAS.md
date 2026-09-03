@@ -134,7 +134,11 @@ sem precisar subir pro GitHub.
 ### 5.5 Plano de simplificação — ver `SIMPLIFICACAO.md`
 Diagnóstico medido em 03/09 e plano em 6 fases (arrumar a casa → biblioteca
 comum → um dono por chave → um repositório → quebrar server.py/admin.html →
-banco de conversas). Cada fase é uma sessão. **Fase 0 concluída em 03/09.** Órfãos em `ferramentas/` e `_arquivo/` nos dois repos;
+banco de conversas). Cada fase é uma sessão. **Fase 1 concluída em 03/09** — biblioteca comum `app/nevada_comum.py`, duas ondas,
+tudo verificado rodando os scripts de verdade. Próxima: Fase 2 (um dono por chave),
+que precisa de decisão sua sobre nuvem × local.
+
+**Fase 0 concluída em 03/09.** Órfãos em `ferramentas/` e `_arquivo/` nos dois repos;
 `config/caminhos.json` + `app/caminhos.py` em cada um (21 caminhos absolutos viraram
 2 arquivos); `ml_auth.json` saiu de Documents pra `segredos/`. Deixado de propósito:
 o `.env` do vendas-insights fica onde está até a Fase 3 (um repositório) — mover

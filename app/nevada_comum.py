@@ -70,6 +70,10 @@ def url_banco() -> str:
         return url
     arq = segredo("database_url.txt")
     if arq.exists():
+        # Avisa, porque isto e PRODUCAO: um script rodado "so pra ver" sem a
+        # variavel no ambiente vai gravar no banco de verdade. Antes ele parava;
+        # agora segue, mas nunca calado.
+        print("  (DATABASE_URL veio de segredos/database_url.txt — gravando em producao)")
         return arq.read_text(encoding="utf-8").strip()
     raise SystemExit("DATABASE_URL nao definida (nem no ambiente, nem em segredos/database_url.txt).")
 
