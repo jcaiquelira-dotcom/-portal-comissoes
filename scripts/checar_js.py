@@ -23,6 +23,8 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+import nevada_comum as C  # biblioteca comum — ver app/nevada_comum.py
 
 RAIZ = Path(__file__).resolve().parent.parent
 TELAS = ["app/static/admin.html", "app/static/index.html",
@@ -210,5 +212,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    C.saida_utf8()
     sys.exit(main())

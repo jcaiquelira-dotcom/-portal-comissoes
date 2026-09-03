@@ -32,8 +32,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from openpyxl import load_workbook
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+import nevada_comum as C  # biblioteca comum — ver app/nevada_comum.py
 
-FUSO = timezone(timedelta(hours=-3))
+FUSO = C.FUSO
 # "27/08/2026" — data unica. A linha-resumo do topo traz intervalo
 # ("01/08/2026-27/08/2026") e por isso nao casa com fullmatch.
 PADRAO_DATA = re.compile(r"(\d{2})/(\d{2})/(\d{4})")
@@ -142,5 +144,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    C.saida_utf8()
     main()

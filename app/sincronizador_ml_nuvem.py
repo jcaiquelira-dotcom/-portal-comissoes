@@ -26,9 +26,10 @@ import urllib.parse
 import urllib.request
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+import nevada_comum as C  # biblioteca comum — ver app/nevada_comum.py
 
 API = "https://api.mercadolibre.com"
-FUSO = timezone(timedelta(hours=-3))
+FUSO = C.FUSO
 # Antes rodava 1x as 06:20 — e ai a venda de hoje so aparecia amanha, que foi
 # exatamente a queixa do gestor em 30/08/2026 ("coloquei pra atualizar as
 # vendas de hoje e nao consta nada"). Agora roda de hora em hora das 6h as 22h;

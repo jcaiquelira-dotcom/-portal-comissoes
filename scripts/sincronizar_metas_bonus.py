@@ -24,6 +24,7 @@ from datetime import datetime
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+import nevada_comum as C  # biblioteca comum — ver app/nevada_comum.py
 from caminhos import caminho  # config/caminhos.json — ver app/caminhos.py
 
 ORIGEM = caminho("painel_metas_data")
@@ -144,5 +145,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    C.saida_utf8()
     main()

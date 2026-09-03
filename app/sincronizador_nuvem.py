@@ -30,8 +30,9 @@ import time
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
+import nevada_comum as C  # biblioteca comum — ver app/nevada_comum.py
 
-FUSO = timezone(timedelta(hours=-3))
+FUSO = C.FUSO
 HORA_DIARIA = "06:45"     # antes do expediente abrir
 CONVERSAS = "actions_onsite_conversion_messaging_conversation_started_7d"
 

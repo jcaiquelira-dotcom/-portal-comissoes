@@ -25,8 +25,10 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+import nevada_comum as C  # biblioteca comum — ver app/nevada_comum.py
 
-FUSO = timezone(timedelta(hours=-3))
+FUSO = C.FUSO
 PASTA = Path(__file__).resolve().parent.parent / "segredos" / "backups"
 GUARDAR = 14
 

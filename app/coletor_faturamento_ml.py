@@ -27,9 +27,10 @@ import urllib.parse
 import urllib.request
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+import nevada_comum as C  # biblioteca comum — ver app/nevada_comum.py
 
 API = "https://api.mercadolibre.com"
-FUSO = timezone(timedelta(hours=-3))
+FUSO = C.FUSO
 # 1000 e o maximo que o endpoint aceita, e faz diferenca de outra ordem: o
 # limitador libera mais ou menos a cada 4 minutos, entao o custo do mes e o
 # NUMERO DE PAGINAS, nao o tamanho delas. Com 40 por pagina um mes levava 75

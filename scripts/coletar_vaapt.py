@@ -49,8 +49,10 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+import nevada_comum as C  # biblioteca comum — ver app/nevada_comum.py
 
-FUSO = timezone(timedelta(hours=-3))
+FUSO = C.FUSO
 RAIZ = Path(__file__).resolve().parent.parent
 SEGREDO = RAIZ / "segredos" / "vaapt.json"
 
@@ -405,5 +407,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    C.saida_utf8()
     main()

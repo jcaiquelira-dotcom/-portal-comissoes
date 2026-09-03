@@ -31,9 +31,10 @@ import time
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
+import nevada_comum as C  # biblioteca comum — ver app/nevada_comum.py
 
 BASE = "https://api.wts.chat"
-FUSO = timezone(timedelta(hours=-3))
+FUSO = C.FUSO
 
 ATENCAO, URGENTE, CRITICO = 15, 30, 60
 INTERVALO_S = 120

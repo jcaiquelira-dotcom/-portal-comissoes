@@ -37,6 +37,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+import nevada_comum as C  # biblioteca comum — ver app/nevada_comum.py
 from caminhos import caminho  # config/caminhos.json — ver app/caminhos.py
 
 from openpyxl import load_workbook
@@ -96,7 +97,7 @@ VENDEDOR_DO_PORTAL = {
     "gustavo": "gustavo", "matheus": "matheus",
 }
 
-FUSO = timezone(timedelta(hours=-3))
+FUSO = C.FUSO
 
 
 def chave(nome):
@@ -266,5 +267,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    C.saida_utf8()
     main()
