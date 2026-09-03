@@ -1,0 +1,484 @@
+<title>Placar dos Criativos</title>
+<style>
+  @page { size: A4; margin: 14mm 13mm; }
+
+  :root {
+    --ink: #1A1611;
+    --ink-2: #4A423A;
+    --ink-3: #7A7166;
+    --line: #DDD5C7;
+    --line-soft: #EFE9DE;
+    --accent: #B4501A;
+    --accent-soft: #FBF1E7;
+    --good: #2F7A4E;
+    --good-soft: #E6F2EA;
+    --bad: #A33232;
+    --bad-soft: #FAE9E8;
+    --aviso: #8A6416;
+    --aviso-soft: #FBF2DC;
+    --surface: #FBF8F3;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0; background: #fff; color: var(--ink);
+    font-family: "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    font-size: 10.5pt; line-height: 1.5;
+  }
+  .page { max-width: 190mm; margin: 0 auto; padding: 0 0 10mm; }
+
+  header { border-bottom: 2.5pt solid var(--ink); padding-bottom: 7pt; margin-bottom: 14pt; }
+  .marca {
+    font-size: 8pt; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 3pt;
+  }
+  h1 { font-size: 21pt; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 4pt; text-wrap: balance; }
+  .subtitulo { font-size: 9.5pt; color: var(--ink-3); }
+
+  h2 {
+    font-size: 12.5pt; font-weight: 800; margin: 19pt 0 3pt;
+    letter-spacing: -0.01em; page-break-after: avoid; text-wrap: balance;
+  }
+  h2 .num { display: inline-block; width: 15pt; color: var(--accent); }
+  .sub-h2 { font-size: 9pt; color: var(--ink-3); margin-bottom: 8pt; page-break-after: avoid; }
+
+  p { margin: 0 0 7pt; max-width: 68ch; }
+  b, strong { color: var(--ink); font-weight: 700; }
+
+  .correcao {
+    background: var(--aviso-soft); border-left: 3.5pt solid var(--aviso);
+    padding: 10pt 12pt; margin-bottom: 12pt; page-break-inside: avoid;
+    font-size: 9.5pt; color: var(--ink-2);
+  }
+  .correcao .rot {
+    font-size: 8pt; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--aviso); margin-bottom: 4pt;
+  }
+  .correcao p { margin: 0 0 5pt; }
+  .correcao p:last-child { margin: 0; }
+
+  .destaque {
+    background: var(--good-soft); border-left: 3.5pt solid var(--good);
+    padding: 11pt 13pt; margin-bottom: 6pt; page-break-inside: avoid;
+  }
+  .destaque.alerta { background: var(--bad-soft); border-left-color: var(--bad); }
+  .destaque-titulo { font-size: 11.5pt; font-weight: 800; margin-bottom: 5pt; letter-spacing: -0.01em; }
+  .destaque p { font-size: 10pt; color: var(--ink-2); margin: 0 0 5pt; }
+  .destaque p:last-child { margin: 0; }
+
+  .numeros { display: flex; gap: 9pt; margin: 10pt 0 4pt; page-break-inside: avoid; }
+  .num-card {
+    flex: 1; border: 0.75pt solid var(--line); background: var(--surface);
+    padding: 9pt 10pt; border-radius: 3pt;
+  }
+  .num-card .rot {
+    font-size: 7.5pt; font-weight: 700; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--ink-3); margin-bottom: 3pt;
+  }
+  .num-card .val { font-size: 17pt; font-weight: 800; line-height: 1; letter-spacing: -0.02em;
+                   font-variant-numeric: tabular-nums; }
+  .num-card .val.good { color: var(--good); }
+  .num-card .val.bad { color: var(--bad); }
+  .num-card .nota { font-size: 8pt; color: var(--ink-3); margin-top: 3pt; }
+
+  table {
+    width: 100%; border-collapse: collapse; font-size: 9.5pt;
+    margin: 4pt 0 6pt; page-break-inside: avoid;
+    font-variant-numeric: tabular-nums;
+  }
+  th {
+    text-align: left; font-size: 7.5pt; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3);
+    padding: 0 6pt 4pt 0; border-bottom: 0.75pt solid var(--line);
+  }
+  th.n, td.n { text-align: right; }
+  td { padding: 4.5pt 6pt 4.5pt 0; border-bottom: 0.5pt solid var(--line-soft); vertical-align: top; }
+  td.nome { font-weight: 700; font-variant-numeric: normal; }
+  tr.total td { border-top: 1pt solid var(--line); border-bottom: none; font-weight: 800; padding-top: 6pt; }
+  .criativo { display: block; font-size: 8pt; font-weight: 400; color: var(--ink-3); margin-top: 1.5pt; }
+
+  .faixa { display: inline-block; padding: 1pt 5pt; border-radius: 2pt;
+           font-size: 8pt; font-weight: 700; white-space: nowrap; }
+  .faixa.escala { background: var(--good-soft); color: var(--good); }
+  .faixa.manter { background: var(--accent-soft); color: var(--accent); }
+  .faixa.cortar { background: var(--bad-soft); color: var(--bad); }
+
+  .lista { margin: 0 0 8pt; padding-left: 14pt; max-width: 68ch; }
+  .lista li { margin-bottom: 5pt; }
+
+  .metodo {
+    border-top: 0.75pt solid var(--line); margin-top: 18pt; padding-top: 8pt;
+    font-size: 8.5pt; color: var(--ink-3);
+  }
+  .metodo h3 { font-size: 9pt; font-weight: 800; color: var(--ink-2); margin: 0 0 4pt; }
+  .metodo p { margin: 0 0 5pt; max-width: none; }
+
+  .quebra { page-break-before: always; }
+</style>
+
+<div class="page">
+
+  <header>
+    <div class="marca">Nevada Ecopeças · Relatório de mídia paga</div>
+    <h1>Placar dos criativos</h1>
+    <div class="subtitulo">
+      Período de 07/07 a 21/08/2026 · 8.143 atendimentos de WhatsApp · gasto real do Gerenciador
+      cruzado com venda identificada na conversa · ticket médio de R$&nbsp;968 calibrado contra as
+      vendas lançadas no portal de comissões
+    </div>
+  </header>
+
+  <div class="correcao">
+    <div class="rot">O que mudou nesta versão</div>
+    <p><b>Cada anúncio agora é identificado pelo ID que o Meta manda junto do clique</b>, não mais
+    pelo texto do criativo. Na versão anterior o casamento era por palavra: a hashtag
+    <code>#tiguanrline</code> no criativo do Tiguan 250/350 jogou 304 leads e 11 vendas para o anúncio
+    do Tiguan RLine, que teve 1 lead — e produziu um retorno impossível. Os números por anúncio
+    abaixo substituem aqueles.</p>
+    <p><b>Os dois anúncios de Golf estavam somados num só</b>, o que escondia o melhor resultado da
+    conta. Agora aparecem separados.</p>
+    <p><b>As 5.790 conversas do último mês foram lidas uma a uma</b>, o que permitiu apurar por que
+    cada venda não saiu — a seção 5 usa esse dado, que não existia antes.</p>
+  </div>
+
+  <h2><span class="num">1</span>Os dois canais pagos</h2>
+  <div class="sub-h2">Mesmo período, mesmo ticket, mesma régua de venda.</div>
+
+  <div class="numeros">
+    <div class="num-card">
+      <div class="rot">Google Ads</div>
+      <div class="val good">13,0×</div>
+      <div class="nota">R$ 7.212 → 97 vendas<br>R$ 74 por venda</div>
+    </div>
+    <div class="num-card">
+      <div class="rot">Meta Ads</div>
+      <div class="val">8,6×</div>
+      <div class="nota">R$ 5.547 → 49 vendas<br>R$ 113 por venda</div>
+    </div>
+    <div class="num-card">
+      <div class="rot">Leads gerados</div>
+      <div class="val">2.866</div>
+      <div class="nota">no Meta, contra 1.034<br>no Google</div>
+    </div>
+    <div class="num-card">
+      <div class="rot">Conversão</div>
+      <div class="val bad">1,7%</div>
+      <div class="nota">no Meta, contra 9,4%<br>no Google</div>
+    </div>
+  </div>
+
+  <p>Os dois canais dão lucro e nenhum deve ser desligado. Mas a comparação é desconfortável:
+  <b>o Meta traz quase três vezes mais gente e vende metade.</b> O Google entrega um terço do volume
+  com conversão 5,5 vezes maior, e por isso custa R$&nbsp;74 por venda contra R$&nbsp;113.</p>
+
+  <p>Vale registrar o que isso não quer dizer. Os dois canais não fazem o mesmo trabalho: quem
+  pesquisa no Google já sabe qual peça quer, quem vê um reel não estava procurando nada. Comparar
+  conversão entre eles mede intenção, não qualidade do anúncio. O que a comparação autoriza é uma
+  pergunta de verba: <b>cada real a mais no Google tem retornado mais que cada real a mais no
+  Meta</b> — até o ponto em que a busca satura, que ainda não sabemos onde fica.</p>
+
+  <h2><span class="num">2</span>Placar por anúncio</h2>
+  <div class="sub-h2">
+    Ordenado por retorno. A faixa de confiança mostra onde a conversão real provavelmente está —
+    quanto menos leads, mais larga a faixa e menos a taxa deve ser levada a sério.
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Anúncio</th>
+        <th class="n">Gasto</th>
+        <th class="n">Leads</th>
+        <th class="n">Vendas</th>
+        <th class="n">Conversão</th>
+        <th class="n">Faixa 95%</th>
+        <th class="n">Custo/venda</th>
+        <th class="n">Retorno</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="nome">Golf GTI particular
+          <span class="criativo">"Golf GTI repleto de upgrades comprado particular"</span></td>
+        <td class="n">R$ 142</td><td class="n">51</td><td class="n">3</td>
+        <td class="n">5,9%</td><td class="n">2,0–15,9%</td><td class="n">R$ 47</td>
+        <td class="n"><b>20,4×</b></td>
+      </tr>
+      <tr>
+        <td class="nome">Tiguan 250/350
+          <span class="criativo">"Você iria de qual? Tiguan 250 TSI · Tiguan 350 TSI"</span></td>
+        <td class="n">R$ 588</td><td class="n">310</td><td class="n">11</td>
+        <td class="n">3,5%</td><td class="n">2,0–6,2%</td><td class="n">R$ 53</td>
+        <td class="n"><b>18,1×</b></td>
+      </tr>
+      <tr>
+        <td class="nome">Golf GTI sucata
+          <span class="criativo">"Sucata Golf GTI para retirada de peças · motor parcial"</span></td>
+        <td class="n">R$ 510</td><td class="n">388</td><td class="n">7</td>
+        <td class="n">1,8%</td><td class="n">0,9–3,7%</td><td class="n">R$ 73</td>
+        <td class="n"><b>13,3×</b></td>
+      </tr>
+      <tr>
+        <td class="nome">Audi A3
+          <span class="criativo">"Peças para Audi A3 2.0 Turbo 220cv · motor EA888 3ª geração"</span></td>
+        <td class="n">R$ 626</td><td class="n">371</td><td class="n">8</td>
+        <td class="n">2,2%</td><td class="n">1,1–4,2%</td><td class="n">R$ 78</td>
+        <td class="n"><b>12,4×</b></td>
+      </tr>
+      <tr>
+        <td class="nome">Jetta GLI (3× sucata)
+          <span class="criativo">"3x Sucata Jetta GLI para venda de peças"</span></td>
+        <td class="n">R$ 634</td><td class="n">350</td><td class="n">4</td>
+        <td class="n">1,1%</td><td class="n">0,4–2,9%</td><td class="n">R$ 159</td>
+        <td class="n">6,1×</td>
+      </tr>
+      <tr>
+        <td class="nome">Nivus GTS
+          <span class="criativo">"A primeira sucata de Nivus GTS do Brasil"</span></td>
+        <td class="n">R$ 665</td><td class="n">239</td><td class="n">3</td>
+        <td class="n">1,3%</td><td class="n">0,4–3,6%</td><td class="n">R$ 222</td>
+        <td class="n">4,4×</td>
+      </tr>
+      <tr>
+        <td class="nome">Polo GTS
+          <span class="criativo">"Chegou mais uma sucata · Polo GTS 1.4 TSI"</span></td>
+        <td class="n">R$ 714</td><td class="n">372</td><td class="n">3</td>
+        <td class="n">0,8%</td><td class="n">0,3–2,3%</td><td class="n">R$ 238</td>
+        <td class="n">4,1×</td>
+      </tr>
+      <tr>
+        <td class="nome">Projeto Gaiola 1.4 TSI
+          <span class="criativo">"Projeto Gaiola com motor 1.4 TSI com 9 mil km"</span></td>
+        <td class="n">R$ 504</td><td class="n">75</td><td class="n">2</td>
+        <td class="n">2,7%</td><td class="n">0,7–9,2%</td><td class="n">R$ 252</td>
+        <td class="n">3,8×</td>
+      </tr>
+      <tr>
+        <td class="nome">Up TSI / T-Cross
+          <span class="criativo">"UP TSI com kit swap T-Cross 1.4"</span></td>
+        <td class="n">R$ 661</td><td class="n">298</td><td class="n">1</td>
+        <td class="n">0,3%</td><td class="n">0,1–1,9%</td><td class="n">R$ 661</td>
+        <td class="n">1,5×</td>
+      </tr>
+      <tr>
+        <td class="nome">VW Tera Highline
+          <span class="criativo">"Sucata VW Tera Highline 2026"</span></td>
+        <td class="n">R$ 184</td><td class="n">58</td><td class="n">0</td>
+        <td class="n">0,0%</td><td class="n">0–6,2%</td><td class="n">—</td>
+        <td class="n">0,0×</td>
+      </tr>
+      <tr>
+        <td class="nome">Camaro SS
+          <span class="criativo">"Sucata de Camaro SS 2011 V8 6.2"</span></td>
+        <td class="n">R$ 138</td><td class="n">54</td><td class="n">0</td>
+        <td class="n">0,0%</td><td class="n">0–6,6%</td><td class="n">—</td>
+        <td class="n">0,0×</td>
+      </tr>
+      <tr>
+        <td class="nome">Motor 1.6 THP
+          <span class="criativo">"Motor 1.6 THP flex ou gasolina" — rastreio quase todo perdido</span></td>
+        <td class="n">R$ 136</td><td class="n">1</td><td class="n">0</td>
+        <td class="n">—</td><td class="n">—</td><td class="n">—</td>
+        <td class="n">0,0×</td>
+      </tr>
+      <tr>
+        <td class="nome">Jetta GLI 2024
+          <span class="criativo">"Sucata Jetta GLI 2024 para retirada de peças"</span></td>
+        <td class="n">R$ 29</td><td class="n">18</td><td class="n">0</td>
+        <td class="n">0,0%</td><td class="n">0–17,6%</td><td class="n">—</td>
+        <td class="n">0,0×</td>
+      </tr>
+      <tr>
+        <td class="nome">Tiguan RLine
+          <span class="criativo">"Sucata Tiguan RLine 2024" — praticamente não rodou</span></td>
+        <td class="n">R$ 15</td><td class="n">3</td><td class="n">0</td>
+        <td class="n">—</td><td class="n">—</td><td class="n">—</td>
+        <td class="n">0,0×</td>
+      </tr>
+      <tr class="total">
+        <td class="nome">Total rastreado</td>
+        <td class="n">R$ 5.547</td><td class="n">2.589</td><td class="n">42</td>
+        <td class="n">1,6%</td><td class="n">—</td><td class="n">R$ 132</td>
+        <td class="n">7,3×</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Outros 277 leads chegaram de anúncio com o rastreio perdido no caminho e renderam 7 vendas.
+  Somados ao total acima é que se chega às 49 vendas e ao 8,6× do canal. Eles não aparecem na tabela
+  porque não dá pra saber de qual anúncio vieram.</p>
+
+  <h2><span class="num">3</span>O que está e o que não está provado</h2>
+  <div class="sub-h2">
+    Com poucas vendas por anúncio, boa parte das diferenças pode ser sorte. Estas resistiram ao teste.
+  </div>
+
+  <div class="destaque">
+    <div class="destaque-titulo">Sustenta decisão de verba</div>
+    <p><b>Tiguan 250/350 converte mais que Up TSI e que Polo GTS.</b> 3,5% contra 0,3% e 0,8%. A
+    chance disso ser acaso é menor que 1% e 2% respectivamente. O Audi A3 também bate o Up TSI.</p>
+    <p><b>Existe diferença real entre anúncios.</b> Não é ruído: os quatro primeiros da tabela
+    entregaram 29 das 42 vendas rastreadas gastando 34% da verba.</p>
+  </div>
+
+  <div class="correcao">
+    <div class="rot">Não sustenta — cuidado ao usar</div>
+    <p><b>O Golf GTI particular parece o melhor de todos, e pode não ser.</b> 20,4× de retorno, mas
+    são 51 leads e 3 vendas: a conversão real está em algum lugar entre 2% e 16%. Isso não é
+    argumento pra realocar verba — é argumento pra <i>testar com mais verba</i> e medir de novo.</p>
+    <p><b>Facebook contra Instagram não deu diferença.</b> Somado, o Facebook converte 2,4% e o
+    Instagram 1,4%, o que parece muito. Mas comparando o mesmo anúncio nas duas colocações, o
+    Facebook ganha em 4 de 7 e o teste não passa. Não vale otimizar colocação com esse volume —
+    o Meta entrega 76% no Instagram e tudo bem.</p>
+    <p><b>Anúncio sem venda não é necessariamente anúncio ruim.</b> Camaro SS teve 54 leads e nenhuma
+    venda, mas com esse volume a conversão real pode chegar a 6,6% e ainda ser compatível com zero.
+    O que se pode dizer é que ele não provou nada — e que R$&nbsp;138 é barato pra descobrir isso.</p>
+  </div>
+
+  <h2 class="quebra"><span class="num">4</span>Onde está o dinheiro parado</h2>
+  <div class="sub-h2">Quatro anúncios, 18% da verba, uma venda.</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Anúncio</th><th class="n">Gasto</th><th class="n">Leads</th>
+        <th class="n">Vendas</th><th class="n">Recomendação</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="nome">Up TSI / T-Cross</td><td class="n">R$ 661</td><td class="n">298</td>
+        <td class="n">1</td><td class="n"><span class="faixa cortar">Cortar</span></td></tr>
+      <tr><td class="nome">VW Tera Highline</td><td class="n">R$ 184</td><td class="n">58</td>
+        <td class="n">0</td><td class="n"><span class="faixa cortar">Cortar</span></td></tr>
+      <tr><td class="nome">Camaro SS</td><td class="n">R$ 138</td><td class="n">54</td>
+        <td class="n">0</td><td class="n"><span class="faixa cortar">Cortar</span></td></tr>
+      <tr><td class="nome">Jetta GLI 2024</td><td class="n">R$ 29</td><td class="n">18</td>
+        <td class="n">0</td><td class="n"><span class="faixa cortar">Cortar</span></td></tr>
+      <tr class="total"><td class="nome">Soma</td><td class="n">R$ 1.012</td><td class="n">428</td>
+        <td class="n">1</td><td class="n">—</td></tr>
+    </tbody>
+  </table>
+
+  <p>O Up TSI é o caso mais caro: <b>R$&nbsp;661 para uma única venda</b>, e ele rodou com dois IDs
+  diferentes, o que sugere que foi duplicado ou reativado durante o período. Foi o anúncio que mais
+  gerou lead entre os fracos — 298 pessoas — e quase nenhuma queria comprar peça. Um swap de motor
+  interessa a entusiasta, não a quem precisa de peça.</p>
+
+  <p>Realocar esses R$&nbsp;1.012 para os anúncios do topo renderia, aos custos por venda medidos,
+  algo entre 9 e 19 vendas a mais — R$&nbsp;9&nbsp;mil a R$&nbsp;18&nbsp;mil. <b>Trate essa conta
+  como teto, não como previsão.</b> Verba concentrada em um anúncio satura o público e o custo por
+  resultado sobe; a taxa medida com R$&nbsp;588 não se mantém necessariamente com R$&nbsp;1.600.</p>
+
+  <h2><span class="num">5</span>Por que o lead de anúncio não fecha</h2>
+  <div class="sub-h2">
+    As 5.790 conversas do último mês foram lidas integralmente, uma a uma, e cada perda recebeu uma
+    causa. Isto é novo — antes só existia contagem de venda.
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Motivo da perda</th><th class="n">Anúncio Meta</th><th class="n">Google Ads</th>
+        <th class="n">Site orgânico</th><th class="n">Direto</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="nome">Não tínhamos a peça</td><td class="n">48,4%</td><td class="n">60,0%</td>
+        <td class="n">38,9%</td><td class="n">56,6%</td></tr>
+      <tr><td class="nome">A conversa parou do nosso lado</td><td class="n">30,7%</td><td class="n">19,4%</td>
+        <td class="n">29,1%</td><td class="n">18,2%</td></tr>
+      <tr><td class="nome">Cliente sumiu</td><td class="n">13,2%</td><td class="n">13,3%</td>
+        <td class="n">16,9%</td><td class="n">12,2%</td></tr>
+      <tr><td class="nome">A peça não servia no carro dele</td><td class="n">4,0%</td><td class="n">2,5%</td>
+        <td class="n">8,8%</td><td class="n">5,6%</td></tr>
+      <tr><td class="nome">Achou caro</td><td class="n">1,2%</td><td class="n">1,4%</td>
+        <td class="n">1,5%</td><td class="n">1,6%</td></tr>
+      <tr class="total"><td class="nome">Conversão do canal</td><td class="n">1,7%</td><td class="n">9,4%</td>
+        <td class="n">13,7%</td><td class="n">9,2%</td></tr>
+    </tbody>
+  </table>
+
+  <p><b>A falta de estoque não explica a diferença.</b> O Google Ads perde mais venda por falta de
+  peça que o Meta — 60% contra 48% — e mesmo assim converte 5,5 vezes mais. Se o problema do Meta
+  fosse anunciar carro cujas peças já acabaram, o Google estaria pior, e está melhor.</p>
+
+  <p><b>Preço também não explica.</b> Em nenhum canal ele passa de 1,6% das perdas. Se alguém
+  argumentar que o anúncio traz gente que acha caro, o dado não sustenta.</p>
+
+  <div class="destaque alerta">
+    <div class="destaque-titulo">O que explica: a mesma conversa rende 6 vezes menos</div>
+    <p>Comparando apenas atendimentos em que o vendedor trabalhou de verdade — seis ou mais
+    mensagens dele na conversa —, o esforço é o mesmo e o resultado não:</p>
+    <table style="margin-top:8pt">
+      <thead>
+        <tr><th>Origem do lead</th><th class="n">Atendimentos</th><th class="n">Conversão</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="nome">Site orgânico</td><td class="n">270</td><td class="n"><b>34,1%</b></td></tr>
+        <tr><td class="nome">Google Ads</td><td class="n">259</td><td class="n"><b>33,6%</b></td></tr>
+        <tr><td class="nome">Direto</td><td class="n">781</td><td class="n"><b>26,4%</b></td></tr>
+        <tr><td class="nome">Anúncio Meta</td><td class="n">765</td><td class="n"><b>5,9%</b></td></tr>
+      </tbody>
+    </table>
+    <p>O vendedor mandou o mesmo número de mensagens, gastou o mesmo tempo, e o lead de anúncio
+    fechou seis vezes menos. <b>Isso não é problema de atendimento nem de estoque — é o lead.</b>
+    O anúncio está trazendo curiosidade, não intenção de compra.</p>
+  </div>
+
+  <p>Um sinal na mesma direção: só <b>38% dos leads de anúncio perguntam por peça do carro que o
+  anúncio mostrava</b>. Nos criativos de Golf GTI e Polo GTS chega a 64% e 58%; no Up TSI cai
+  para 9%. Mas atenção — esse número <i>não</i> prediz conversão: o Tiguan tem só 17% de aderência
+  e é o segundo melhor da conta. Ou seja, fazer o anúncio "puxar" o carro certo não é, sozinho, o
+  caminho. Fica registrado como observação, não como recomendação.</p>
+
+  <h2><span class="num">6</span>Para a próxima leva de criativos</h2>
+  <div class="sub-h2">Em ordem de efeito medido, do mais sustentado para o mais especulativo.</div>
+
+  <ol class="lista">
+    <li><b>Cortar Up TSI/T-Cross, VW Tera, Camaro SS e Jetta GLI 2024.</b> São R$&nbsp;1.012 que
+    produziram uma venda. É a única decisão deste relatório que não depende de nenhuma suposição.</li>
+
+    <li><b>Repetir a fórmula do Tiguan 250/350, não o carro.</b> O criativo que mais converteu com
+    volume real é o único que faz uma <i>pergunta</i> — "Você iria de qual?" — e coloca duas opções
+    lado a lado. Todos os outros anunciam um carro. Vale testar o mesmo formato de escolha com
+    outros pares de veículo e medir.</li>
+
+    <li><b>Anunciar carro popular de pátio, não carro raro.</b> Os que venderam são Tiguan, Audi A3,
+    Golf GTI e Jetta — carro que roda muito e quebra muito. Os que não venderam são Camaro SS, Tera
+    2026 e swap de Up TSI: chamam atenção e não têm demanda de peça. <b>Isso é sinal de compra de
+    sucata, não só de mídia</b> — o anúncio está pagando pra descobrir o que a escolha de pátio
+    poderia antecipar.</li>
+
+    <li><b>Dar mais verba ao Golf GTI particular e medir de novo.</b> É o candidato mais promissor
+    e o menos comprovado da conta. R$&nbsp;142 não decidem nada; R$&nbsp;600 decidem.</li>
+
+    <li><b>Considerar deslocar parte da verba do Meta para o Google.</b> 13,0× contra 8,6×, com um
+    terço dos leads. Vale subir o Google gradualmente e observar quando o custo por venda começar a
+    subir — é aí que a busca satura.</li>
+
+    <li><b>Não gastar esforço otimizando Facebook contra Instagram.</b> O teste não passa. Deixe o
+    Meta distribuir.</li>
+  </ol>
+
+  <div class="metodo">
+    <h3>Como estes números foram apurados</h3>
+    <p><b>Gasto e conversas iniciadas</b> vêm do CSV exportado do Gerenciador de Anúncios, sem
+    tratamento. <b>Leads e vendas</b> vêm dos atendimentos de WhatsApp registrados no Totalk, lidos
+    pela API oficial. O anúncio de origem é o <code>sourceId</code> que o Meta envia junto do clique,
+    casado com o nome do anúncio no Gerenciador um a um, conferido pelo texto do criativo.</p>
+    <p><b>Venda</b> é identificada na conversa por sinais de pagamento combinados com sinais de
+    entrega ou retirada. Esse critério foi conferido contra as vendas realmente lançadas no portal de
+    comissões no mesmo período: encontra 340 das 352 reais, 97%. O ticket de R$&nbsp;968 vem da mesma
+    conferência, não é estimativa.</p>
+    <p><b>Motivo da perda</b> vem da leitura integral de cada conversa dos últimos 30 dias, uma a
+    uma, com um motivo por atendimento.</p>
+    <p><b>Faixa de confiança</b> é o intervalo de Wilson a 95%. As comparações da seção 3 usam teste
+    de duas proporções; "sustenta" significa que a chance de acaso ficou abaixo de 5%.</p>
+    <p><b>Limites conhecidos.</b> O gasto é do período inteiro, mas a leitura de motivo cobre só os
+    últimos 30 dias. Áudio de cliente não é transcrito e aparece em cerca de 15% das conversas —
+    o que só foi dito em áudio não entrou na leitura. Venda fechada no balcão sem passar pelo
+    WhatsApp não é atribuída a nenhum anúncio, então todo retorno aqui é piso, não teto.</p>
+  </div>
+
+</div>

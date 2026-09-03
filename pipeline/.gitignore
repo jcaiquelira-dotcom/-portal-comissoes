@@ -1,0 +1,29 @@
+.env
+# qualquer variante de .env tambem: os backups de troca de chave
+# (.env.bak-*, .env.chave-*) carregam a chave de API em texto puro.
+.env.*
+*.bak
+eventos.db
+vendas.db
+insights_output.txt
+mensagem-suporte-totalk.txt
+skill-test/
+__pycache__/
+*.pyc
+
+# relatorio
+_relatorio_print.html
+*.pdf
+session_ids.json
+*.xlsx
+
+# rascunhos de investigacao e dumps de API — nao sao parte do projeto
+_*.py
+_*.json
+_*.txt
+app/_*.py
+
+# fila de CRM: nome e telefone de cliente, nunca vai pro git
+Fila_CRM_CONFIDENCIAL.json
+vendas_backup_*.db
+COMO_LIGAR_O_WEBHOOK.txt
