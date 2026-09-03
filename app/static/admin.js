@@ -4220,7 +4220,10 @@ function painelPerdasSite(a){
         ${itens.map(([k, v]) => linha(k, v, maxP)).join('')}
       </div>`;
   };
-  const pior = Object.entries(a.cruz || {}).filter(([, v]) => v[0] >= 8)
+  // So recortes com pelo menos 5% da perda: o destaque existe pra apontar onde o
+  // dinheiro grande some. Sem esse corte, "Boleto ate R$ 300" (9 pedidos, 1% da
+  // perda, piso zero) ganhava do cartao acima de R$ 1.200, que e 42% da perda.
+  const pior = Object.entries(a.cruz || {}).filter(([, v]) => v[0] >= 8 && v[2] >= 0.05 * a.perda)
     .sort((x, y) => wilsonInf(x[1][1], x[1][0]) - wilsonInf(y[1][1], y[1][0]))[0];
 
   return `<details class="dp-recolhivel" style="margin-top:12px;">
