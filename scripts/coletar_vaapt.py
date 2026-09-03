@@ -62,7 +62,20 @@ PAGOS = {"pago", "concluido"}
 # por pagina). O teto existe pra um bug de paginacao nao virar laco infinito
 # batendo no site da loja a noite inteira.
 MAX_PAGINAS = 200
-PAUSA = 0.4          # respiro entre paginas; nao ha pressa e o site e da loja
+# 1,5s entre paginas. Comecou em 0,4 e subiu depois que o Cloudflare do Vaapt
+# passou a responder 503 pra tudo que vinha de script — 60 paginas em rajada
+# parecem ataque. Uma rodada diaria pode levar dois minutos sem problema nenhum.
+PAUSA = 1.5
+
+# O Vaapt fica atras de Cloudflare com protecao de bot. Um User-Agent de
+# ferramenta e convite pro 503; estes cabecalhos sao os de um navegador comum,
+# que e o que este coletor de fato imita — le a mesma tela que o gestor le.
+CABECALHOS = [
+    ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                   " (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"),
+    ("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"),
+    ("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8"),
+]
 
 
 def segredo() -> dict:
@@ -81,13 +94,30 @@ def segredo() -> dict:
 def entrar(base: str, usuario: str, senha: str):
     """Faz login no WordPress e devolve um opener que carrega a sessao.
 
-    O WP exige o cookie de teste na mesma requisicao do login (`testcookie=1`);
-    sem ele a resposta e a propria tela de login de novo, com uma mensagem que
-    fala em cookie desativado — erro que parece credencial errada e nao e.
+    Sao DUAS requisicoes, e a ordem importa: um GET pra ganhar o cookie de
+    teste e so entao o POST com as credenciais. O campo `testcookie=1` no corpo
+    nao substitui o cookie — o WP procura o cookie de verdade.
     """
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-    opener.addheaders = [("User-Agent", "portal-nevada/1.0 (coletor interno)")]
+    opener.addheaders = list(CABECALHOS)
+
+    # GET antes do POST: o WP so aceita o login se o cookie de teste JA existir,
+    # e quem o cria e o proprio carregamento da tela de login. Mandar
+    # `testcookie=1` no corpo nao basta — ele procura o cookie, nao o campo.
+    # Sem este GET o servidor responde "seu navegador bloqueia cookies", que
+    # nao tem nada a ver com credencial e foi lido como senha errada.
+    try:
+        opener.open(f"{base}/wp-login.php", timeout=60).read()
+    except urllib.error.HTTPError as e:
+        if e.code in (403, 429, 503):
+            raise SystemExit(
+                f"o Vaapt respondeu HTTP {e.code} antes mesmo do login "
+                f"(servidor: {e.headers.get('Server', '?')}).\n"
+                "Isso e protecao de bot, nao credencial: o site abre no navegador "
+                "e recusa o script. Espere alguns minutos e tente de novo; se "
+                "persistir, peca ao Vaapt pra liberar o IP da loja.")
+        raise
 
     dados = urllib.parse.urlencode({
         "log": usuario,
@@ -103,9 +133,15 @@ def entrar(base: str, usuario: str, senha: str):
     # O WP responde 200 nos dois casos — sucesso e falha. Quem diz a verdade e
     # o cookie de sessao, nao o status.
     if not any(c.name.startswith("wordpress_logged_in") for c in jar):
-        if "senha" in corpo.lower() or "incorret" in corpo.lower():
-            raise SystemExit("login recusado: usuario ou senha do Vaapt errados.")
-        raise SystemExit("login nao completou (sem cookie de sessao do WordPress).")
+        # A mensagem vem do proprio WP, na div `login_error`. Antes eu adivinhava
+        # procurando "senha" no corpo — e o FORMULARIO tem um campo chamado
+        # Senha, entao todo erro virava "usuario ou senha errados", inclusive o
+        # de cookie, que nao tem relacao nenhuma com credencial.
+        m = re.search(r"id=[\"']login_error[\"'][^>]*>(.*?)</div>", corpo, re.S)
+        motivo = re.sub(r"<[^>]+>", " ", m.group(1)).strip() if m else ""
+        motivo = " ".join(motivo.split())
+        raise SystemExit(f"login nao completou. O Vaapt respondeu: "
+                         f"{motivo or '(sem mensagem — veja se a URL base esta certa)'}")
     return opener
 
 
@@ -176,6 +212,68 @@ class LinhasPedidos(HTMLParser):
             "status": status,
             "valor": float(v.group(1).replace(".", "").replace(",", ".")),
         })
+
+
+class DetalhesModais(HTMLParser):
+    """Le os modais escondidos, um por pedido, que a propria pagina ja traz.
+
+    A tabela mostra data, status e valor; forma de pagamento, frete e UF so
+    existem aqui dentro. Nao custa requisicao nenhuma — o HTML ja veio junto.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.det, self._id, self._buf = {}, None, []
+
+    def handle_starttag(self, tag, attrs):
+        d = dict(attrs)
+        ident = d.get("id", "")
+        if ident.startswith("modal-"):
+            self._fechar()
+            self._id, self._buf = ident[6:], []
+
+    def handle_data(self, dado):
+        if self._id:
+            self._buf.append(dado)
+
+    def close(self):
+        super().close()
+        self._fechar()
+
+    def _fechar(self):
+        if not self._id:
+            return
+        t = " ".join("".join(self._buf).split())
+        self.det[self._id] = {
+            "pagamento": _campo(t, "Pagamento"),
+            "frete": _campo(t, "Frete"),
+            "uf": (re.search(r",\s*([A-Z]{2}),\s*CEP", t) or [None, ""])[1],
+        }
+        self._id, self._buf = None, []
+
+
+# Rotulos que encerram um campo. Sem essa lista o valor de "Pagamento" engolia
+# o resto do modal inteiro — e um pedido sem forma de pagamento preenchida
+# aparecia com "Frete: Retirar na Loja" no lugar.
+_FIM = r"(?=\s+(?:Frete|Cupom|Status|Resumo|Whatsapp|E-mail|IP|CPF|Endere)\s*:|$)"
+
+
+def _campo(texto: str, rotulo: str) -> str:
+    m = re.search(rotulo + r":\s*(.*?)" + _FIM, texto)
+    return m.group(1).strip() if m else ""
+
+
+def familia_pagamento(p: str) -> str:
+    """Une as duas grafias de cartao. O painel escreve "credito E debito" e
+    "credito OU debito" pro mesmo meio, e separadas viram dois grupos falsos."""
+    a = sem_acento(p)
+    if "pix" in a:
+        return "Pix"
+    if "cartao" in a:
+        return "Cartao"
+    if "boleto" in a:
+        return "Boleto"
+    return "Outro"
 
 
 def sem_acento(t: str) -> str:

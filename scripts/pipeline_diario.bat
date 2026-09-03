@@ -96,6 +96,12 @@ echo --- google analytics (coleta) --- >> "%LOG%"
 echo --- google analytics do site --- >> "%LOG%"
 "%PY%" app\sincronizar_analytics.py >> "%LOG%" 2>&1
 
+rem Site proprio (painel do Vaapt). Ate 03/09/2026 era o unico canal somado na
+rem mao. --dias=15: a serie so cresce e a rodada diaria so precisa dos dias
+rem recentes; ler 60 paginas todo dia foi o que acordou o Cloudflare.
+echo --- site proprio (vaapt) --- >> "%LOG%"
+"%PY%" "%PORTAL%\scripts\coletar_vaapt.py" --dias=15 >> "%LOG%" 2>&1
+
 echo --- conta mercado livre --- >> "%LOG%"
 "%PY%" "%PORTAL%\scripts\sincronizar_ml.py" >> "%LOG%" 2>&1
 
