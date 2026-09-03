@@ -5882,6 +5882,29 @@ def carregar_status_retomada(vendedor_id: str) -> dict:
     return ler_json(_caminho_crm("status", vendedor_id), None) or {}
 
 
+# Campos do cliente que a marcacao passa a carregar. Ate 03/09/2026 a marcacao
+# guardava so {status, em}; quando a fila era remontada, o cliente saia da
+# lista e a marcacao virava um id sem dono — 76 das 78 marcacoes do time
+# sumiram da tela de uma vez, e o gestor achou que o historico tinha sido
+# apagado. Nao tinha; so ninguem conseguia mais ler. Com o retrato aqui, a
+# marcacao sobrevive a qualquer fila.
+RETRATO = ("nome", "fone", "peca", "data", "canal", "prio", "link")
+
+
+def _contagem_marcacoes(status: dict, desde: str = None) -> dict:
+    """Quantas marcacoes de cada tipo, contando TODAS — inclusive as de clientes
+    que ja sairam da fila. `desde` (ISO) recorta pela data da marcacao: e o que
+    permite "quantos fecharam este mes", que e a pergunta da bonificacao."""
+    c = {k: 0 for k in STATUS_TRABALHADO}
+    for m in status.values():
+        if desde and (m.get("em") or "") < desde:
+            continue
+        if m.get("status") in c:
+            c[m["status"]] += 1
+    c["trabalhados"] = sum(c[k] for k in STATUS_TRABALHADO)
+    return c
+
+
 def _contatos_de_hoje(status: dict) -> int:
     """Quantos clientes o vendedor trabalhou hoje. Conta a marcacao, nao o
     cliente: se ele marcou e depois corrigiu, continua sendo um contato feito."""
@@ -5890,12 +5913,13 @@ def _contatos_de_hoje(status: dict) -> int:
 
 
 def _resumo_retomada(itens: list, status: dict) -> dict:
-    contagem = {chave: 0 for chave in STATUS_RETOMADA}
-    for item in itens:
-        atual = (status.get(item["sid"]) or {}).get("status", "pendente")
-        contagem[atual if atual in contagem else "pendente"] += 1
+    """Pendente vem da fila atual; chamei/respondeu/vendeu/perdido vem de
+    TODAS as marcacoes, dentro ou fora da fila. Antes as duas contagens vinham
+    so da fila, e remontar a fila zerava o placar do vendedor."""
+    contagem = {"pendente": sum(1 for i in itens
+                                if (status.get(i["sid"]) or {}).get("status", "pendente") == "pendente")}
+    contagem.update(_contagem_marcacoes(status))
     contagem["total"] = len(itens)
-    contagem["trabalhados"] = sum(contagem[s] for s in STATUS_TRABALHADO)
     return contagem
 
 
@@ -6176,11 +6200,21 @@ def api_retomada_fila():
     cortados = max(0, len(pendentes) - MAX_FILA_PENDENTES)
     itens = pendentes[:MAX_FILA_PENDENTES] + trabalhados
 
+    # Historico: o que ele marcou em clientes que JA SAIRAM da fila. Sem isto o
+    # trabalho sumia da tela a cada remontagem. Mais recente primeiro.
+    na_fila = {i["sid"] for i in fila.get("itens", [])}
+    historico = sorted(
+        [{"sid": sid, **{k: v for k, v in m.items() if k in RETRATO},
+          "status": m.get("status"), "marcado_em": m.get("em")}
+         for sid, m in status.items() if sid not in na_fila],
+        key=lambda x: x.get("marcado_em") or "", reverse=True)
+
     return jsonify({
         "gerado_em": fila.get("gerado_em"),
         "de": fila.get("de"),
         "ate": fila.get("ate"),
         "itens": itens,
+        "historico": historico,
         "resumo": _resumo_retomada(fila.get("itens", []), status),
         "rotulos": STATUS_RETOMADA,
         "limite_fila": MAX_FILA_PENDENTES,
@@ -6201,15 +6235,19 @@ def api_retomada_status(sid):
         return jsonify({"erro": "status inválido"}), 400
     fila = carregar_fila_retomada(vendedor_id) or {}
     itens = fila.get("itens", [])
-    # Só aceita cliente que está na fila DESTE vendedor: sem isso um id chutado
-    # entraria no arquivo dele e apareceria no painel do gestor como trabalho.
-    if not any(item["sid"] == sid for item in itens):
-        return jsonify({"erro": "Este cliente não está na sua fila."}), 404
     status = carregar_status_retomada(vendedor_id)
+    item = next((i for i in itens if i["sid"] == sid), None)
+    # Aceita cliente da fila DESTE vendedor ou do historico dele (marcacao que
+    # ja existe): e assim que "chamei" vira "fechou" depois que o cliente saiu
+    # da fila. Id que nao esta em nenhum dos dois continua barrado — senao um id
+    # chutado entraria no arquivo e apareceria pro gestor como trabalho.
+    if item is None and sid not in status:
+        return jsonify({"erro": "Este cliente não está na sua fila."}), 404
     if novo == "pendente":
         status.pop(sid, None)
     else:
-        status[sid] = {"status": novo, "em": agora_br().isoformat()}
+        retrato = {k: item.get(k) for k in RETRATO if item and item.get(k)}                   or {k: v for k, v in (status.get(sid) or {}).items() if k in RETRATO}
+        status[sid] = {**retrato, "status": novo, "em": agora_br().isoformat()}
     escrever_json(_caminho_crm("status", vendedor_id), status)
     return jsonify({"ok": True, "resumo": _resumo_retomada(itens, status),
                     "contatos_hoje": _contatos_de_hoje(status)})
@@ -6256,13 +6294,21 @@ def api_admin_retomada_resumo():
         gerado_em = gerado_em or fila.get("gerado_em")
         periodo = periodo or {"de": fila.get("de"), "ate": fila.get("ate")}
         itens = fila.get("itens", [])
-        resumo = _resumo_retomada(itens, carregar_status_retomada(vendedor_id))
+        status = carregar_status_retomada(vendedor_id)
+        resumo = _resumo_retomada(itens, status)
         trabalhados = resumo["trabalhados"]
+        # "Este mes" pela data da MARCACAO, nao da conversa: e quando o vendedor
+        # trabalhou, que e o que uma bonificacao de follow-up premia.
+        mes = _contagem_marcacoes(status, desde=hoje_br().strftime("%Y-%m-01"))
         linhas.append({
             "vendedor_id": vendedor_id,
             "nome": vendedor["nome"],
             **resumo,
-            "pct_trabalhado": round(100 * trabalhados / len(itens)) if itens else 0,
+            "mes": mes,
+            # Quanto da fila ATUAL ja foi tocado. Nao pode passar de 100%: as
+            # marcacoes de clientes antigos nao contam aqui, so no total.
+            "pct_trabalhado": round(100 * sum(1 for i in itens if i["sid"] in status)
+                                    / len(itens)) if itens else 0,
             # Entre os que ele chamou, quantos deram sinal de vida. É a medida
             # que interessa: percentual sobre a fila inteira mede só o quanto
             # ele avançou na lista, não se a abordagem funcionou.

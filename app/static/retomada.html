@@ -305,6 +305,7 @@
         <button class="chip" data-f="alta">Só prioridade alta</button>
         <button class="chip" data-f="trabalhados">Já trabalhei</button>
         <button class="chip" data-f="todos">Todos</button>
+        <button class="chip" data-f="historico" title="Clientes que você já marcou e que saíram da fila">Histórico</button>
       </div>
       <input type="text" id="busca" placeholder="Buscar por peça ou nome...">
     </div>
@@ -334,7 +335,7 @@
 // numa linha sem cortar o botao de acao.
 const CURTO = {chamei:'Chamei', respondeu:'Respondeu', vendeu:'Fechou', perdido:'Não rola'};
 const ORDEM_BTN = ['chamei','respondeu','vendeu','perdido'];
-let eu = null, itens = [], rotulos = {}, filtro = 'pendentes', metaContatos = null;
+let eu = null, itens = [], historico = [], rotulos = {}, filtro = 'pendentes', metaContatos = null;
 
 function esc(t){
   return String(t == null ? '' : t)
@@ -388,6 +389,12 @@ const recemMarcados = new Set();
 
 function visiveis(){
   const q = document.getElementById('busca').value.trim().toLowerCase();
+  /* O historico e outra lista: clientes que ja sairam da fila mas que o
+     vendedor marcou. Antes de 03/09/2026 isso nao existia na tela — a cada
+     remontagem da fila o que ele tinha feito sumia, e 76 de 78 marcacoes do
+     time ficaram invisiveis de uma vez. */
+  if (filtro === 'historico') return historico.filter(it =>
+    !q || ((it.peca || '') + ' ' + (it.nome || '')).toLowerCase().includes(q));
   return itens.filter(it => {
     const recem = recemMarcados.has(it.sid);
     if (!recem && filtro === 'pendentes' && it.status !== 'pendente') return false;
@@ -421,6 +428,7 @@ function contexto(it){
 }
 
 function item(it){
+  if (it.hist) return itemHistorico(it);
   const alta = it.prio === 'ALTA';
   const feito = it.status !== 'pendente';
   const cls = ['cliente']; if (alta) cls.push('alta'); if (feito) cls.push('feito');
@@ -479,6 +487,31 @@ function item(it){
   + '</div>';
 }
 
+/* Ficha do historico: cliente que ja saiu da fila. Nao tem "chamar" nem
+   mensagem pronta — a conversa e antiga e a fila nao o considera mais quente.
+   O que sobra e o que importa aqui: corrigir o desfecho. "Chamei" de semana
+   passada que virou venda ontem se marca daqui. */
+function itemHistorico(it){
+  const botoes = ORDEM_BTN.map(s =>
+    '<button class="sbtn' + (it.status === s ? ' on' : '') + '" data-s="' + s
+    + '" data-sid="' + it.sid + '" title="' + esc(rotulos[s] || s) + '">'
+    + esc(CURTO[s]) + '</button>'
+  ).join('');
+  const quando = it.marcado_em ? it.marcado_em.slice(8,10) + '/' + it.marcado_em.slice(5,7) : '';
+  return '<div class="cliente feito hist">'
+    + '<div class="topo">'
+      + '<span class="peca" title="' + esc(it.peca || '') + '">' + esc(it.peca || '(peça não registrada)') + '</span>'
+      + '<span class="quando">conversa ' + esc((it.data || '').slice(0,5)) + ' · marcado ' + quando + '</span>'
+      + '<div class="acoes">' + botoes + '</div>'
+    + '</div>'
+    + '<div class="baixo">'
+      + '<span class="gancho">' + esc(rotulos[it.status] || it.status) + '</span>'
+      + '<span class="meta"><b>' + esc(it.nome || '') + '</b>' + (it.fone ? ' · ' + esc(it.fone) : '')
+      + (it.canal ? ' · ' + esc(it.canal) : '') + '</span>'
+    + '</div>'
+  + '</div>';
+}
+
 /* Contagem em cada filtro. Sem ela, clicar em "Ja trabalhei" e nao ver nada
    nao distingue "o filtro esta quebrado" de "voce ainda nao trabalhou
    ninguem" — e a primeira leitura e sempre a pior. */
@@ -488,6 +521,7 @@ function atualizarContagens(){
     alta: itens.filter(i => i.status === 'pendente' && i.prio === 'ALTA').length,
     trabalhados: itens.filter(i => i.status !== 'pendente').length,
     todos: itens.length,
+    historico: historico.length,
   };
   document.querySelectorAll('.chip').forEach(c => {
     const n = conta[c.dataset.f];
@@ -511,6 +545,7 @@ function render(){
     alta: 'Nenhum cliente de prioridade alta esperando.',
     trabalhados: 'Você ainda não marcou nenhum cliente. Chame alguém e o resultado aparece aqui.',
     todos: 'Sua fila está vazia.',
+    historico: 'Nenhum cliente marcado fora da fila ainda. Quando a fila for remontada, o que você já marcou aparece aqui.',
   };
   document.getElementById('lista').innerHTML = lista.length
     ? lista.map(item).join('')
@@ -523,7 +558,7 @@ async function marcar(sid, status){
   if (!res) return;
   const dados = await res.json();
   if (!res.ok){ alert(dados.erro || 'Não consegui salvar.'); return; }
-  const it = itens.find(x => x.sid === sid);
+  const it = itens.find(x => x.sid === sid) || historico.find(x => x.sid === sid);
   if (it) it.status = status;
   if (status === 'pendente') recemMarcados.delete(sid);
   else recemMarcados.add(sid);
@@ -636,6 +671,7 @@ document.getElementById('busca').addEventListener('input', render);
     return;
   }
   itens = dados.itens;
+  historico = dados.historico || [];   // marcacoes de quem ja saiu da fila
   rotulos = dados.rotulos || {};
   const dt = (s) => s ? s.slice(8,10) + '/' + s.slice(5,7) : '';
   // Quando a fila e maior que o limite, deixa claro que tem mais esperando —

@@ -991,7 +991,7 @@
         <div class="tabela-rolante">
           <table>
             <thead>
-              <tr><th>Vendedor</th><th>Total</th><th>A chamar</th><th>Chamei</th><th>Responderam</th><th>Fecharam</th><th>Não rolou</th></tr>
+              <tr><th>Vendedor</th><th>Na fila</th><th>A chamar</th><th>Chamei</th><th>Responderam</th><th>Fecharam</th><th>Não rolou</th><th>Fila tocada</th><th>Resposta</th><th style="border-left:1px solid var(--line);padding-left:12px">Fech. mês</th><th>Resp. mês</th><th>Contatos mês</th></tr>
             </thead>
             <tbody id="retomadaBody"></tbody>
           </table>
@@ -1660,16 +1660,24 @@ async function carregarRetomada(){
   document.getElementById('retomadaPeriodo').textContent = dados.gerado_em
     ? `Fila gerada em ${new Date(dados.gerado_em).toLocaleDateString('pt-BR', {timeZone:'America/Sao_Paulo'})}, a partir dos atendimentos de ${dt(p.de)} a ${dt(p.ate)}.`
     : '';
+  /* Chamei/Responderam/Fecharam/Nao rolou contam TODAS as marcacoes do
+     vendedor, inclusive de clientes que ja sairam da fila — antes contavam so
+     a fila atual, e remontar a fila zerava a tabela inteira. "Na fila" e
+     "A chamar" continuam sendo o retrato de agora. As tres colunas do mes
+     olham a data da marcacao: e a base de uma bonificacao de follow-up. */
   corpo.innerHTML = linhas.map(v => `<tr>
       <td>${v.nome}</td>
       <td>${v.total}</td>
       <td>${v.pendente}</td>
       <td>${v.chamei}</td>
       <td>${v.respondeu}</td>
-      <td>${v.vendeu}</td>
+      <td><b>${v.vendeu}</b></td>
       <td>${v.perdido}</td>
       <td>${v.pct_trabalhado}%</td>
       <td>${v.trabalhados ? v.pct_resposta + '%' : '—'}</td>
+      <td style="border-left:1px solid var(--line);padding-left:12px"><b>${v.mes ? v.mes.vendeu : '—'}</b></td>
+      <td>${v.mes ? v.mes.respondeu : '—'}</td>
+      <td>${v.mes ? v.mes.trabalhados : '—'}</td>
     </tr>`).join('');
 }
 
