@@ -53,8 +53,7 @@ já estavam lá. Corrigir pela canetinha quando souber qual é o certo. (V738 re
 em 2025 fica como está: antes de junho não conta.)
 
 ### 2.11 Folha: dois vínculos que faltam e uma diferença de comissão
-- **Levi** (anunciante) não tem ficha no RH — cadastrar em Equipe e vincular no lápis
-  do Meta Bônus ("Ficha no RH"), senão o bônus dele não chega ao dia 10 da folha.
+- ~~Levi~~ — é o Pedro Henrique; vinculado em 03/09 e apelido "Levi" na ficha.
 - ~~Pedro (cadastrador)~~ — vinculado ao Pedro Paulo em 03/09, a pedido.
 - **Regra sem exceção (03/09):** tudo que a planilha e a folha trazem em meta bônus e
   comissões é do mês anterior. A aba "Agosto" é a folha de agosto e a comissão nela é
