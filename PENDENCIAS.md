@@ -39,6 +39,14 @@ Ponto de partida oficial: https://developers.google.com/my-business/content/prer
 
 ## 2. Decisões do Caique
 
+### 2.7 Meta Bônus: planilha acaba em outubro — última importação no fim de setembro
+Decidido em 03/09: a partir de 10/2026 tudo é lançado direto no painel e a
+"Gestão de Processos.xlsx" deixa de existir. Setembro ainda pode ser preenchido
+na planilha, então **no início de outubro rodar uma última vez**
+`python ferramentas/importar_gestao_processos.py --desde=2026-09` (sem `--gravar`
+primeiro, depois com) e conferir que não sobrou nada. Depois disso a ferramenta
+vira histórico. Lucas fica inativo como anunciante: virou vendedor.
+
 ### 2.1 Crédito da Anthropic: ligar recarga automática
 Está desligada. O saldo zerou **duas vezes em uma semana** e o pipeline quebrou
 calado nas duas. Console → Faturamento → "Configurar recarga automática".
