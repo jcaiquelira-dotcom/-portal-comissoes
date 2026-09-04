@@ -734,7 +734,7 @@ function criarLinhaSheet(dataPadrao){
     <td><input type="text" class="sheet-produto" placeholder="Ex: Motor de arranque Gol G5"></td>
     <td><input type="number" class="sheet-valor" min="0" step="0.01" placeholder="0,00"></td>
     <td><input type="text" class="sheet-sku" placeholder="SKU"></td>
-    <td><input type="text" class="sheet-canal" list="canaisConhecidos" placeholder="Balcão, ML…"></td>
+    <td><input type="text" class="sheet-canal" list="canaisConhecidos" placeholder="BB1, ML…"></td>
     <td><button type="button" class="sheet-row-del" title="Remover linha">&times;</button></td>
   `;
   tr.querySelector('.sheet-row-del').addEventListener('click', () => tr.remove());

@@ -1208,7 +1208,10 @@ def _achatar_canal(x: str) -> str:
 # fontes podem trazer "ML" ou "shopee" e nao podem escapar do desconto nem do
 # bonus por causa de grafia.
 CANAIS_CANONICOS = {
+    # "Balcão" saiu das opcoes em 04/09/2026 (gestor); o mapa fica so pra ler
+    # as vendas antigas lancadas como "B". No lugar entraram BB1 e BB2.
     "b": "Balcão", "balcao": "Balcão",
+    "bb1": "BB1", "bb 1": "BB1", "bb2": "BB2", "bb 2": "BB2",
     "ml": "Mercado Livre", "mercado livre": "Mercado Livre",
     "itau": "Itaú",
     "deb": "Débito", "debito": "Débito",
