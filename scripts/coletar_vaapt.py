@@ -336,7 +336,11 @@ def coletar(opener, base: str, desde: str | None):
 
 
 def agregar(pedidos, desde: str | None):
-    serie, fora = defaultdict(lambda: {"qtd": 0, "total": 0.0}), defaultdict(int)
+    """Serie por dia (qtd, total) e, desde 04/09/2026, tambem o valor de cada
+    pedido pago do dia. O painel precisa casar venda que o vendedor lancou
+    como "Site" com o pedido do checkout (mesmo dia, mesmo valor) pra
+    descontar so o que e duplicado — por soma, o desconto engolia o site."""
+    serie, fora = defaultdict(lambda: {"qtd": 0, "total": 0.0, "pedidos": []}), defaultdict(int)
     for x in pedidos:
         if desde and x["data"] < desde:
             continue
@@ -345,6 +349,7 @@ def agregar(pedidos, desde: str | None):
             continue
         serie[x["data"]]["qtd"] += 1
         serie[x["data"]]["total"] = round(serie[x["data"]]["total"] + x["valor"], 2)
+        serie[x["data"]]["pedidos"].append(round(x["valor"], 2))
     return dict(serie), dict(fora)
 
 

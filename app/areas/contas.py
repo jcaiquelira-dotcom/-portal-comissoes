@@ -1096,19 +1096,62 @@ def api_admin_resumo():
             serie_st = (st.get("vendas") or {}).get("serie_dia") or {}
             soma_t = round(sum(x.get("total", 0) for d, x in serie_st.items() if de <= d <= ate), 2)
             qtd_t = sum(x.get("qtd", 0) for d, x in serie_st.items() if de <= d <= ate)
+            # Desconto por CASAMENTO, nao por soma (04/09/2026). A venda do time
+            # so sai do site se existe um pedido pago no checkout no mesmo dia
+            # (ou no vizinho) com o mesmo valor. Por soma, quatro vendas "Site"
+            # de R$ 2.347 apagavam um site de R$ 2.324 em seis pedidos — sendo
+            # que um banco de R$ 899 nunca passou pelo checkout (o cliente veio
+            # do site e pagou por fora). Dia sem lista de pedidos (coleta antiga)
+            # nao desconta nada: sem prova de duplicata, o site fica inteiro.
+            livres = {d: sorted(x.get("pedidos") or []) for d, x in serie_st.items() if de <= d <= ate}
+
+            # O vendedor lanca o valor da PECA; o pedido do checkout traz peca +
+            # frete. Entao o pedido casa quando fica entre o valor lancado e ele
+            # mais R$ 120 de frete, no mesmo dia ou no vizinho — e fica com o
+            # mais proximo. Com 2 a 6 pedidos por dia, a chance de casar errado
+            # e pequena; a chance de NAO casar por causa do frete era certeza.
+            FRETE_MAX = 120.0
+
+            def casar(v_):
+                alvo = valor_liquido(v_)
+                melhor = None
+                for desloc in (0, 1, -1):
+                    d = (date.fromisoformat(v_["data"][:10]) + timedelta(days=desloc)).isoformat()
+                    for i, p in enumerate(livres.get(d) or []):
+                        if -1.0 <= p - alvo <= FRETE_MAX and (melhor is None or p - alvo < melhor[2]):
+                            melhor = (d, i, p - alvo)
+                if melhor is None:
+                    return None
+                d, i, _ = melhor
+                return d, livres[d].pop(i)
+
             dup_st_total, dup_st_qtd = 0.0, 0
+            sem_total, sem_qtd = 0.0, 0
             for v_ in vendas.values():
                 if (v_.get("tipo", "venda") == "venda" and de <= v_["data"] <= ate
                         and str(v_.get("canal") or "").startswith("Site")):
-                    dup_st_total += valor_liquido(v_)
-                    dup_st_qtd += 1
-            dup_st_total = round(dup_st_total, 2)
+                    achou = casar(v_)
+                    if achou:
+                        dup_st_total += achou[1]
+                        dup_st_qtd += 1
+                    else:
+                        sem_total += valor_liquido(v_)
+                        sem_qtd += 1
+            dup_st_total, sem_total = round(dup_st_total, 2), round(sem_total, 2)
             if qtd_t:
                 marketplaces.append({
                     "id": "site", "nome": "Site próprio",
+                    # `total`/`qtd` = liquido, o que entra no consolidado la em cima.
+                    # `bruto` = tudo que o checkout vendeu: e o que o card mostra
+                    # (pedido do gestor, 04/09/2026: "preciso saber quanto o site
+                    # vende; nao pode ficar zerado").
                     "total": round(max(0.0, soma_t - dup_st_total), 2),
                     "qtd": max(0, qtd_t - dup_st_qtd),
+                    "bruto": {"total": soma_t, "qtd": qtd_t},
                     "descontado_comercial": {"total": dup_st_total, "qtd": dup_st_qtd},
+                    # Lancadas como "Site" pelo time mas sem pedido pago no checkout:
+                    # ficam no comercial e NAO mexem no site.
+                    "sem_pedido": {"total": sem_total, "qtd": sem_qtd},
                     "cobre_periodo": ((st.get("vendas") or {}).get("serie_desde") or "9999") <= de,
                 })
 

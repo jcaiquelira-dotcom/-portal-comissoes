@@ -4683,6 +4683,7 @@ function pintarSiteConta(){
   const de = document.getElementById('deInput').value;
   const ate = document.getElementById('ateInput').value;
   const mkt = (resumoAtual.marketplaces || []).find(m => m.id === 'site');
+  const bruto = (mkt && mkt.bruto) || {total: mkt ? mkt.total : 0, qtd: mkt ? mkt.qtd : 0};
   const ausente = (resumoAtual.marketplaces_ausentes || []).find(m => m.id === 'site');
 
   const serie = d.vendas.serie_dia || {};
@@ -4711,16 +4712,20 @@ function pintarSiteConta(){
 
   el.innerHTML = `<div class="card" style="margin-bottom:14px;">${cab}
     <div class="dp-kpis conta-linha" style="margin-bottom:0;">
-      ${tile('Vendas pagas', fmtMoeda(mkt.total), `${mkt.qtd} pedidos no período` +
-             (mkt.descontado_comercial?.qtd ? ` · ${mkt.descontado_comercial.qtd} do time já no comercial` : ''))}
-      ${tile('Ticket médio', fmtMoeda(mkt.qtd ? mkt.total / mkt.qtd : 0), 'por pedido pago')}
+      ${tile('Vendas pagas no site', fmtMoeda(bruto.total), `${bruto.qtd} pedidos no período`)}
+      ${tile('Ticket médio', fmtMoeda(bruto.qtd ? bruto.total / bruto.qtd : 0), 'por pedido pago')}
+      ${tile('Só autoatendimento', fmtMoeda(mkt.total), `${mkt.qtd} pedidos sem vendedor` +
+             (mkt.descontado_comercial?.qtd ? ` · ${mkt.descontado_comercial.qtd} já lançados pelo time (${fmtMoeda(mkt.descontado_comercial.total)})` : ''))}
       ${melhor ? tile('Melhor dia no site', fmtMoeda(serie[melhor].total),
              `${dData(melhor)} · ${serie[melhor].qtd} pedidos, antes do desconto`) : ''}
       ${tile('Dias com venda', dias.length, `de ${dData(de)} a ${dData(ate)}`)}
     </div>
     ${painelPerdasSite(d.analise)}
     <div class="dp-aviso">Só pedidos pagos — cancelados e reembolsados ficam de fora,
-      mesmo critério do ML e da Shopee.${mkt.cobre_periodo === false
+      mesmo critério do ML e da Shopee. <b>"Vendas pagas no site"</b> é tudo que o checkout vendeu;
+      no total lá em cima entra só o <b>autoatendimento</b>: pedido que um vendedor já lançou
+      (mesmo dia, mesmo valor mais frete) fica no comercial e não soma duas vezes.${mkt.sem_pedido?.qtd
+        ? ` ${mkt.sem_pedido.qtd} venda(s) do time lançada(s) como "Site" sem pedido no checkout ficam só no comercial.` : ''}${mkt.cobre_periodo === false
         ? ' <b>A série começa depois do início do período</b> — o que veio antes disso não está aqui.' : ''}
       Lido do painel do site em ${(d.gerado_em || '').slice(8, 10)}/${(d.gerado_em || '').slice(5, 7)}
       às ${(d.gerado_em || '').slice(11, 16)}.</div>
