@@ -15,7 +15,14 @@ Quem ENTRA (todas as condicoes):
      que fecham no balcao (acha 236 das 352 vendas reais do portal, 67%), enquanto
      a heuristica de palavra-chave acha 340, 97%. Ligar pra quem ja comprou custa
      mais caro que perder um candidato duvidoso, entao vale o mais abrangente.
-  2. a leitura diz que TINHAMOS a peca ('sim') ou algo proximo ('parcial')
+  2. a leitura diz que TINHAMOS a peca ('sim'). 'parcial' (algo parecido ou
+     de outro ano) saiu em 04/09/2026 a pedido do gestor: na pratica era
+     "nao tinha a peca pedida", e o vendedor ligava pra oferecer o que o
+     cliente ja tinha recusado
+  2b. e a loja NAO disse na conversa que a peca faltava ("ja foi vendido",
+     "em estoque nao tenho"). A leitura marca 'sim' em alguns desses; a
+     frase da propria loja desempata. Lista curta e literal de proposito:
+     "infelizmente" ou "nao tem" sozinhos pegavam frase de pagamento e prazo
   3. o motivo da perda e recuperavel -- quem so pesquisava preco, ou pediu peca
      que nao servia no carro dele, fica de fora
   4. da pra saber QUAL peca ele queria
@@ -86,6 +93,22 @@ ID_PORTAL = {"Flávia": "flavia", "Gustavo": "lucas", "Matheus": "matheus",
 
 # motivos onde nao ha o que reverter numa segunda tentativa
 MOTIVO_MORTO = {"so_pesquisando", "peca_errada"}
+
+# A loja dizendo, com todas as letras, que a peca nao existe. Roda sobre a fala
+# do atendente (user_id preenchido), ja sem acento e em minusculas. Cada
+# padrao aqui foi visto numa conversa real de item que estava na fila em
+# 04/09/2026 marcado como "tinhamos a peca".
+RE_FALTA = re.compile(
+    r"(ja (foi |esta |ta )?vendid"
+    r"|nao (tenho|temos|tem) (em|no) estoque"
+    r"|(em|no) estoque (nao|nao tem|nao tenho|nao temos)"
+    r"|nao (tenho|temos) (ess[ae]|est[ae]|el[ae]|mais|disponivel|nenhum)"
+    r"|nao (trabalho|trabalhamos|mexemos|mexo) com"
+    r"|sem estoque|esgotad|acabou o estoque|ja acabou"
+    r"|nao (esta|ta) (mais )?disponivel"
+    r"|nao (consegui|conseguimos|localizei|localizamos|encontrei|encontramos|achei|achamos)"
+    r"|nao (chegou|desmontamos|desmontei|temos previsao|tem previsao))"
+)
 
 # como cada motivo vira abordagem, e quanto vale a ligacao
 MOTIVO = {
@@ -240,6 +263,7 @@ def main():
     print(f"conversas lidas pela IA: {len(ia):,} ({datas[0]} a {datas[-1]})")
 
     ja_comprou, quer_vender, tem_preco, foto_cliente = set(), set(), set(), set()
+    loja_sem_peca = set()
     # Só as 3 últimas falas do cliente: é o suficiente pro vendedor lembrar da
     # conversa sem abrir o Totalk, e um deque com teto evita carregar 156 mil
     # mensagens na memória pra jogar quase todas fora depois.
@@ -253,6 +277,8 @@ def main():
         if direcao == "TO_HUB":
             if txt and user_id and RE_PRECO.search(txt):
                 tem_preco.add(sid)
+            if txt and user_id and RE_FALTA.search(tl):
+                loja_sem_peca.add(sid)
         else:
             if tipo in ("IMAGE", "VIDEO"):
                 foto_cliente.add(sid)
@@ -291,8 +317,11 @@ def main():
         if m["cv"] == "P":
             descartes["a heurística indica compra (fechou fora do chat)"] += 1
             continue
-        if a["tinha"] not in ("sim", "parcial"):
+        if a["tinha"] != "sim":
             descartes[f"não tínhamos a peça ({a['tinha']})"] += 1
+            continue
+        if sid in loja_sem_peca:
+            descartes["a loja disse na conversa que a peça faltava"] += 1
             continue
         if a["motivo"] in MOTIVO_MORTO:
             descartes[f"motivo sem volta ({a['motivo']})"] += 1
