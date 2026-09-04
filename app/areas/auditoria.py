@@ -317,3 +317,121 @@ def api_admin_auditoria_marcar(venda_id):
                             "em": agora_br().isoformat(timespec="seconds")}
     escrever_json(resolver_pasta_dados() / "auditoria.json", marcas)
     return jsonify({"ok": True})
+
+# ---------------------------------------------------------------------------
+# Avaliacoes do Google (gestor, 04/09/2026). O vendedor registra a avaliacao
+# que o cliente deixou; aqui o gestor confere no perfil do Google se ela
+# existe e e de cliente de verdade, e marca. So a validada paga os R$ 20 —
+# igual a conferencia de venda, mas com o dinheiro dependendo da marca.
+def _periodo_pedido():
+    mes = request.args.get("mes") or ""
+    de = request.args.get("de") or ""
+    ate = request.args.get("ate") or ""
+    if not (de and ate):
+        base = mes or hoje_br().isoformat()[:7]
+        ultimo = calendar.monthrange(int(base[:4]), int(base[5:7]))[1]
+        de, ate = f"{base}-01", f"{base}-{ultimo:02d}"
+    return de, ate
+
+@app.route("/api/admin/avaliacoes")
+def api_admin_avaliacoes():
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    import nucleo as N
+    de, ate = _periodo_pedido()
+    filtro_vendedor = request.args.get("vendedor") or ""
+    busca = _achatar_canal((request.args.get("busca") or "").strip())
+
+    vendedores = carregar_vendedores()
+    nomes = {vid: v["nome"] for vid, v in vendedores.items()}
+    todas = carregar_vendas_todos(vendedores)
+    marcas = N.carregar_validacao_avaliacoes()
+
+    itens = []
+    for rid, v in todas.items():
+        if v.get("tipo") != "bonus" or not (de <= v["data"] <= ate):
+            continue
+        if filtro_vendedor and v.get("vendedor_id") != filtro_vendedor:
+            continue
+        m = marcas.get(rid) or {}
+        item = {
+            "id": rid, "data": v["data"], "cliente": v.get("produto") or "",
+            "valor": float(v.get("valor") or 0),
+            "vendedor_id": v.get("vendedor_id"),
+            "status": N.status_avaliacao(rid, v, marcas),
+            "obs": m.get("obs") or "", "conferida_em": m.get("em"),
+            "nota_vendedor": v.get("obs") or "",
+            "criado_em": v.get("criado_em"),
+            # Sem `origem` = historico importado da planilha, ja pago fora do
+            # portal. Aparece pra consulta, mas nao se marca.
+            "importada": v.get("origem") != "avaliacao",
+        }
+        if busca:
+            alvo = _achatar_canal(" ".join(x for x in (
+                item["cliente"], nomes.get(item["vendedor_id"], ""), item["obs"],
+                item["nota_vendedor"], item["data"]) if x))
+            if not all(termo in alvo for termo in busca.split()):
+                continue
+        itens.append(item)
+    ordem = {"pendente": 0, "validada": 1, "recusada": 2}
+    itens.sort(key=lambda x: (ordem.get(x["status"], 9), x["data"]), reverse=False)
+    itens.sort(key=lambda x: ordem.get(x["status"], 9))
+
+    def conta(st):
+        return [x for x in itens if x["status"] == st]
+
+    # Bonus da Shopee no mesmo periodo, por vendedor: nao se confere (a venda
+    # ja passa pela conferencia normal), mas e pago junto e o gestor precisa
+    # ver o numero no mesmo lugar em que fecha os R$ 20 das avaliacoes.
+    shopee = []
+    for vid in sorted(vendedores, key=lambda x: vendedores[x]["nome"]):
+        if filtro_vendedor and vid != filtro_vendedor:
+            continue
+        r = N.resumo_bonus(vid, de, ate, todas, marcas)["shopee"]
+        if r["qtd"]:
+            shopee.append({"vendedor_id": vid, "nome": nomes[vid],
+                           "qtd": r["qtd"], "valor": r["valor"], "itens": r["itens"]})
+
+    return jsonify({
+        "de": de, "ate": ate, "busca": request.args.get("busca") or "",
+        "itens": itens,
+        "resumo": {
+            "pendentes": len(conta("pendente")),
+            "validadas": len(conta("validada")),
+            "recusadas": len(conta("recusada")),
+            "valor_validado": round(sum(x["valor"] for x in conta("validada")), 2),
+            "valor_pendente": round(sum(x["valor"] for x in conta("pendente")), 2),
+            "por_avaliacao": N.BONUS_AVALIACAO,
+            "por_venda_shopee": N.BONUS_SHOPEE,
+        },
+        "shopee": shopee,
+        "rotulos": N.STATUS_AVALIACAO,
+        "nomes": nomes,
+        "vendedores": [{"id": k, "nome": v["nome"]}
+                       for k, v in sorted(vendedores.items(), key=lambda kv: kv[1]["nome"])],
+    })
+
+@app.route("/api/admin/avaliacoes/<rid>", methods=["POST"])
+def api_admin_avaliacao_marcar(rid):
+    if not exigir_admin():
+        return jsonify({"erro": "Não autenticado."}), 401
+    import nucleo as N
+    corpo = request.get_json(silent=True) or {}
+    novo = (corpo.get("status") or "").strip()
+    if novo and novo not in N.STATUS_AVALIACAO:
+        return jsonify({"erro": "status inválido"}), 400
+    todas = carregar_vendas_todos(carregar_vendedores())
+    v = todas.get(rid)
+    if not v or v.get("tipo") != "bonus":
+        return jsonify({"erro": "Avaliação não encontrada."}), 404
+    if v.get("origem") != "avaliacao":
+        return jsonify({"erro": "Essa avaliação veio da planilha antiga e já foi paga; não precisa de conferência."}), 400
+    marcas = N.carregar_validacao_avaliacoes()
+    if not novo:
+        marcas.pop(rid, None)
+    else:
+        marcas[rid] = {"status": novo,
+                       "obs": (corpo.get("obs") or "").strip()[:400],
+                       "em": agora_br().isoformat(timespec="seconds")}
+    escrever_json(resolver_pasta_dados() / "avaliacoes.json", marcas)
+    return jsonify({"ok": True})

@@ -262,8 +262,12 @@ def _folha_sugestoes(mes: str, colaboradores: dict) -> dict:
         if vid and vid in vendedores:
             try:
                 vendas = N.carregar_vendas_para_comissao(vid, vendedores)
+                calc = N.calcular_comissao(vid, de, ate, vendedores, vendas)
+                # Comissao do percentual + bonus pagos junto com ela (R$ 20 por
+                # venda na Shopee e por avaliacao do Google validada). O Meta
+                # Bonus e outra rubrica (`bonus`), e vem do painel dele.
                 sug.setdefault(cid, {})["comissao"] = round(
-                    float(N.calcular_comissao(vid, de, ate, vendedores, vendas).get("comissao") or 0), 2)
+                    float(calc.get("comissao") or 0) + float(calc.get("total_bonus") or 0), 2)
             except Exception:
                 pass
     mb = N._mb_bruto()

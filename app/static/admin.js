@@ -910,13 +910,26 @@ async function carregarResumo(){
         vendasHtml = `<div class="detalhe-wrap"><table><thead><tr><th>Data</th><th>Produto</th><th>Valor</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
       }
 
+      /* Bonus fora do percentual: Shopee (R$ 20 por venda) e avaliacoes do
+         Google (R$ 20 por avaliacao confirmada na tela de Comissoes). A
+         pendente aparece, mas nao soma — e o gestor precisa ver que ela
+         existe pra ir la conferir. */
       let bonusHtml = '';
-      if(v.bonus && v.bonus.length > 0){
-        const linhasBonus = v.bonus.map(b => {
-          const [y,m,d] = b.data.split('-');
-          return `<tr><td>${d}/${m}/${y}</td><td>${b.produto}</td><td>${fmtMoeda(b.valor)}</td></tr>`;
-        }).join('');
-        bonusHtml = `<div class="detalhe-wrap"><p class="section-title" style="margin:10px 0 6px;font-size:11px;">Bônus / avaliações (fora da comissão)</p><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody>${linhasBonus}</tbody></table></div>`;
+      const bd = v.bonus_detalhe;
+      if(bd && (bd.shopee.qtd || bd.avaliacoes.itens.length)){
+        const dataBr = iso => `${iso.slice(8,10)}/${iso.slice(5,7)}/${iso.slice(0,4)}`;
+        const rotAval = {pendente: 'aguardando conferência', validada: 'confirmada', recusada: 'recusada'};
+        const linhas = bd.shopee.itens.map(s =>
+          `<tr><td>${dataBr(s.data)}</td><td>Shopee · ${s.produto || ''}</td><td>${fmtMoeda(s.bonus)}</td></tr>`).join('')
+          + bd.avaliacoes.itens.map(a =>
+          `<tr${a.status === 'validada' ? '' : ' style="opacity:.6"'}><td>${dataBr(a.data)}</td>
+             <td>Avaliação · ${a.cliente || ''} <span class="dp-var neutro">${rotAval[a.status] || a.status}</span></td>
+             <td>${a.status === 'validada' ? fmtMoeda(a.valor) : '—'}</td></tr>`).join('');
+        bonusHtml = `<div class="detalhe-wrap"><p class="section-title" style="margin:10px 0 6px;font-size:11px;">
+            Bônus (fora do percentual): Shopee ${bd.shopee.qtd} × R$ ${bd.shopee.por_venda} = ${fmtMoeda(bd.shopee.valor)}
+            · Avaliações ${bd.avaliacoes.validadas} confirmada(s) = ${fmtMoeda(bd.avaliacoes.valor)}${
+            bd.avaliacoes.pendentes ? ` · <b>${bd.avaliacoes.pendentes} aguardando conferência</b>` : ''}</p>
+          <table><thead><tr><th>Data</th><th>Descrição</th><th>Bônus</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
       }
 
       detalheTr.innerHTML = `<td colspan="7" class="valor-money">${overridesHtml}${estornoHtml}${vendasHtml}${bonusHtml}</td>`;
@@ -1390,6 +1403,7 @@ function audAlternarFoco(foco){
 async function carregarAuditoria(){
   const corpo = document.getElementById('audCorpo');
   corpo.innerHTML = '<div class="vazio">Carregando…</div>';
+  if(audModo === 'avaliacoes'){ await carregarAvaliacoesAdmin(); return; }
   const q = new URLSearchParams({
     de: document.getElementById('audDe').value || '',
     ate: document.getElementById('audAte').value || '',
@@ -1633,6 +1647,124 @@ function renderAuditoria(d){
     </div>`;
 }
 
+/* ---------- Avaliacoes do Google (dentro de Comissoes) ----------
+   O vendedor registra; o gestor abre o perfil da loja no Google, procura o
+   nome e marca. A marca e o que paga: pendente nao entra na comissao. */
+const AVAL_CURTO = {validada: '✓', recusada: '✗'};
+
+async function carregarAvaliacoesAdmin(){
+  const corpo = document.getElementById('audCorpo');
+  const q = new URLSearchParams({
+    de: document.getElementById('audDe').value || '',
+    ate: document.getElementById('audAte').value || '',
+  });
+  const busca = document.getElementById('audBusca').value.trim();
+  if(busca) q.set('busca', busca);
+  const vend = document.getElementById('audVendedor').value;
+  if(vend) q.set('vendedor', vend);
+  const res = await fetch('/api/admin/avaliacoes?' + q);
+  if(!res.ok){ corpo.innerHTML = '<div class="vazio">Não consegui carregar as avaliações.</div>'; return; }
+  const d = await res.json();
+  audCarregado = true;
+  const sel = document.getElementById('audVendedor');
+  if(sel.dataset.pronto !== '1'){
+    sel.innerHTML = '<option value="">Todos os vendedores</option>'
+      + (d.vendedores || []).map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
+    sel.dataset.pronto = '1';
+  }
+  renderAvaliacoesAdmin(d);
+}
+
+function avalFicha(a, d){
+  const dt = a.data.slice(8) + '/' + a.data.slice(5,7);
+  const rot = {pendente: 'aguardando', validada: 'confirmada', recusada: 'recusada'}[a.status] || a.status;
+  const cor = {pendente: 'var(--warn)', validada: 'var(--good)', recusada: 'var(--bad)'}[a.status] || 'var(--muted)';
+  const detalhe = [d.nomes[a.vendedor_id] || a.vendedor_id, a.nota_vendedor || null,
+                   a.importada ? 'planilha antiga · já paga' : null].filter(Boolean).join(' · ');
+  const botoes = a.importada ? '' : Object.entries(d.rotulos).map(([k, r]) =>
+    `<button class="aud-btn${a.status === k ? ' on ' + (k === 'validada' ? 'conferida' : 'divergente') : ''}"
+      data-aval="${a.id}" data-status="${k}" title="${r}">${AVAL_CURTO[k] || r}</button>`).join('');
+  return `<div class="aud-ficha${a.status !== 'pendente' ? ' marcada' : ''}" data-ficha="${a.id}">
+    <span class="aud-data">${dt}</span>
+    <span class="aud-produto" title="${(a.cliente || '').replace(/"/g, '&quot;')}">${a.cliente || 'Sem nome'}
+      <span class="ml-selo" style="border-color:${cor};color:${cor};margin-left:6px;">${rot}</span></span>
+    <span class="aud-detalhe" title="${detalhe}">${detalhe}</span>
+    <span class="aud-valor valor-money">${fmtMoeda(a.valor)}</span>
+    <span class="aud-sinais"></span>
+    <span class="aud-acoes">
+      ${botoes}
+      ${(!a.importada && a.status !== 'pendente') ? `<button class="aud-btn limpar" data-aval="${a.id}" data-status="" title="Desfazer">↺</button>` : ''}
+      ${a.importada ? '' : `<input type="text" class="aud-obs" data-avalobs="${a.id}" placeholder="obs"
+             value="${(a.obs || '').replace(/"/g, '&quot;')}">`}
+    </span>
+  </div>`;
+}
+
+function renderAvaliacoesAdmin(d){
+  const corpo = document.getElementById('audCorpo');
+  const r = d.resumo;
+  const kpi = (rot, num, sub, cor) => `<div class="dp-kpi">
+      <div class="rot">${rot}</div>
+      <div class="num valor-money"${cor ? ` style="color:${cor}"` : ''}>${num}</div>
+      ${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
+  const kpis = [
+    kpi('Aguardando conferência', r.pendentes, r.pendentes ? fmtMoeda(r.valor_pendente) + ' parados' : 'nada pendente',
+        r.pendentes ? 'var(--warn)' : 'var(--good)'),
+    kpi('Confirmadas', r.validadas, fmtMoeda(r.valor_validado) + ' a pagar', r.validadas ? 'var(--good)' : null),
+    kpi('Recusadas', r.recusadas, r.recusadas ? 'não pagam' : 'nenhuma', r.recusadas ? 'var(--bad)' : null),
+    kpi('Bônus Shopee', fmtMoeda(d.shopee.reduce((s, x) => s + x.valor, 0)),
+        d.shopee.length ? d.shopee.reduce((s, x) => s + x.qtd, 0) + ' vendas · R$ ' + r.por_venda_shopee + ' cada' : 'nenhuma venda Shopee no período'),
+  ].join('');
+
+  const lista = d.itens.length
+    ? d.itens.map(a => avalFicha(a, d)).join('')
+    : `<div class="vazio">${d.busca ? `Nada encontrado para “${d.busca}”.` : 'Nenhuma avaliação registrada de ' + audPeriodoTexto(d) + '.'}</div>`;
+
+  const shopee = d.shopee.length ? `<div class="card" style="margin-top:14px;">
+    <details class="dobra">
+      <summary><span class="card-titulo">Bônus Shopee por vendedor</span>
+        <span class="dobra-conta">${d.shopee.length}</span></summary>
+      <p class="fechamento-nota" style="margin:8px 0 10px;">R$ ${r.por_venda_shopee} por venda lançada com canal Shopee. Não precisa de conferência à parte: a venda já passa pela conferência normal.</p>
+      ${d.shopee.map(s => `<div class="aud-ficha" style="opacity:1;">
+        <span class="aud-data"></span>
+        <span class="aud-produto">${s.nome}</span>
+        <span class="aud-detalhe">${s.qtd} venda${s.qtd === 1 ? '' : 's'} na Shopee</span>
+        <span class="aud-valor valor-money">${fmtMoeda(s.valor)}</span>
+        <span class="aud-sinais"></span><span class="aud-acoes"></span>
+      </div>`).join('')}
+    </details>
+  </div>` : '';
+
+  corpo.innerHTML = `
+    <div class="dp-kpis">${kpis}</div>
+    <div class="card" style="margin-bottom:14px;">
+      <div class="aud-cabecalho">
+        <p class="card-titulo" style="margin:0;">Avaliações do Google de ${audPeriodoTexto(d)}</p>
+        ${d.busca ? `<span class="aud-conta">“${d.busca}”</span>` : ''}
+        <span class="aud-conta">${d.itens.length} avaliaç${d.itens.length === 1 ? 'ão' : 'ões'}</span>
+      </div>
+      <p class="fechamento-nota" style="margin:0 0 14px;">
+        Abra as avaliações do perfil da loja no Google, procure o nome do cliente e marque:
+        ✓ existe e é de cliente de verdade (paga R$ ${r.por_avaliacao}); ✗ não achei ou não é real (não paga).
+        As pendentes vêm primeiro. O vendedor vê a situação na tela dele.
+      </p>
+      ${lista}
+    </div>
+    ${shopee}`;
+}
+
+async function avalMarcar(id, status){
+  const obs = document.querySelector(`[data-avalobs="${id}"]`);
+  const res = await fetch('/api/admin/avaliacoes/' + id, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status, obs: obs ? obs.value : ''}),
+  });
+  const dados = await res.json().catch(() => ({}));
+  if(!res.ok){ alert(dados.erro || 'Não consegui salvar a marcação.'); return; }
+  carregarAuditoria();
+}
+
 async function audMarcar(id, status){
   const obs = document.querySelector(`[data-obs="${id}"]`);
   const res = await fetch('/api/admin/auditoria/' + id, {
@@ -1661,6 +1793,8 @@ document.addEventListener('click', ev => {
   if(ev.target.id === 'audLimparFoco'){ audAlternarFoco(audFoco); return; }
   const btn = ev.target.closest('[data-aud]');
   if(btn) audMarcar(btn.dataset.aud, btn.dataset.status);
+  const aval = ev.target.closest('[data-aval]');
+  if(aval) avalMarcar(aval.dataset.aval, aval.dataset.status);
 });
 
 document.addEventListener('change', ev => {

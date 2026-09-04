@@ -134,6 +134,7 @@ function mostrarApp(){
   preencherPerfil(eu.nome, eu.foto, eu.avatar);
   document.getElementById('mesInput').value = todayStr().slice(0,7);
   document.getElementById('dataInput').value = todayStr();
+  document.getElementById('avalDataInput').value = todayStr();
   irParaSecao(secaoAtual);
   carregarVendas();
   carregarConfirmacao();
@@ -299,7 +300,104 @@ async function carregarVendas(){
   if(res.status === 401){ logout(); return; }
   vendasDoMes = await res.json();
   renderVendas();
+  carregarAvaliacoes();
 }
+
+/* ---------- avaliacoes do Google ----------
+   Registro do vendedor; quem valida e o gestor, na tela de Comissoes. Ate la
+   a avaliacao aparece como "aguardando" e nao entra no valor a receber. */
+let avalDoMes = [];
+const AVAL_ROTULO = {pendente: 'Aguardando conferência', validada: 'Confirmada', recusada: 'Recusada'};
+
+async function carregarAvaliacoes(){
+  const body = document.getElementById('avalBody');
+  if(!body) return;
+  const mes = document.getElementById('mesInput').value;
+  const res = await fetch('/api/avaliacoes?mes=' + mes);
+  if(!res.ok) return;
+  const d = await res.json();
+  avalDoMes = (d.avaliacoes && d.avaliacoes.itens) || [];
+  renderAvaliacoes(d);
+}
+
+function renderAvaliacoes(d){
+  const body = document.getElementById('avalBody');
+  const empty = document.getElementById('emptyAval');
+  const rodape = document.getElementById('avalRodape');
+  body.innerHTML = '';
+  if(!avalDoMes.length){
+    empty.style.display = 'block';
+    rodape.textContent = '';
+    return;
+  }
+  empty.style.display = 'none';
+  avalDoMes.forEach(a => {
+    const [y,m,dd] = a.data.split('-');
+    const tr = document.createElement('tr');
+    const nota = a.nota_vendedor ? '<br><span style="color:var(--muted);font-size:11px;">' + a.nota_vendedor + '</span>' : '';
+    const obsGestor = a.obs ? '<br><span style="color:var(--muted);font-size:11px;">Gestor: ' + a.obs + '</span>' : '';
+    tr.innerHTML = '<td>' + dd + '/' + m + '/' + y + '</td>'
+      + '<td class="produto-col">' + a.cliente + nota + '</td>'
+      + '<td><span class="aval-status ' + a.status + '">' + (AVAL_ROTULO[a.status] || a.status) + '</span>' + obsGestor + '</td>'
+      + '<td class="valor-money">' + fmtMoeda(a.valor) + '</td>'
+      + '<td>' + (a.status === 'pendente'
+          ? '<button class="devolucao-btn del-btn" data-avalid="' + a.id + '">Excluir</button>' : '') + '</td>';
+    body.appendChild(tr);
+  });
+  const av = d.avaliacoes || {};
+  const partes = [];
+  if(av.validadas) partes.push(av.validadas + ' confirmada' + (av.validadas === 1 ? '' : 's') + ' = ' + fmtMoeda(av.valor || 0));
+  if(av.pendentes) partes.push(av.pendentes + ' aguardando (' + fmtMoeda(av.valor_pendente || 0) + ')');
+  if(av.recusadas) partes.push(av.recusadas + ' recusada' + (av.recusadas === 1 ? '' : 's'));
+  rodape.textContent = partes.join(' · ');
+}
+
+document.getElementById('avalAddBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('avalAddBtn');
+  if(btn.disabled) return;
+  const status = document.getElementById('avalStatus');
+  const data = document.getElementById('avalDataInput').value || todayStr();
+  const cliente = document.getElementById('avalClienteInput').value.trim();
+  const obs = document.getElementById('avalObsInput').value.trim();
+  status.classList.remove('show','err');
+  if(!cliente){
+    status.textContent = 'Informe o nome do cliente como aparece na avaliação.';
+    status.classList.add('show','err');
+    return;
+  }
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/avaliacoes', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({data, cliente, obs, envio_id: novoEnvioId()}),
+    });
+    const dados = await res.json().catch(() => ({}));
+    if(!res.ok){
+      status.textContent = dados.erro || 'Erro ao salvar.';
+      status.classList.add('show','err');
+      return;
+    }
+    status.textContent = 'Avaliação registrada. O gestor confere e ela entra no bônus.';
+    status.classList.add('show');
+    document.getElementById('avalClienteInput').value = '';
+    document.getElementById('avalObsInput').value = '';
+    const mesInput = document.getElementById('mesInput');
+    if(data.slice(0,7) !== mesInput.value) mesInput.value = data.slice(0,7);
+    await Promise.all([carregarAvaliacoes(), carregarConfirmacao(), carregarPainel()]);
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('avalBody').addEventListener('click', async ev => {
+  const btn = ev.target.closest('[data-avalid]');
+  if(!btn) return;
+  if(!confirm('Excluir essa avaliação?')) return;
+  const res = await fetch('/api/avaliacoes/' + btn.dataset.avalid, {method: 'DELETE'});
+  const dados = await res.json().catch(() => ({}));
+  if(!res.ok){ alert(dados.erro || 'Não consegui excluir.'); return; }
+  await Promise.all([carregarAvaliacoes(), carregarConfirmacao(), carregarPainel()]);
+});
 
 /* Monta a data por partes em vez de new Date("2026-08-26"): a forma com a
    string ISO e lida como UTC e, a noite, cai no dia anterior. */
@@ -956,6 +1054,10 @@ function renderPainel(){
   const devolucaoRodape = d.devolucoes.quantidade
     ? d.devolucoes.quantidade + ' devolução(ões): −' + fmtMoeda(d.devolucoes.valor)
     : 'Nenhuma devolução no mês';
+  // Bonus fora do percentual: Shopee (R$ 20 por venda) e avaliacoes do Google
+  // (R$ 20 por avaliacao que o gestor confirmou). Dois cards, porque sao duas
+  // coisas que o vendedor faz — e o gestor quis ver a Shopee separada.
+  const bn = c.bonus || {shopee: {qtd: 0, valor: 0}, avaliacoes: {validadas: 0, pendentes: 0, valor: 0, valor_pendente: 0}};
 
   document.getElementById('kpiGrid').innerHTML =
       kpi('Total vendido no mês', fmtMoeda(d.total_mes),
@@ -967,7 +1069,15 @@ function renderPainel(){
           {id:'cardComissao', classe: detalheComissao ? 'tem-detalhe' : '', html: detalheComissao})
     + kpi('Vendas no mês', String(d.qtd_vendas), 'Ticket médio: ' + fmtMoeda(d.ticket_medio), IC.carrinho, 'i-azul')
     + kpi('Ticket médio', fmtMoeda(d.ticket_medio), devolucaoRodape, IC.etiqueta, 'i-roxo')
-    + kpi('Bônus do mês', fmtMoeda(c.total_bonus || 0), 'Avaliações, fora da comissão', IC.alvo, 'i-amarelo');
+    + kpi('Bônus Shopee', fmtMoeda(bn.shopee.valor || 0),
+          bn.shopee.qtd ? bn.shopee.qtd + ' venda' + (bn.shopee.qtd === 1 ? '' : 's') + ' na Shopee · R$ 20 cada'
+                        : 'R$ 20 por venda lançada como Shopee', IC.carrinho, 'i-amarelo')
+    + kpi('Avaliações do Google', fmtMoeda(bn.avaliacoes.valor || 0),
+          bn.avaliacoes.pendentes
+            ? bn.avaliacoes.pendentes + ' aguardando o gestor conferir (' + fmtMoeda(bn.avaliacoes.valor_pendente || 0) + ')'
+            : (bn.avaliacoes.validadas ? bn.avaliacoes.validadas + ' confirmada' + (bn.avaliacoes.validadas === 1 ? '' : 's') + ' · R$ 20 cada'
+                                       : 'R$ 20 por avaliação confirmada'),
+          IC.alvo, 'i-amarelo');
 
   ligarDetalheComissao();
 

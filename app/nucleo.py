@@ -783,6 +783,7 @@ def calcular_comissao(vendedor_id: str, de: str, ate: str, vendedores: dict, ven
     proprio = total_vendido(vendedor_id, de, ate, vendas)
     percentual = float(info.get("percentual", 0))
     comissao = proprio * percentual / 100
+    bonus = resumo_bonus(vendedor_id, de, ate, vendas)
 
     # Devolucao de venda de mes ja pago: abate aqui, no mes em que a peca
     # voltou. O mes de origem fica intacto porque ele ja virou pagamento.
@@ -831,7 +832,10 @@ def calcular_comissao(vendedor_id: str, de: str, ate: str, vendedores: dict, ven
             "a_carregar": round(max(0.0, -comissao), 2),
             "itens": estorno_itens,
         },
-        "total_bonus": total_vendido(vendedor_id, de, ate, vendas, tipo="bonus"),
+        # Bonus fora do percentual: R$ 20 por venda na Shopee e R$ 20 por
+        # avaliacao do Google validada pelo gestor (regra de 04/09/2026).
+        "total_bonus": bonus["total"],
+        "bonus": bonus,
     }
 
 # Areas do portal que podem ser liberadas uma a uma. A chave e a mesma que o
@@ -1189,6 +1193,119 @@ def _achatar_canal(x: str) -> str:
     x = "".join(c for c in unicodedata.normalize("NFKD", x.lower())
                 if not unicodedata.combining(c))
     return " ".join(x.split())
+
+# ---------------------------------------------------------------------------
+# Canal da venda e bonus do vendedor
+#
+# O canal era texto livre e virou 19 grafias pra meia duzia de canais reais —
+# "ITAU" de quatro jeitos, "B" pra balcao. Normaliza na entrada, que e a unica
+# porta: daqui pra frente toda venda ja chega com o nome canonico. Grafia
+# desconhecida passa como veio, porque inventar mapeamento e pior que fragmentar.
+#
+# O historico do banco foi corrigido por script em 02/09/2026 (a grafia antiga
+# ficou em `canal_original`). Mesmo assim quem compara canal usa
+# canal_da_venda(), que normaliza na leitura: a copia local em data/ e outras
+# fontes podem trazer "ML" ou "shopee" e nao podem escapar do desconto nem do
+# bonus por causa de grafia.
+CANAIS_CANONICOS = {
+    "b": "Balcão", "balcao": "Balcão",
+    "ml": "Mercado Livre", "mercado livre": "Mercado Livre",
+    "itau": "Itaú",
+    "deb": "Débito", "debito": "Débito",
+    # O time deixou de usar "crediário" em 02/09/2026: na pratica o que era
+    # lancado assim era cartao de credito. "crediario" continua no mapa pra
+    # quem digitar por habito cair no nome novo em vez de fragmentar.
+    "cred": "Crédito", "credito": "Crédito", "crediario": "Crédito",
+    "din": "Dinheiro", "dinh": "Dinheiro", "dinheiro": "Dinheiro",
+    "site": "Site", "loja integrada": "Site",
+    "itau / cred": "Itaú / Crédito",
+    # Shopee entrou como canal do time em 04/09/2026: o vendedor que fecha
+    # pela Shopee lanca a venda e ganha R$ 20 de bonus por ela.
+    "shopee": "Shopee", "shope": "Shopee", "shoppe": "Shopee",
+}
+
+def normalizar_canal(texto) -> str:
+    t = " ".join(str(texto or "").split())
+    if not t:
+        return ""
+    chave = _achatar_canal(t)
+    if chave in CANAIS_CANONICOS:
+        return CANAIS_CANONICOS[chave]
+    # "Cred 4x" -> "Crédito 4x": a primeira palavra e o canal, o resto e
+    # detalhe (parcelamento) que nao se joga fora. Divide o texto REAL, nao a
+    # chave achatada — os dois podem ter contagens de espaco diferentes.
+    partes = t.split(" ", 1)
+    if len(partes) == 2 and _achatar_canal(partes[0]) in CANAIS_CANONICOS:
+        return CANAIS_CANONICOS[_achatar_canal(partes[0])] + " " + partes[1]
+    return t
+
+def canal_da_venda(v: dict) -> str:
+    """Canal no nome canonico, mesmo em venda gravada antes da normalizacao."""
+    return normalizar_canal(v.get("canal"))
+
+def e_do_canal(v: dict, nome: str) -> bool:
+    """"Mercado Livre 3x" e do Mercado Livre; "Shopee" e da Shopee."""
+    return canal_da_venda(v).startswith(nome)
+
+# Bonus pagos junto com a comissao, fora do percentual (gestor, 04/09/2026):
+# R$ 20 por venda fechada pela Shopee e R$ 20 por avaliacao do Google. A
+# avaliacao so paga depois que o gestor confere que ela existe e e de cliente
+# de verdade — e o vendedor que lanca, e o gestor que valida, na tela de
+# Comissoes. Vale e um numero so, aqui, pra nao virar dois quando mudar.
+BONUS_SHOPEE = 20.0
+BONUS_AVALIACAO = 20.0
+STATUS_AVALIACAO = {
+    "validada": "Confirmada",
+    "recusada": "Recusada",
+}
+
+def carregar_validacao_avaliacoes() -> dict:
+    return ler_json(resolver_pasta_dados() / "avaliacoes.json", None) or {}
+
+def status_avaliacao(rid: str, v: dict, marcas: dict) -> str:
+    # Registro sem `origem` e o historico importado da planilha (126 bonus de
+    # R$ 20 entre jan e ago/2026): ja foi conferido e pago fora do portal.
+    if v.get("origem") != "avaliacao":
+        return "validada"
+    return (marcas.get(rid) or {}).get("status") or "pendente"
+
+def resumo_bonus(vendedor_id: str, de: str, ate: str, vendas: dict, marcas: dict = None) -> dict:
+    """Shopee + avaliacoes do periodo, com os itens que explicam o numero."""
+    if marcas is None:
+        marcas = carregar_validacao_avaliacoes()
+    shopee, avaliacoes = [], []
+    for rid, v in vendas.items():
+        if v.get("vendedor_id") != vendedor_id or not (de <= v["data"] <= ate):
+            continue
+        tipo = v.get("tipo", "venda")
+        if tipo == "venda":
+            # Venda que voltou inteira nao paga bonus: a Shopee tambem estornou.
+            if e_do_canal(v, "Shopee") and valor_liquido(v) > 0:
+                shopee.append({"id": rid, "data": v["data"], "produto": v.get("produto"),
+                               "valor": valor_liquido(v), "bonus": BONUS_SHOPEE})
+        elif tipo == "bonus":
+            marca = marcas.get(rid) or {}
+            avaliacoes.append({"id": rid, "data": v["data"], "cliente": v.get("produto"),
+                               "valor": float(v.get("valor") or 0),
+                               "status": status_avaliacao(rid, v, marcas),
+                               "obs": marca.get("obs") or "",
+                               "nota_vendedor": v.get("obs") or ""})
+    shopee.sort(key=lambda x: x["data"], reverse=True)
+    avaliacoes.sort(key=lambda x: x["data"], reverse=True)
+    validadas = [a for a in avaliacoes if a["status"] == "validada"]
+    pendentes = [a for a in avaliacoes if a["status"] == "pendente"]
+    recusadas = [a for a in avaliacoes if a["status"] == "recusada"]
+    valor_shopee = round(len(shopee) * BONUS_SHOPEE, 2)
+    valor_aval = round(sum(a["valor"] for a in validadas), 2)
+    return {
+        "shopee": {"qtd": len(shopee), "valor": valor_shopee, "por_venda": BONUS_SHOPEE,
+                   "itens": shopee},
+        "avaliacoes": {"validadas": len(validadas), "pendentes": len(pendentes),
+                       "recusadas": len(recusadas), "valor": valor_aval,
+                       "valor_pendente": round(sum(a["valor"] for a in pendentes), 2),
+                       "por_avaliacao": BONUS_AVALIACAO, "itens": avaliacoes},
+        "total": round(valor_shopee + valor_aval, 2),
+    }
 
 def retroativo_ativo(vendedor: dict) -> bool:
     """Verifica se a liberação temporária de lançamento retroativo do gestor

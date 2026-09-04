@@ -899,8 +899,8 @@ def montar_desempenho(vid, mes, vendedores):
                   "pct_do_mes": round(100 * dias_corridos / dias_no_mes),
                   "projecao": round(atual["total"] / dias_corridos * dias_no_mes, 2)
                               if dias_corridos else 0.0},
-        "comissao": {"valor": comissao["comissao"], "bonus": round(
-            sum(v["valor"] for v in do_mes(bonus, mes)), 2)},
+        # Bonus = Shopee + avaliacoes validadas, a mesma conta da comissao.
+        "comissao": {"valor": comissao["comissao"], "bonus": comissao["total_bonus"]},
         "historico": historico,
         "serie_dia": serie_dia,
         "melhor_dia": melhor_dia,

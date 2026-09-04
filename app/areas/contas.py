@@ -38,6 +38,14 @@ from nucleo import (
     LOG_ACOES_FILE,
     PAGINA_DA_AREA,
     _achatar_canal,
+    BONUS_AVALIACAO,
+    canal_da_venda,
+    carregar_validacao_avaliacoes,
+    e_do_canal,
+    normalizar_canal,
+    resumo_bonus,
+    status_avaliacao,
+    STATUS_AVALIACAO,
     _atd_pendentes,
     _atd_resolvidos,
     _hash_codigo,
@@ -295,41 +303,6 @@ def api_listar_vendas():
     minhas.sort(key=lambda v: v["data"], reverse=True)
     return jsonify(minhas)
 
-# O canal era texto livre e virou 19 grafias pra meia duzia de canais reais —
-# "ITAU" de quatro jeitos, "B" pra balcao. Normaliza na entrada, que e a unica
-# porta: o historico foi corrigido uma vez por script, e daqui pra frente toda
-# venda ja chega com o nome canonico. Grafia desconhecida passa como veio,
-# porque inventar mapeamento e pior que fragmentar.
-CANAIS_CANONICOS = {
-    "b": "Balcão", "balcao": "Balcão",
-    "ml": "Mercado Livre", "mercado livre": "Mercado Livre",
-    "itau": "Itaú",
-    "deb": "Débito", "debito": "Débito",
-    # O time deixou de usar "crediário" em 02/09/2026: na pratica o que era
-    # lancado assim era cartao de credito. As 20 vendas antigas foram
-    # convertidas por script na mesma data, e "crediario" continua no mapa pra
-    # quem digitar por habito cair no nome novo em vez de fragmentar.
-    "cred": "Crédito", "credito": "Crédito", "crediario": "Crédito",
-    "din": "Dinheiro", "dinh": "Dinheiro", "dinheiro": "Dinheiro",
-    "site": "Site", "loja integrada": "Site",
-    "itau / cred": "Itaú / Crédito",
-}
-
-def normalizar_canal(texto) -> str:
-    t = " ".join(str(texto or "").split())
-    if not t:
-        return ""
-    chave = _achatar_canal(t)
-    if chave in CANAIS_CANONICOS:
-        return CANAIS_CANONICOS[chave]
-    # "Cred 4x" -> "Crédito 4x": a primeira palavra e o canal, o resto e
-    # detalhe (parcelamento) que nao se joga fora. Divide o texto REAL, nao a
-    # chave achatada — os dois podem ter contagens de espaco diferentes.
-    partes = t.split(" ", 1)
-    if len(partes) == 2 and _achatar_canal(partes[0]) in CANAIS_CANONICOS:
-        return CANAIS_CANONICOS[_achatar_canal(partes[0])] + " " + partes[1]
-    return t
-
 def validar_valor_produto(body: dict) -> tuple[float, str, str, str]:
     try:
         valor = round(float(body.get("valor")), 2)
@@ -440,6 +413,99 @@ def api_criar_venda():
     limpar_confirmacao(vendedor_id, venda["data"][:7])
     return jsonify({"ok": True, "id": novo_id})
 
+# ---------------------------------------------------------------------------
+# Avaliacoes do Google (gestor, 04/09/2026): o vendedor registra a avaliacao
+# que o cliente dele deixou, com o nome como aparece no Google. Vale R$ 20 —
+# mas so depois que o gestor confere na tela de Comissoes que ela existe.
+# Mora no mesmo arquivo de vendas do vendedor, como `tipo: bonus` (o historico
+# importado da planilha ja era assim), com `origem: avaliacao` pra distinguir
+# o que passa por validacao do que ja foi pago fora do portal.
+@app.route("/api/avaliacoes", methods=["GET"])
+def api_listar_avaliacoes():
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    mes = request.args.get("mes", hoje_br().isoformat()[:7])
+    de, ate = mes_para_intervalo(mes)
+    vendas = carregar_vendas_vendedor(vendedor_id)
+    resumo = resumo_bonus(vendedor_id, de, ate, vendas)
+    return jsonify({"mes": mes, "avaliacoes": resumo["avaliacoes"], "shopee": resumo["shopee"],
+                    "total": resumo["total"], "rotulos": STATUS_AVALIACAO})
+
+@app.route("/api/avaliacoes", methods=["POST"])
+def api_criar_avaliacao():
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    body = request.get_json(force=True) or {}
+    cliente = " ".join(str(body.get("cliente") or "").split())[:120]
+    if not cliente:
+        return jsonify({"erro": "Informe o nome do cliente como aparece na avaliação."}), 400
+    data_aval = (body.get("data") or hoje_br().isoformat()).strip()
+    liberado = retroativo_ativo(carregar_vendedores().get(vendedor_id, {}))
+    try:
+        validar_data_venda(data_aval, ignorar_limite=liberado)
+    except ValueError as e:
+        return jsonify({"erro": str(e)}), 400
+    if mes_esta_fechado(data_aval):
+        return jsonify({"erro": "Esse mês já foi fechado pelo gestor e não aceita mais lançamentos."}), 403
+
+    vendas = carregar_vendas_vendedor(vendedor_id)
+    envio_id = (body.get("envio_id") or "").strip()
+    if envio_id:
+        for rid, v in vendas.items():
+            if v.get("envio_id") == envio_id:
+                return jsonify({"ok": True, "id": rid, "ja_existia": True})
+    # Mesmo cliente duas vezes no mes e quase sempre clique duplo — e o Google
+    # so deixa uma avaliacao por conta. Bloqueia; se for outro cliente com o
+    # mesmo nome, o vendedor acrescenta um sobrenome.
+    chave = _achatar_canal(cliente)
+    for v in vendas.values():
+        if (v.get("tipo") == "bonus" and v["data"][:7] == data_aval[:7]
+                and _achatar_canal(v.get("produto") or "") == chave):
+            return jsonify({"erro": f"Já existe uma avaliação de {cliente} neste mês."}), 409
+
+    registro = {
+        "vendedor_id": vendedor_id,
+        "data": data_aval,
+        "tipo": "bonus",
+        "origem": "avaliacao",
+        "valor": BONUS_AVALIACAO,
+        "produto": cliente,
+        "criado_em": agora_br().isoformat(timespec="seconds"),
+    }
+    obs = " ".join(str(body.get("obs") or "").split())[:300]
+    if obs:
+        registro["obs"] = obs
+    if envio_id:
+        registro["envio_id"] = envio_id
+    novo_id = uuid.uuid4().hex[:12]
+    vendas[novo_id] = registro
+    salvar_vendas_vendedor(vendedor_id, vendas)
+    limpar_confirmacao(vendedor_id, data_aval[:7])
+    return jsonify({"ok": True, "id": novo_id})
+
+@app.route("/api/avaliacoes/<rid>", methods=["DELETE"])
+def api_remover_avaliacao(rid):
+    vendedor_id = exigir_vendedor()
+    if not vendedor_id:
+        return jsonify({"erro": "Não autenticado."}), 401
+    vendas = carregar_vendas_vendedor(vendedor_id)
+    v = vendas.get(rid)
+    if not v or v.get("tipo") != "bonus":
+        return jsonify({"erro": "Avaliação não encontrada."}), 404
+    # Depois que o gestor conferiu, o registro e dele: so ele desfaz.
+    if status_avaliacao(rid, v, carregar_validacao_avaliacoes()) != "pendente":
+        return jsonify({"erro": "Essa avaliação já foi conferida pelo gestor e não pode ser excluída."}), 403
+    if mes_esta_fechado(v["data"]):
+        return jsonify({"erro": "Esse mês já foi fechado pelo gestor e não aceita mais alterações."}), 403
+    del vendas[rid]
+    salvar_vendas_vendedor(vendedor_id, vendas)
+    limpar_confirmacao(vendedor_id, v["data"][:7])
+    nome = carregar_vendedores().get(vendedor_id, {}).get("nome", vendedor_id)
+    registrar_acao(vendedor_id, nome, "excluiu avaliação", v.get("produto") or "", v.get("valor") or 0, v["data"])
+    return jsonify({"ok": True})
+
 @app.route("/api/vendas/lote", methods=["POST"])
 def api_criar_vendas_lote():
     vendedor_id = exigir_vendedor()
@@ -498,6 +564,8 @@ def api_remover_venda(venda_id):
     vendas = carregar_vendas_vendedor(vendedor_id)
     if venda_id not in vendas:
         return jsonify({"erro": "Venda não encontrada."}), 404
+    if vendas[venda_id].get("tipo", "venda") != "venda":
+        return jsonify({"erro": "Esse registro não é uma venda."}), 400
     if mes_esta_fechado(vendas[venda_id]["data"]):
         return jsonify({"erro": "Esse mês já foi fechado pelo gestor e não aceita mais alterações."}), 403
     mes_afetado = vendas[venda_id]["data"][:7]
@@ -998,6 +1066,7 @@ def api_admin_resumo():
             "comissao": calc["comissao"],
             "estorno": calc.get("estorno"),
             "total_bonus": calc["total_bonus"],
+            "bonus_detalhe": calc["bonus"],
             "qtd_vendas": len(lista_vendas),
             "vendas": lista_vendas,
             "bonus": lista_bonus,
@@ -1065,10 +1134,22 @@ def api_admin_resumo():
             dup_total, dup_qtd = 0.0, 0
             for v_ in vendas.values():
                 if (v_.get("tipo", "venda") == "venda" and de <= v_["data"] <= ate
-                        and str(v_.get("canal") or "").startswith("Mercado Livre")):
+                        and e_do_canal(v_, "Mercado Livre")):
                     dup_total += valor_liquido(v_)
                     dup_qtd += 1
             dup_total = round(dup_total, 2)
+
+            # Shopee, mesma regra do ML desde 04/09/2026, quando o time passou a
+            # lancar canal "Shopee" (ganha R$ 20 por venda): a venda ja esta na
+            # planilha do Seller Centre, entao sai da fatia da Shopee no
+            # consolidado e fica inteira no comercial. Sao duas lojas e a venda
+            # nao diz qual: desconta da primeira que tiver valor, o resto da outra.
+            dup_shp = {"total": 0.0, "qtd": 0}
+            for v_ in vendas.values():
+                if (v_.get("tipo", "venda") == "venda" and de <= v_["data"] <= ate
+                        and e_do_canal(v_, "Shopee")):
+                    dup_shp["total"] = round(dup_shp["total"] + valor_liquido(v_), 2)
+                    dup_shp["qtd"] += 1
 
             if qtd:
                 marketplaces.append({
@@ -1134,7 +1215,7 @@ def api_admin_resumo():
             sem_total, sem_qtd = 0.0, 0
             for v_ in vendas.values():
                 if (v_.get("tipo", "venda") == "venda" and de <= v_["data"] <= ate
-                        and str(v_.get("canal") or "").startswith("Site")):
+                        and e_do_canal(v_, "Site")):
                     achou = casar(v_)
                     if achou:
                         dup_st_total += achou[1]
@@ -1205,9 +1286,18 @@ def api_admin_resumo():
 
                 if qtd_s >= 0.5:
                     todos = {**serie_shp, **{k[:7]: 1 for k in serie_shp_dia}}
+                    soma_s, qtd_s = round(soma_s, 2), int(round(qtd_s))
+                    tira_t = min(soma_s, dup_shp["total"])
+                    tira_q = min(qtd_s, dup_shp["qtd"])
+                    dup_shp["total"] = round(dup_shp["total"] - tira_t, 2)
+                    dup_shp["qtd"] -= tira_q
                     marketplaces.append({
                         "id": id_, "nome": nome,
-                        "total": round(soma_s, 2), "qtd": int(round(qtd_s)),
+                        # `total`/`qtd` = liquido (consolidado); `bruto` = tudo que
+                        # a loja vendeu, que e o que o card mostra.
+                        "total": round(soma_s - tira_t, 2), "qtd": qtd_s - tira_q,
+                        "bruto": {"total": soma_s, "qtd": qtd_s},
+                        "descontado_comercial": {"total": round(tira_t, 2), "qtd": tira_q},
                         "rateado": rateado,
                         "cobre_periodo": min(todos) <= de[:7] and ate[:7] <= max(todos),
                     })
