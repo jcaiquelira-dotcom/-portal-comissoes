@@ -171,6 +171,35 @@
 
         <div class="sheet-acoes">
           <button class="btn btn-neutro btn-pequeno" id="toggleSheetBtn">Preencher em planilha</button>
+          <!-- Avaliacao do Google (04/09/2026): R$ 20 por avaliacao, pagos com
+               a comissao depois que o gestor confere. Atalho discreto, no mesmo
+               lugar em que se lanca a venda — pedido do gestor. -->
+          <button class="btn btn-neutro btn-pequeno" id="toggleAvalBtn">Avaliação do Google</button>
+        </div>
+        <div id="avalSection" style="display:none;margin-top:12px;">
+          <div class="form-grid">
+            <div>
+              <label class="campo-rotulo" for="avalDataInput">Data da avaliação</label>
+              <input type="date" id="avalDataInput">
+            </div>
+            <div>
+              <label class="campo-rotulo" for="avalClienteInput">Cliente (nome como está no Google)</label>
+              <input type="text" id="avalClienteInput" placeholder="Ex: Maria Souza">
+            </div>
+            <div>
+              <label class="campo-rotulo" for="avalObsInput">Observação (opcional)</label>
+              <input type="text" id="avalObsInput" placeholder="Peça, carro…">
+            </div>
+            <button class="btn btn-principal" id="avalAddBtn">Registrar</button>
+          </div>
+          <div class="status-msg" id="avalStatus"></div>
+          <p class="sheet-dica">R$ 20 por avaliação, pagos junto com a comissão depois que o gestor confere no Google.</p>
+          <table style="margin-top:8px;">
+            <thead><tr><th style="width:100px;">Data</th><th>Cliente</th><th style="width:130px;">Situação</th><th style="width:90px;">Valor</th><th style="width:90px;"></th></tr></thead>
+            <tbody id="avalBody"></tbody>
+          </table>
+          <div class="vazio" id="emptyAval" style="display:none;">Nenhuma avaliação registrada neste mês.</div>
+          <div class="aval-rodape" id="avalRodape"></div>
         </div>
         <div id="sheetSection" style="display:none;margin-top:12px;">
           <table class="sheet-tabela">
@@ -207,41 +236,6 @@
           </table>
         </div>
         <div class="vazio" id="emptyVendas" style="display:none;">Nenhuma venda lançada neste mês ainda.</div>
-      </div>
-
-      <!-- Avaliacoes do Google (04/09/2026): R$ 20 por avaliacao, pagos com
-           a comissao depois que o gestor confere no perfil do Google que ela
-           existe. O vendedor registra o nome do cliente como esta na
-           avaliacao — e por ele que o gestor procura. -->
-      <div class="card" style="margin-top:14px;">
-        <p class="card-titulo">Avaliações do Google</p>
-        <p class="sheet-dica" style="margin:-4px 0 12px;">Cliente seu deixou avaliação no Google?
-          Registre aqui com o nome que aparece na avaliação. Cada uma vale <b>R$ 20</b>,
-          pagos junto com a comissão depois que o gestor confere.</p>
-        <div class="form-grid">
-          <div>
-            <label class="campo-rotulo" for="avalDataInput">Data da avaliação</label>
-            <input type="date" id="avalDataInput">
-          </div>
-          <div>
-            <label class="campo-rotulo" for="avalClienteInput">Nome do cliente (como está no Google)</label>
-            <input type="text" id="avalClienteInput" placeholder="Ex: Maria Souza">
-          </div>
-          <div>
-            <label class="campo-rotulo" for="avalObsInput">Observação (opcional)</label>
-            <input type="text" id="avalObsInput" placeholder="Peça vendida, carro…">
-          </div>
-          <button class="btn btn-principal" id="avalAddBtn">Registrar avaliação</button>
-        </div>
-        <div class="status-msg" id="avalStatus"></div>
-        <div style="overflow-x:auto;margin-top:12px;">
-          <table>
-            <thead><tr><th style="width:100px;">Data</th><th>Cliente</th><th style="width:130px;">Situação</th><th style="width:90px;">Valor</th><th style="width:90px;"></th></tr></thead>
-            <tbody id="avalBody"></tbody>
-          </table>
-        </div>
-        <div class="vazio" id="emptyAval" style="display:none;">Nenhuma avaliação registrada neste mês.</div>
-        <div class="aval-rodape" id="avalRodape"></div>
       </div>
 
       <div class="confirm-row">

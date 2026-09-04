@@ -352,6 +352,14 @@ function renderAvaliacoes(d){
   rodape.textContent = partes.join(' · ');
 }
 
+document.getElementById('toggleAvalBtn').addEventListener('click', () => {
+  const sec = document.getElementById('avalSection');
+  const abrindo = sec.style.display === 'none';
+  sec.style.display = abrindo ? 'block' : 'none';
+  document.getElementById('toggleAvalBtn').textContent = abrindo ? 'Fechar avaliação' : 'Avaliação do Google';
+  if(abrindo) document.getElementById('avalClienteInput').focus();
+});
+
 document.getElementById('avalAddBtn').addEventListener('click', async () => {
   const btn = document.getElementById('avalAddBtn');
   if(btn.disabled) return;
