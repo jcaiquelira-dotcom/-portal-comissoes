@@ -676,6 +676,17 @@ def excedeu_tentativas_login(tipo: str, vendedor_id: str = None) -> bool:
 
 app = Flask(__name__, static_folder=str(STATIC_DIR), static_url_path="")
 
+# Tela e estilo sem cache "silencioso": o navegador revalida a cada abertura
+# (ETag/Last-Modified respondem 304 quando nada mudou, custa quase nada). Sem
+# isto, o gestor via a folha velha depois de um deploy ate dar Ctrl+F5 — o
+# arquivo novo estava no ar e o navegador insistia na copia antiga (04/09/2026).
+@app.after_request
+def _sem_cache_de_tela(resp):
+    caminho = request.path
+    if caminho.endswith((".css", ".js", ".html")) or caminho in ("/", "/follow-up", "/simulador"):
+        resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
 def mes_para_intervalo(mes: str) -> tuple[str, str]:
     # O "-31" e um teto TEXTUAL: em comparacao de string ISO ele cobre qualquer
     # mes, inclusive os de 30 dias. Nunca converta esse texto com
