@@ -128,7 +128,7 @@ function mostrarApp(){
   // Lista vazia e uma resposta: "nada liberado". Com `|| null` ela virava
   // "ainda nao sei" e a barra mostrava tudo — ou seja, tirar todo o acesso de
   // alguem na tela de Permissoes devolvia a ela o menu inteiro.
-  montarSidebar(secaoAtual, {aoSair: logout,
+  montarSidebar(AREA_DA_SECAO[secaoAtual] || 'meu_painel', {aoSair: logout,
                              areas: Array.isArray(eu.areas) ? eu.areas : null,
                              master: !!eu.master});
   preencherPerfil(eu.nome, eu.foto, eu.avatar);
@@ -1115,7 +1115,8 @@ function renderPainel(){
   const ret = d.retomada;
   const pendentes = ret ? ret.pendente : 0;
   renderTopoRetomada(ret);
-  marcarBadge('retomada', pendentes || 0);
+  // O contador e do follow-up DELE, nao do 'Follow-up do time' (gestor).
+  marcarBadge('meu_followup', pendentes || 0);
 
   renderEvolucao(d.evolucao);
   renderBarras('topProdutos', d.top_produtos, 'var(--accent)');
@@ -1658,6 +1659,12 @@ document.getElementById('mesInput').addEventListener('change', () => {
 const TITULOS = {painel: 'Painel', vendas: 'Minhas vendas', performance: 'Performance',
                  expedicao: 'Expedição',
                  atendimento: 'Esperando você'};
+// Secao desta tela -> chave da area no menu. O menu marca pela AREA
+// ('meu_painel'), a tela pensa em SECAO ('painel'): sem a ponte, 'painel'
+// acendia o 'Painel geral' do gestor e o 'Meu painel' nunca acendia.
+const AREA_DA_SECAO = {painel: 'meu_painel', vendas: 'minhas_vendas',
+                       atendimento: 'meu_atendimento', expedicao: 'expedicao',
+                       performance: 'minha_performance'};
 const SECOES_VENDEDOR = {painel: 'secaoPainel', vendas: 'secaoVendas',
                          expedicao: 'secaoExpedicao',
                          performance: 'secaoPerformance',
@@ -1696,7 +1703,7 @@ function irParaSecao(chave){
   atdAutoAtualizar(secaoAtual === 'atendimento');
   document.getElementById('tituloSecao').textContent = TITULOS[secaoAtual];
   document.querySelectorAll('.nav-item[data-nav]').forEach(a => {
-    a.classList.toggle('ativo', a.dataset.nav === secaoAtual);
+    a.classList.toggle('ativo', a.dataset.nav === (AREA_DA_SECAO[secaoAtual] || secaoAtual));
   });
   if(location.hash !== '#' + secaoAtual) history.replaceState({}, '', '#' + secaoAtual);
   fecharMenu();
