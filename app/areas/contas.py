@@ -1073,8 +1073,13 @@ def api_admin_resumo():
             if qtd:
                 marketplaces.append({
                     "id": "mercado_livre", "nome": "Mercado Livre",
+                    # `total`/`qtd` = o que entra no consolidado (sem o que o time ja
+                    # lancou); `bruto` = tudo que o ML pagou, que e o que os cards
+                    # mostram (regra do gestor, 04/09/2026: "quanto vendeu em cada
+                    # plataforma eu preciso saber, independente de vendedor").
                     "total": round(max(0.0, soma - dup_total), 2),
                     "qtd": max(0, qtd - dup_qtd),
+                    "bruto": {"total": soma, "qtd": qtd},
                     "descontado_comercial": {"total": dup_total, "qtd": dup_qtd},
                     # Serie comeca em serie_desde: periodo pedido antes disso vem
                     # incompleto, e a tela avisa em vez de fingir que ML nao vendia.

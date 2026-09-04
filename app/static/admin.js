@@ -771,24 +771,30 @@ async function carregarResumo(){
       + (correndo ? ' · período ainda correndo' : '') + '</span>';
   };
   const nomeCurto = {mercado_livre: 'ML', shopee: 'Shopee 1', shopee_2: 'Shopee 2', site: 'Site'};
+  // Cada plataforma aparece pelo BRUTO (tudo que ela vendeu) — regra do gestor,
+  // 04/09/2026. O que o time ja lancou e dito ao lado, entre parenteses, e so
+  // sai do numero grande do total, que continua sem duplicar.
+  const bruto = m => m.bruto || {total: m.total, qtd: m.qtd};
+  const jaNoTime = m => (m.descontado_comercial?.qtd
+    ? ` <small>(${fmtMoeda(m.descontado_comercial.total)} já no comercial)</small>` : '');
 
   document.getElementById('totalGeralValue').textContent = fmtMoeda(consTotal);
   sub('totalGeralValueSub', mkts.length
     ? `Comercial ${fmtMoeda(resumoAtual.total_geral)} · ` +
-      mkts.map(m => `${nomeCurto[m.id] || m.nome} ${fmtMoeda(m.total)}`).join(' · ')
+      mkts.map(m => `${nomeCurto[m.id] || m.nome} ${fmtMoeda(bruto(m).total)}${jaNoTime(m)}`).join(' · ')
     : '');
   document.getElementById('comissaoGeralValue').textContent = fmtMoeda(resumoAtual.comissao_geral);
   sub('comissaoGeralValueSub', mkts.length ? 'do time comercial' : '');
   document.getElementById('qtdVendasValue').textContent = consQtd;
   sub('qtdVendasValueSub', mkts.length
     ? `${resumoAtual.qtd_vendas_geral} comercial · ` +
-      mkts.map(m => `${m.qtd} ${nomeCurto[m.id] || m.nome}`).join(' · ')
+      mkts.map(m => `${bruto(m).qtd} ${nomeCurto[m.id] || m.nome}`).join(' · ')
     : '');
   document.getElementById('ticketMedioValue').textContent =
     fmtMoeda(consQtd ? consTotal / consQtd : 0);
   sub('ticketMedioValueSub', mkts.length
     ? `Comercial ${fmtMoeda(resumoAtual.ticket_medio)} · ` +
-      mkts.map(m => `${nomeCurto[m.id] || m.nome} ${fmtMoeda(m.qtd ? m.total / m.qtd : 0)}`).join(' · ')
+      mkts.map(m => `${nomeCurto[m.id] || m.nome} ${fmtMoeda(bruto(m).qtd ? bruto(m).total / bruto(m).qtd : 0)}`).join(' · ')
     : '');
   const incompleto = mkts.some(m => m.cobre_periodo === false);
   if(incompleto) sub('totalGeralValueSub',
@@ -815,8 +821,8 @@ async function carregarResumo(){
   sub('kpiNota', descontos.length
     ? descontos.map(m =>
         `${m.descontado_comercial.qtd} vendas do time pagas pelo checkout do ${m.nome}
-         (${fmtMoeda(m.descontado_comercial.total)}) contam uma vez só: ficam no comercial
-         e saem do número do ${nomeCurto[m.id] || m.nome}.`).join(' ')
+         (${fmtMoeda(m.descontado_comercial.total)}) contam uma vez só no total: ficam no comercial
+         e o ${nomeCurto[m.id] || m.nome} mostra o que vendeu por inteiro.`).join(' ')
     : '');
   if(ausentes.length){
     const el = document.getElementById('kpiNota');
