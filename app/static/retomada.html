@@ -661,6 +661,10 @@ document.getElementById('busca').addEventListener('input', render);
   const me = await fetch('/api/me');
   if (!me.ok){ location.href = '/'; return; }
   eu = await me.json();
+  // Remonta o menu com as areas de quem entrou: sem isso a barra mostrava
+  // tudo (inclusive a area do gestor) e marcava "Follow-up do time".
+  montarSidebar('meu_followup', {areas: Array.isArray(eu.areas) ? eu.areas : null,
+                                 master: !!eu.master});
   document.getElementById('nomeVendedor').textContent = eu.nome;
   preencherPerfil(eu.nome, eu.foto, eu.avatar);
 
@@ -687,7 +691,7 @@ document.getElementById('busca').addEventListener('input', render);
   render();
   document.getElementById('app').classList.remove('hidden');
 })();
-montarSidebar('retomada');
+montarSidebar('meu_followup');
 document.getElementById('menuAbrirBtn').innerHTML = ICONES.menu;
 document.getElementById('menuAbrirBtn').addEventListener('click', abrirMenu);
 </script>

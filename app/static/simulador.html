@@ -230,6 +230,9 @@ async function iniciar() {
     location.href = '/';
     return;
   }
+  // Menu pelas areas da pessoa, nao o menu inteiro.
+  montarSidebar('simulador', {areas: Array.isArray(eu.areas) ? eu.areas : null,
+                              master: !!eu.master});
   $('nomeVendedor').textContent = 'Olá, ' + eu.nome;
   preencherPerfil(eu.nome, eu.foto, eu.avatar);
   $('appArea').classList.remove('hidden');
