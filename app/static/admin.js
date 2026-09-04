@@ -2711,11 +2711,13 @@ async function rhCarregarFolha(mes){
   // Desconto ao lado de cada pagamento: valor + o que é (vale/adiantamento,
   // empréstimo, falta, outro). Abate daquele dia; o total da pessoa é líquido.
   const tipos = d.tipos_desconto || {};
-  const desconto = (l, dia) => `<td class="n rh-desc"><input type="number" min="0" step="0.01" inputmode="decimal"
+  // Valor em cima, motivo embaixo, na MESMA celula: lado a lado o motivo
+  // caia debaixo da coluna vizinha (meta bonus) e parecia ser dela.
+  const desconto = (l, dia) => `<td class="n rh-desc"><div class="rh-desc-wrap"><input type="number" min="0" step="0.01" inputmode="decimal"
       class="rh-folha-valor rh-folha-desc" data-rhfolha="${l.id}" data-campo="desc${dia}" value="${l['desc' + dia] ? l['desc' + dia] : ''}" placeholder="—" title="Desconto no dia ${dia}">
-      <select class="rh-folha-tipo" data-rhfolha="${l.id}" data-campo="tipo${dia}" title="O que é este desconto">
-        ${Object.entries(tipos).map(([v, r]) => `<option value="${v}"${l['tipo' + dia] === v ? ' selected' : ''}>${r || 'tipo…'}</option>`).join('')}
-      </select></td>`;
+      <select class="rh-folha-tipo" data-rhfolha="${l.id}" data-campo="tipo${dia}" title="Motivo do desconto">
+        ${Object.entries(tipos).map(([v, r]) => `<option value="${v}"${l['tipo' + dia] === v ? ' selected' : ''}>${r || 'motivo…'}</option>`).join('')}
+      </select></div></td>`;
   const t = d.totais;
   const kpi = (rot, num, sub) => `<div class="dp-kpi"><div class="rot">${rot}</div>
     <div class="num valor-money">${rhMoeda(num)}</div>${sub ? `<span class="dp-var neutro">${sub}</span>` : ''}</div>`;
@@ -2742,15 +2744,15 @@ async function rhCarregarFolha(mes){
         <tr><th rowspan="2">Pessoa</th><th rowspan="2" class="n">Salário na ficha</th>
           <th colspan="4" class="rh-grupo">Dia 05</th><th colspan="3" class="rh-grupo">Dia 10 · ref. ${refDia10}</th>
           <th colspan="2" class="rh-grupo">Dia 20</th><th rowspan="2">Observações</th><th rowspan="2" class="n">Total líquido</th></tr>
-        <tr><th class="n">vale</th><th class="n">bonificação</th><th class="n">VT</th><th>desconto</th>
-          <th class="n">meta bônus</th><th class="n">comissão</th><th>desconto</th>
-          <th class="n">restante</th><th>desconto</th></tr>
+        <tr><th class="n">vale</th><th class="n">bonificação</th><th class="n">VT</th><th class="n">desconto<br><small>e motivo</small></th>
+          <th class="n">meta bônus</th><th class="n">comissão</th><th class="n">desconto<br><small>e motivo</small></th>
+          <th class="n">restante</th><th class="n">desconto<br><small>e motivo</small></th></tr>
       </thead>
       <tbody>${linhas}</tbody></table></div>
     ${temSugestao ? `<div style="margin:8px 0;"><button class="btn btn-neutro btn-pequeno" id="rhFolhaSugerir">Preencher com o portal</button>
       <small style="color:var(--muted);margin-left:8px;">Bonificação e VT vêm da ficha da pessoa. O dia 10 paga o <b>mês anterior</b>: bônus = pagamentos marcados como Pago no Meta Bônus de ${d.referencia_dia10 ? d.referencia_dia10.slice(5) + '/' + d.referencia_dia10.slice(2,4) : 'mês anterior'}; comissão = aba Comissões do mesmo mês. Só entra em campo vazio; depois é só salvar.</small></div>` : ''}
     <div class="dp-aviso">${d.preenchidos ? '' : '<b>Mês em branco.</b> '}Tudo é editável, mês a mês — a folha muda
-      com impostos e descontos. O desconto ao lado de cada dia (vale/adiantamento, empréstimo, falta, outro)
+      com impostos e descontos. O desconto ao lado de cada dia, com o motivo (vale/adiantamento, empréstimo, falta, outro),
       é abatido daquele pagamento; o total da pessoa é líquido. Digite e clique em <b>Salvar mês</b>.
       Zero ou vazio em todos os valores apaga a linha do mês. Meses com dados:
       ${d.meses_com_dados.length ? d.meses_com_dados.map(m => `<a href="#" data-rhfolhames="${m}">${m.slice(5)}/${m.slice(2,4)}</a>`).join(' · ') : 'nenhum ainda'}.
