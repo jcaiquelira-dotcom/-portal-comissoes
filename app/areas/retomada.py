@@ -253,5 +253,23 @@ def api_admin_retomada_resumo():
             "pct_resposta": (round(100 * (resumo["respondeu"] + resumo["vendeu"])
                                    / trabalhados) if trabalhados else 0),
         })
+    # Historico mes a mes, pela data da MARCACAO (quando o vendedor trabalhou):
+    # quantos contatos, quantos responderam, fecharam, nao rolou — por pessoa.
+    # E a base pra ver se o follow-up esta rendendo, mes contra mes (gestor,
+    # 04/09/2026). Conta todas as marcacoes, inclusive de fila ja remontada.
+    import nucleo as N
+    historico = {}
+    for vendedor_id, vendedor in carregar_vendedores().items():
+        for m in carregar_status_retomada(vendedor_id).values():
+            mes_m, st = (m.get("em") or "")[:7], m.get("status")
+            if not mes_m or st not in N.STATUS_TRABALHADO:
+                continue
+            h = historico.setdefault(mes_m, {}).setdefault(vendedor_id, {
+                "nome": vendedor["nome"], "trabalhados": 0,
+                **{k: 0 for k in N.STATUS_TRABALHADO}})
+            h[st] += 1
+            h["trabalhados"] += 1
     return jsonify({"gerado_em": gerado_em, "periodo": periodo,
-                    "vendedores": linhas, "rotulos": STATUS_RETOMADA})
+                    "vendedores": linhas, "rotulos": STATUS_RETOMADA,
+                    "historico": [{"mes": mes_m, "vendedores": sorted(v.values(), key=lambda x: x["nome"])}
+                                  for mes_m, v in sorted(historico.items(), reverse=True)]})

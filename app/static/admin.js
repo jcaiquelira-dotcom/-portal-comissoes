@@ -246,6 +246,30 @@ async function carregarRetomada(){
       <td>${v.mes ? v.mes.respondeu : '—'}</td>
       <td>${v.mes ? v.mes.trabalhados : '—'}</td>
     </tr>`).join('');
+
+  // Historico mes a mes: um bloco por mes (mais recente primeiro), uma linha
+  // por vendedor e o total do time embaixo. Sem marcacao no mes, nao ha bloco:
+  // o follow-up comecou em 27/08/2026, entao o historico cresce a partir dai.
+  const hist = document.getElementById('retomadaHistorico');
+  if(hist){
+    const meses = dados.historico || [];
+    const pct = (n, d) => d ? Math.round(100 * n / d) + '%' : '—';
+    const linha = (v, forte) => `<tr${forte ? ' style="font-weight:600;border-top:2px solid var(--line)"' : ''}>
+        <td>${v.nome}</td><td>${v.trabalhados}</td><td>${v.chamei}</td><td>${v.respondeu}</td>
+        <td><b>${v.vendeu}</b></td><td>${v.perdido}</td><td>${pct(v.respondeu + v.vendeu, v.trabalhados)}</td>
+        <td>${pct(v.vendeu, v.trabalhados)}</td></tr>`;
+    hist.innerHTML = meses.length ? meses.map(m => {
+      const tot = m.vendedores.reduce((s, v) => ({nome: 'Time', trabalhados: s.trabalhados + v.trabalhados,
+        chamei: s.chamei + v.chamei, respondeu: s.respondeu + v.respondeu, vendeu: s.vendeu + v.vendeu,
+        perdido: s.perdido + v.perdido}), {nome: 'Time', trabalhados: 0, chamei: 0, respondeu: 0, vendeu: 0, perdido: 0});
+      return `<p class="mb-recentes-titulo" style="margin:12px 0 6px;">${MB_MESES[Number(m.mes.slice(5,7)) - 1]} de ${m.mes.slice(0,4)}</p>
+        <div class="tabela-rolante"><table>
+          <thead><tr><th>Vendedor</th><th>Contatos</th><th>Sem resposta</th><th>Responderam</th>
+            <th>Fecharam</th><th>Não rolou</th><th>Resposta</th><th>Fechamento</th></tr></thead>
+          <tbody>${m.vendedores.map(v => linha(v, false)).join('')}${m.vendedores.length > 1 ? linha(tot, true) : ''}</tbody>
+        </table></div>`;
+    }).join('') : '<div class="vazio">Nenhum cliente marcado ainda. O histórico aparece conforme o time chama.</div>';
+  }
 }
 
 let vendedoresParaMetas = [];

@@ -204,9 +204,21 @@
         <div class="vazio" id="emptyRetomada" style="display:none;">Nenhuma fila de follow-up foi sincronizada ainda.</div>
       </div>
 
+      <!-- Resultado mes a mes, por vendedor: quantos contatos, respostas,
+           fechamentos e "nao rolou". Pedido do gestor (04/09/2026) — e o que
+           ele quer ver aqui, no lugar das mensagens prontas. -->
       <div class="card" style="margin-top:14px;">
-        <p class="card-titulo">Mensagens prontas do follow-up</p>
-        <p class="fechamento-nota" style="margin:0 0 14px;">
+        <p class="card-titulo">Resultado do follow-up, mês a mês</p>
+        <p class="fechamento-nota" style="margin:0 0 12px;">Pela data em que o vendedor marcou o
+          cliente. Contatos = todos os clientes chamados no mês; resposta = responderam ou fecharam.</p>
+        <div id="retomadaHistorico"></div>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <details class="dobra">
+        <summary><span class="card-titulo">Mensagens prontas do follow-up</span>
+          <span class="dobra-conta">editar</span></summary>
+        <p class="fechamento-nota" style="margin:10px 0 14px;">
           Cada cliente da fila chega com a mensagem já escrita, escolhida pela
           situação da conversa. Aqui você muda o texto de cada situação — vale
           pra todos os vendedores, na hora, sem precisar de deploy.
@@ -219,6 +231,7 @@
           <button class="btn btn-neutro" id="restaurarModelos">Voltar ao texto padrão</button>
           <span id="modelosAviso" class="modelo-aviso"></span>
         </div>
+        </details>
       </div>
     </section>
 
