@@ -1386,11 +1386,21 @@ function audPeriodoPadrao(){
 }
 
 function audMarcarModo(){
-  const chave = document.getElementById('audModos');
-  chave.dataset.ativo = audModo;
-  chave.querySelectorAll('.seletor-opcao').forEach(b =>
-    b.classList.toggle('ativo', b.dataset.modo === audModo));
-  posicionarPilula(chave);
+  // Dois seletores (vendas | avaliacoes): o modo acende num deles e o outro
+  // esconde a pilula, senao ficariam dois botoes marcados ao mesmo tempo.
+  ['audModos', 'audModosAval'].forEach(id => {
+    const chave = document.getElementById(id);
+    if(!chave) return;
+    let temAtivo = false;
+    chave.querySelectorAll('.seletor-opcao').forEach(b => {
+      const on = b.dataset.modo === audModo;
+      b.classList.toggle('ativo', on);
+      temAtivo = temAtivo || on;
+    });
+    chave.dataset.ativo = temAtivo ? audModo : '';
+    if(temAtivo) posicionarPilula(chave);
+    else chave.querySelector('.seletor-pilula').style.setProperty('--pilula-w', '0px');
+  });
 }
 
 /* Encosta a pilula no botao ativo, medindo o botao. Se a secao ainda estiver
@@ -2341,9 +2351,13 @@ function renderMetaBonus(d){
       : '<div class="vazio">Nenhum veículo neste mês.</div>'}
   </div>`;
 
+  // Ordem (gestor, 04/09/2026): resultados em evidencia — anuncios, cadastros,
+  // carros — depois os veiculos do mes; comparativo, grafico e saldo embaixo.
+  // O lancamento do dia mora depois deste corpo, no HTML.
   document.getElementById('mbCorpo').innerHTML = `
     <div class="dp-kpis">${kpis}</div>
     ${setores}
+    ${cardVeiculos}
     ${cardComparativo}
     <div class="card" style="margin-bottom:14px;">
       <p class="card-titulo">Quem bateu o bônus, mês a mês</p>
@@ -2352,7 +2366,6 @@ function renderMetaBonus(d){
         bateram o bônus. Ninguém batendo nunca, ou todo mundo batendo sempre, são os dois jeitos de
         uma meta deixar de significar alguma coisa.</div>
     </div>
-    ${cardVeiculos}
     <div id="mbSaldos"></div>
     <div class="card" style="margin-top:14px;">
       <p class="card-titulo">De onde vêm estes números</p>

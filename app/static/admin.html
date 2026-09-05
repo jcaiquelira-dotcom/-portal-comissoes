@@ -436,10 +436,12 @@
         </div>
       </div>
 
+      <div id="mbCorpo"></div>
+
       <!-- Chamada do dia: a data em cima e um campo por pessoa. Preenche todo
            mundo de uma vez e salva num botao so — lancamento um-a-um era lento
            demais pra rotina de fim de dia. -->
-      <div class="card" style="margin-bottom:14px;">
+      <div class="card" style="margin-top:14px;">
         <details class="dobra" id="mbLancarDobra">
           <summary><span class="card-titulo">Lançar produção do dia</span>
             <span class="dobra-conta" id="mbLancarResumo"></span></summary>
@@ -476,7 +478,6 @@
         </details>
       </div>
 
-      <div id="mbCorpo"></div>
 
       <div id="mbPessoaFicha" class="rh-ficha oculto">
         <div class="rh-ficha-fundo" id="mbPessoaFundo"></div>
@@ -556,6 +557,11 @@
             title="O que ainda não passou por ninguém, do maior valor pro menor.">Pendentes</button>
           <button type="button" class="seletor-opcao" data-modo="total"
             title="A planilha inteira do mês, venda por venda.">Total</button>
+        </div>
+        <!-- Avaliacoes e outra conferencia (R$ 20 por avaliacao validada), nao
+             um jeito de olhar as vendas: fica num seletor proprio, ao lado. -->
+        <div class="seletor grande" id="audModosAval" data-ativo="">
+          <span class="seletor-pilula"></span>
           <button type="button" class="seletor-opcao" data-modo="avaliacoes"
             title="Avaliações do Google que o time registrou: confira no perfil e valide. Só a validada paga R$ 20.">Avaliações</button>
         </div>

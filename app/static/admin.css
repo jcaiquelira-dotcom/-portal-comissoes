@@ -574,7 +574,7 @@
     transition:color .18s;
   }
   .seletor-opcao.ativo{color:#fff;}
-  .aud-modo-faixa{display:flex;justify-content:flex-start;margin-bottom:12px;}
+  .aud-modo-faixa{display:flex;justify-content:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:12px;}
   .seletor.grande{border-width:2px;box-shadow:var(--sombra, 0 1px 4px rgba(0,0,0,.06));}
   .seletor.grande .seletor-opcao{font-size:14px;font-weight:700;padding:9px 26px;}
   /* Contraste de verdade: opcao inativa em texto pleno, nao em cinza apagado. */
