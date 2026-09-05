@@ -758,17 +758,17 @@ async function carregarResumo(){
        Nesse caso o badge vira neutro e diz isso com palavras. */
     if(correndo && v <= -99.95){
       const el2 = el;
-      el2.innerHTML = `<span class="dp-var neutro">período recém-começado</span>`
-        + `<span class="base">anterior: ${fmt(ant[chave])} · ${dm(ant.de)} a ${dm(ant.ate)}</span>`;
+      el2.innerHTML = `<span class="dp-var neutro">período recém-começado</span>`;
+      sub(id + 'Base', `Anterior: ${fmt(ant[chave])} · ${dm(ant.de)} a ${dm(ant.ate)}`);
       return;
     }
     const classe = Math.abs(v) < 0.05 ? 'neutro' : (v > 0 ? 'sobe' : 'desce');
     const seta = Math.abs(v) < 0.05 ? '' : (v > 0 ? '▲ ' : '▼ ');
     const texto = Math.abs(v) < 0.05 ? 'igual ao período anterior'
       : `${seta}${Math.abs(v).toLocaleString('pt-BR', {maximumFractionDigits: 1})}%`;
-    el.innerHTML = `<span class="dp-var ${classe}">${texto}</span>`
-      + `<span class="base">${fmt(ant[chave])} · ${dm(ant.de)} a ${dm(ant.ate)}`
-      + (correndo ? ' · período ainda correndo' : '') + '</span>';
+    el.innerHTML = `<span class="dp-var ${classe}">${texto}</span>`;
+    sub(id + 'Base', `Anterior: ${fmt(ant[chave])} · ${dm(ant.de)} a ${dm(ant.ate)}`
+      + (correndo ? ' · período ainda correndo' : ''));
   };
   const nomeCurto = {mercado_livre: 'ML', shopee: 'Shopee 1', shopee_2: 'Shopee 2', site: 'Site'};
   // Cada plataforma aparece pelo BRUTO (tudo que ela vendeu) — regra do gestor,
@@ -818,17 +818,22 @@ async function carregarResumo(){
   comparar('ticketMedioValue', 'ticket_medio', fmtMoeda);
 
   const descontos = mkts.filter(m => m.descontado_comercial?.qtd);
-  sub('kpiNota', descontos.length
+  sub('kpiNota', '');
+  sub('totalGeralValueNota', (descontos.length
     ? descontos.map(m =>
         `${m.descontado_comercial.qtd} vendas do time pagas pelo checkout do ${m.nome}
-         (${fmtMoeda(m.descontado_comercial.total)}) contam uma vez só no total: ficam no comercial
-         e o ${nomeCurto[m.id] || m.nome} mostra o que vendeu por inteiro.`).join(' ')
-    : '');
-  if(ausentes.length){
-    const el = document.getElementById('kpiNota');
-    el.innerHTML = (el.innerHTML ? el.innerHTML + ' ' : '') +
-      ausentes.map(x => `<b>${x.nome} não está neste total</b> — ${x.motivo}.`).join(' ');
-  }
+         (${fmtMoeda(m.descontado_comercial.total)}) contam uma vez só no total.`).join(' ')
+    : '') + (ausentes.length
+    ? ' ' + ausentes.map(x => `<b>${x.nome} não está neste total</b> — ${x.motivo}.`).join(' ')
+    : ''));
+  const avisoTotal = document.getElementById('totalGeralValue');
+  avisoTotal.classList.toggle('kpi-alerta', !!ausentes.length);
+  avisoTotal.title = ausentes.length ? ausentes.map(x => `${x.nome}: ${x.motivo}`).join(' · ') : '';
+  // O ⓘ so aparece no card que tem o que mostrar.
+  document.querySelectorAll('#kpiGrid .kpi').forEach(c => {
+    const det = c.querySelector('.kpi-detalhe');
+    c.classList.toggle('tem-detalhe', !!(det && det.textContent.trim()));
+  });
   document.getElementById('footTotal').textContent = fmtMoeda(resumoAtual.total_geral);
   document.getElementById('footComissao').textContent = fmtMoeda(resumoAtual.comissao_geral);
 
@@ -1208,13 +1213,25 @@ const ICG = {
 function montarKpisGestor(){
   const grid = document.getElementById('kpiGrid');
   if(grid.children.length) return;
+  grid.addEventListener('click', ev => {
+    const card = ev.target.closest('.kpi');
+    if(!card) return;
+    const det = card.querySelector('.kpi-detalhe');
+    if(det) det.classList.toggle('aberto');
+  });
   const cartao = (rotulo, id, icone, cor, money) =>
     '<div class="kpi"><div class="icone ' + cor + '">' + icone + '</div>'
-    + '<div class="rotulo">' + rotulo + '</div>'
+    + '<div class="rotulo">' + rotulo + ' <span class="detalhe-dica" title="Passe o mouse para ver a composição">ⓘ</span></div>'
     + '<div class="numero' + (money ? ' valor-money' : '') + '" id="' + id + '">'
     + (money ? 'R$ 0,00' : '0') + '</div>'
     + '<div class="kpi-var" id="' + id + 'Var"></div>'
-    + '<div class="kpi-quebra" id="' + id + 'Sub"></div></div>';
+    // O detalhe (quebra por canal, base da comparacao, notas) fica num balao
+    // que abre no hover ou no toque: o card mostra so o numero e a variacao.
+    // Pedido do gestor (04/09/2026): "esta poluindo, deixa em comentario".
+    + '<div class="kpi-detalhe" id="' + id + 'Det">'
+    + '<div class="kpi-quebra" id="' + id + 'Sub"></div>'
+    + '<div class="kpi-base" id="' + id + 'Base"></div>'
+    + '<div class="kpi-notinha" id="' + id + 'Nota"></div></div></div>';
   grid.innerHTML =
       cartao('Total vendido', 'totalGeralValue', ICG.dinheiro, 'i-laranja', true)
     + cartao('Comissões a receber', 'comissaoGeralValue', ICG.comissao, 'i-verde', true)
